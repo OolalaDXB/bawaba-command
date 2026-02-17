@@ -96,7 +96,7 @@ export default function SovereignRouting() {
               { jurisdiction: 'Morocco (ma)', backend: 'Inwi DC — Casablanca', compliance: 'Loi 09-08, CNDP' },
               { jurisdiction: 'KSA (sa)', backend: 'stc cloud — Riyadh', compliance: 'PDPL, SAMA circular' },
               { jurisdiction: 'UAE (ae)', backend: 'G42 — Abu Dhabi', compliance: 'DIFC DP Law, ADGM' },
-              { jurisdiction: 'EU (eu)', backend: 'Hetzner — Frankfurt', compliance: 'GDPR Art. 44-49' },
+              { jurisdiction: 'France (fr)', backend: 'OVHcloud — Paris', compliance: 'CNIL / RGPD' },
             ].map(rule => (
               <div key={rule.jurisdiction} className="py-3 border-b border-border last:border-0">
                 <div className="text-xs font-body font-medium text-foreground mb-1">{rule.jurisdiction}</div>

@@ -73,14 +73,14 @@ export const AGENTS: Agent[] = [
 ];
 
 export const TOOLS = ['database-query', 'git-read', 'git-write', 'jira-read', 'slack-send'];
-const JURISDICTIONS_CODES = ['ma', 'sa', 'ae', 'eu'];
-const JURISDICTION_NAMES: Record<string, string> = { ma: 'Morocco', sa: 'KSA', ae: 'UAE', eu: 'EU' };
+const JURISDICTIONS_CODES = ['ma', 'sa', 'ae', 'fr'];
+const JURISDICTION_NAMES: Record<string, string> = { ma: 'Morocco', sa: 'KSA', ae: 'UAE', fr: 'France' };
 
 export const JURISDICTIONS: JurisdictionData[] = [
   { code: 'ma', name: 'Morocco', regulation: 'Loi 09-08', callsToday: 892, piiTokenized: 3412, denials: 23, complianceScore: 97, lastAudit: '2025-02-10', nextReview: '2025-03-10', status: 'compliant' },
   { code: 'sa', name: 'KSA', regulation: 'PDPL / SAMA', callsToday: 1134, piiTokenized: 5621, denials: 41, complianceScore: 94, lastAudit: '2025-02-08', nextReview: '2025-03-08', status: 'compliant' },
   { code: 'ae', name: 'UAE', regulation: 'DIFC / ADGM', callsToday: 678, piiTokenized: 2190, denials: 12, complianceScore: 98, lastAudit: '2025-02-12', nextReview: '2025-03-12', status: 'compliant' },
-  { code: 'eu', name: 'EU', regulation: 'GDPR', callsToday: 445, piiTokenized: 1834, denials: 8, complianceScore: 91, lastAudit: '2025-02-05', nextReview: '2025-03-05', status: 'review' },
+  { code: 'fr', name: 'France', regulation: 'CNIL / RGPD', callsToday: 445, piiTokenized: 1834, denials: 8, complianceScore: 91, lastAudit: '2025-02-05', nextReview: '2025-03-05', status: 'review' },
 ];
 
 let eventCounter = 0;
@@ -154,7 +154,7 @@ export const PII_TYPES = [
 ];
 
 export const POLICY_RULES = [
-  { agent: 'claude-code', tool: 'database-query', action: 'allow', conditions: 'jurisdiction in [ma, sa, ae, eu]', matched: 892 },
+  { agent: 'claude-code', tool: 'database-query', action: 'allow', conditions: 'jurisdiction in [ma, sa, ae, fr]', matched: 892 },
   { agent: 'claude-code', tool: 'git-read', action: 'allow', conditions: 'always', matched: 1247 },
   { agent: 'chatgpt-agent', tool: 'database-query', action: 'deny', conditions: 'always', matched: 41 },
   { agent: 'chatgpt-agent', tool: 'git-write', action: 'deny', conditions: 'always', matched: 28 },
@@ -164,7 +164,7 @@ export const POLICY_RULES = [
 ];
 
 export function getJurisdictionFlag(code: string): string {
-  const flags: Record<string, string> = { ma: 'MA', sa: 'SA', ae: 'AE', eu: 'EU' };
+  const flags: Record<string, string> = { ma: 'MA', sa: 'SA', ae: 'AE', fr: 'FR' };
   return flags[code] || code.toUpperCase();
 }
 
@@ -176,5 +176,5 @@ export const ROUTING_NODES = [
   { id: 'casa', name: 'Casablanca', provider: 'Inwi DC', jurisdiction: 'ma', lat: 33.5, lng: -7.6, status: 'active' as const, calls: 892, latency: 12 },
   { id: 'riyadh', name: 'Riyadh', provider: 'stc cloud', jurisdiction: 'sa', lat: 24.7, lng: 46.7, status: 'active' as const, calls: 1134, latency: 18 },
   { id: 'abudhabi', name: 'Abu Dhabi', provider: 'G42', jurisdiction: 'ae', lat: 24.4, lng: 54.6, status: 'active' as const, calls: 678, latency: 15 },
-  { id: 'frankfurt', name: 'Frankfurt', provider: 'Hetzner', jurisdiction: 'eu', lat: 50.1, lng: 8.7, status: 'active' as const, calls: 445, latency: 8 },
+  { id: 'paris', name: 'Paris', provider: 'OVHcloud', jurisdiction: 'fr', lat: 48.9, lng: 2.3, status: 'active' as const, calls: 445, latency: 8 },
 ];

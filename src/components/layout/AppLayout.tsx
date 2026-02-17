@@ -79,7 +79,7 @@ export default function AppLayout() {
 
           <div className="flex items-center gap-4">
             <select className="text-xs bg-transparent border border-border rounded px-2 py-1 text-muted-foreground font-body">
-              <option>Al Maghrib Bank</option>
+              <option>Attijariwafa</option>
             </select>
             <div className="flex items-center gap-2">
               <div className="w-7 h-7 rounded-full bg-primary flex items-center justify-center text-primary-foreground text-xs font-medium">

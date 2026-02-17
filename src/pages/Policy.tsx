@@ -10,7 +10,7 @@ policies:
       - tool: database-query
         action: allow
         conditions:
-          jurisdiction: [ma, sa, ae, eu]
+          jurisdiction: [ma, sa, ae, fr]
           pii_mode: tokenize
       - tool: git-read
         action: allow
@@ -66,7 +66,7 @@ default allow := false
 allow {
     input.agent == "claude-code"
     input.tool in {"database-query", "git-read", "git-write", "jira-read"}
-    input.jurisdiction in {"ma", "sa", "ae", "eu"}
+    input.jurisdiction in {"ma", "sa", "ae", "fr"}
 }
 
 deny {
