@@ -56,7 +56,6 @@ function LiveFeed() {
     <div className="bg-background border border-border rounded-sm flex flex-col" style={{ height: 520 }}>
       <div className="flex items-center justify-between px-5 py-3 border-b border-border">
         <div className="flex items-center gap-3">
-          <span className="section-number">02</span>
           <div>
             <div className="text-sm font-body font-medium text-foreground">Live Activity Feed</div>
             <div className="text-xs text-muted-foreground">{events.length} events captured</div>
@@ -119,7 +118,6 @@ function JurisdictionPanel() {
   return (
     <div className="bg-background border border-border rounded-sm p-5">
       <div className="flex items-center gap-3 mb-5">
-        <span className="section-number">03</span>
         <div>
           <div className="text-sm font-body font-medium text-foreground">Data Planes</div>
           <div className="text-xs text-muted-foreground">Active jurisdictions</div>
@@ -226,7 +224,6 @@ export default function Dashboard() {
       {/* Section 01: Metrics */}
       <div>
         <div className="flex items-center gap-3 mb-4">
-          <span className="section-number">01</span>
           <div className="text-sm font-body font-medium text-foreground">Overview</div>
         </div>
         <div className="grid grid-cols-4 gap-4">
@@ -280,7 +277,6 @@ export default function Dashboard() {
       {/* Section 04: Compliance */}
       <div>
         <div className="flex items-center gap-3 mb-4">
-          <span className="section-number">04</span>
           <div className="text-sm font-body font-medium text-foreground">Compliance Status</div>
         </div>
         <ComplianceBar />

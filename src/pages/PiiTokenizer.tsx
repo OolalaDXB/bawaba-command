@@ -21,7 +21,6 @@ export default function PiiTokenizer() {
       {/* Stats */}
       <div>
         <div className="flex items-center gap-3 mb-4">
-          <span className="section-number">01</span>
           <div>
             <div className="text-sm font-body font-medium text-foreground">Tokenization Statistics</div>
             <div className="text-xs text-muted-foreground">PII detection and token vault</div>
@@ -84,7 +83,6 @@ export default function PiiTokenizer() {
       <div className="grid grid-cols-12 gap-6">
         <div className="col-span-8">
           <div className="flex items-center gap-3 mb-4">
-            <span className="section-number">02</span>
             <div className="text-sm font-body font-medium text-foreground">Live Tokenization Feed</div>
           </div>
           <div className="card-surface shadow-card overflow-hidden">
@@ -110,7 +108,6 @@ export default function PiiTokenizer() {
 
         <div className="col-span-4">
           <div className="flex items-center gap-3 mb-4">
-            <span className="section-number">03</span>
             <div className="text-sm font-body font-medium text-foreground">Vault Status</div>
           </div>
           <div className="card-surface shadow-card p-4 space-y-4">

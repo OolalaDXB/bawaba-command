@@ -5,7 +5,6 @@ function RoutingMap() {
   return (
     <div className="card-surface shadow-card p-6">
       <div className="flex items-center gap-3 mb-6">
-        <span className="section-number">01</span>
         <div>
           <div className="text-sm font-body font-medium text-foreground">Data Plane Map</div>
           <div className="text-xs text-muted-foreground">MENA + Europe sovereign infrastructure</div>
@@ -88,7 +87,6 @@ export default function SovereignRouting() {
         {/* Routing rules */}
         <div className="col-span-5">
           <div className="flex items-center gap-3 mb-4">
-            <span className="section-number">02</span>
             <div className="text-sm font-body font-medium text-foreground">Routing Rules</div>
           </div>
           <div className="card-surface shadow-card p-4 space-y-0">
@@ -125,7 +123,6 @@ export default function SovereignRouting() {
         {/* Routing proofs */}
         <div className="col-span-7">
           <div className="flex items-center gap-3 mb-4">
-            <span className="section-number">03</span>
             <div className="text-sm font-body font-medium text-foreground">Routing Proofs</div>
           </div>
           <div className="card-surface shadow-card overflow-hidden">
