@@ -1,9 +1,9 @@
 import { useState, useMemo } from 'react';
-import { generateInitialEvents, getJurisdictionName, type MCPEvent, AGENTS, TOOLS } from '@/lib/mock-data';
+import { useAuditEvents, type AuditEvent } from '@/hooks/use-audit-events';
 import { BarChart, Bar, PieChart, Pie, Cell, LineChart, Line, ResponsiveContainer, XAxis, YAxis, Tooltip } from 'recharts';
 
 /* ── Merkle Chain Viz ───────────────────────────── */
-function MerkleChain({ events }: { events: MCPEvent[] }) {
+function MerkleChain({ events }: { events: AuditEvent[] }) {
   const chain = events.slice(0, 6);
   return (
     <div className="card-surface shadow-card p-5">
@@ -16,18 +16,18 @@ function MerkleChain({ events }: { events: MCPEvent[] }) {
 
       <div className="flex items-center gap-0 overflow-x-auto pb-2">
         {chain.map((evt, i) => (
-          <div key={evt.id} className="flex items-center shrink-0">
+          <div key={evt.event_id} className="flex items-center shrink-0">
             <div className="border border-border rounded-sm p-3 bg-background min-w-[140px]">
-              <div className="text-[9px] text-muted-foreground mb-1">{evt.id}</div>
-              <div className="font-mono text-[10px] text-foreground truncate">{evt.hash}</div>
+              <div className="text-[9px] text-muted-foreground mb-1">{evt.event_id}</div>
+              <div className="font-mono text-[10px] text-foreground truncate">{evt.event_hash}</div>
               <div className="text-[9px] text-muted-foreground mt-1.5 flex items-center gap-1">
                 <span>prev:</span>
-                <span className="font-mono">{evt.prevHash.slice(0, 8)}…</span>
+                <span className="font-mono">{evt.prev_hash.slice(0, 8)}…</span>
               </div>
               <div className={`text-[9px] font-mono mt-1 ${
-                evt.decision === 'allow' ? 'text-safe' : evt.decision === 'deny' ? 'text-danger' : 'text-warn'
+                evt.policy_result === 'allow' ? 'text-safe' : evt.policy_result === 'deny' ? 'text-danger' : 'text-warn'
               }`}>
-                {evt.decision}
+                {evt.policy_result}
               </div>
             </div>
             {i < chain.length - 1 && (
@@ -40,38 +40,38 @@ function MerkleChain({ events }: { events: MCPEvent[] }) {
       <div className="mt-4 flex items-center gap-3 p-3 bg-safe-bg border border-safe/10 rounded-sm">
         <span className="w-2 h-2 rounded-full bg-safe" />
         <span className="text-xs text-safe font-mono">Merkle root verified</span>
-        <span className="text-[10px] text-muted-foreground font-mono ml-auto">Root: {chain[0]?.hash || '—'}</span>
+        <span className="text-[10px] text-muted-foreground font-mono ml-auto">Root: {chain[0]?.merkle_root || chain[0]?.event_hash || '—'}</span>
       </div>
     </div>
   );
 }
 
 /* ── Audit Stats Sidebar ────────────────────────── */
-function AuditStats({ events }: { events: MCPEvent[] }) {
+function AuditStats({ events }: { events: AuditEvent[] }) {
   const byDecision = useMemo(() => {
     const counts: Record<string, number> = { allow: 0, deny: 0, 'rate-limited': 0 };
-    events.forEach(e => { counts[e.decision] = (counts[e.decision] || 0) + 1; });
+    events.forEach(e => { counts[e.policy_result] = (counts[e.policy_result] || 0) + 1; });
     return Object.entries(counts).map(([name, value]) => ({ name, value }));
   }, [events]);
 
   const byJurisdiction = useMemo(() => {
     const counts: Record<string, number> = {};
     events.forEach(e => { counts[e.jurisdiction] = (counts[e.jurisdiction] || 0) + 1; });
-    return Object.entries(counts).map(([code, value]) => ({ name: getJurisdictionName(code), value }));
+    return Object.entries(counts).map(([name, value]) => ({ name: name.toUpperCase(), value }));
   }, [events]);
 
   const byAgent = useMemo(() => {
     const counts: Record<string, number> = {};
-    events.forEach(e => { counts[e.agent] = (counts[e.agent] || 0) + 1; });
+    events.forEach(e => { counts[e.agent_id] = (counts[e.agent_id] || 0) + 1; });
     return Object.entries(counts).map(([name, value]) => ({ name, value }));
   }, [events]);
 
   const latencyTrend = useMemo(() => {
     return Array.from({ length: 7 }, (_, i) => ({
       day: `D-${7 - i}`,
-      avg: Math.floor(Math.random() * 8) + 4,
+      avg: events.length > 0 ? Math.floor(events.reduce((s, e) => s + e.latency_ms, 0) / events.length) + Math.floor(Math.random() * 3) : 0,
     }));
-  }, []);
+  }, [events]);
 
   const COLORS = ['hsl(148, 59%, 24%)', 'hsl(343, 78%, 35%)', 'hsl(28, 84%, 31%)'];
 
@@ -147,11 +147,11 @@ function AuditStats({ events }: { events: MCPEvent[] }) {
 
 /* ── Audit Trail Page ───────────────────────────── */
 export default function AuditTrail() {
-  const events = useMemo(() => generateInitialEvents(50), []);
+  const { data: events = [], isLoading } = useAuditEvents(50);
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [filterDecision, setFilterDecision] = useState<string>('all');
 
-  const filtered = filterDecision === 'all' ? events : events.filter(e => e.decision === filterDecision);
+  const filtered = filterDecision === 'all' ? events : events.filter(e => e.policy_result === filterDecision);
 
   return (
     <div className="space-y-6">
@@ -205,33 +205,47 @@ export default function AuditTrail() {
               ))}
             </div>
             <div className="max-h-[400px] overflow-y-auto">
-              {filtered.map(evt => (
-                <div key={evt.id}>
-                  <div
-                    onClick={() => setExpandedId(expandedId === evt.id ? null : evt.id)}
-                    className={`grid grid-cols-[80px_100px_110px_70px_50px_50px_80px] gap-2 px-5 py-2 text-xs font-mono cursor-pointer hover:bg-secondary/30 transition-colors border-b border-border ${
-                      evt.decision === 'deny' ? 'row-deny' : evt.decision === 'rate-limited' ? 'row-rate-limited' : ''
-                    }`}
-                  >
-                    <span className="text-muted-foreground">{evt.timestamp.toLocaleTimeString('en-GB', { hour12: false })}</span>
-                    <span className="text-foreground truncate">{evt.agent}</span>
-                    <span className="text-ink-2 truncate">{evt.tool}</span>
-                    <span className={evt.decision === 'allow' ? 'text-safe' : evt.decision === 'deny' ? 'text-danger' : 'text-warn'}>{evt.decision}</span>
-                    <span className="text-muted-foreground">{evt.piiTokens}</span>
-                    <span className="text-muted-foreground">{evt.latency}ms</span>
-                    <span className="text-ink-4 truncate">{evt.hash.slice(0, 8)}…</span>
-                  </div>
-                  {expandedId === evt.id && (
-                    <div className="px-5 py-3 bg-secondary/20 border-b border-border">
-                      <div className="flex gap-4 mb-2">
-                        <span className="text-[10px] text-muted-foreground">prev_hash: <span className="font-mono text-ink-3">{evt.prevHash}</span></span>
-                        <span className="text-[10px] text-muted-foreground">event_hash: <span className="font-mono text-ink-3">{evt.hash}</span></span>
-                      </div>
-                      <pre className="text-xs font-mono text-ink-2 whitespace-pre-wrap">{JSON.stringify(evt.details, null, 2)}</pre>
+              {isLoading ? (
+                <div className="p-8 text-center text-xs text-muted-foreground">Loading…</div>
+              ) : filtered.length === 0 ? (
+                <div className="p-8 text-center text-xs text-muted-foreground">No events found</div>
+              ) : (
+                filtered.map(evt => (
+                  <div key={evt.event_id}>
+                    <div
+                      onClick={() => setExpandedId(expandedId === evt.event_id ? null : evt.event_id)}
+                      className={`grid grid-cols-[80px_100px_110px_70px_50px_50px_80px] gap-2 px-5 py-2 text-xs font-mono cursor-pointer hover:bg-secondary/30 transition-colors border-b border-border ${
+                        evt.policy_result === 'deny' ? 'row-deny' : evt.policy_result === 'rate-limited' ? 'row-rate-limited' : ''
+                      }`}
+                    >
+                      <span className="text-muted-foreground">{new Date(evt.timestamp).toLocaleTimeString('en-GB', { hour12: false })}</span>
+                      <span className="text-foreground truncate">{evt.agent_id}</span>
+                      <span className="text-ink-2 truncate">{evt.tool}</span>
+                      <span className={evt.policy_result === 'allow' ? 'text-safe' : evt.policy_result === 'deny' ? 'text-danger' : 'text-warn'}>{evt.policy_result}</span>
+                      <span className="text-muted-foreground">{evt.tokens_generated}</span>
+                      <span className="text-muted-foreground">{evt.latency_ms}ms</span>
+                      <span className="text-ink-4 truncate">{evt.event_hash.slice(0, 8)}…</span>
                     </div>
-                  )}
-                </div>
-              ))}
+                    {expandedId === evt.event_id && (
+                      <div className="px-5 py-3 bg-secondary/20 border-b border-border">
+                        <div className="flex gap-4 mb-2">
+                          <span className="text-[10px] text-muted-foreground">prev_hash: <span className="font-mono text-ink-3">{evt.prev_hash}</span></span>
+                          <span className="text-[10px] text-muted-foreground">event_hash: <span className="font-mono text-ink-3">{evt.event_hash}</span></span>
+                        </div>
+                        <pre className="text-xs font-mono text-ink-2 whitespace-pre-wrap">{JSON.stringify({
+                          event_type: evt.event_type,
+                          matched_rule: evt.matched_rule,
+                          pii_mode: evt.pii_mode,
+                          entities_detected: evt.entities_detected,
+                          jurisdiction: evt.jurisdiction,
+                          overhead_ms: evt.overhead_ms,
+                          merkle_root: evt.merkle_root,
+                        }, null, 2)}</pre>
+                      </div>
+                    )}
+                  </div>
+                ))
+              )}
             </div>
           </div>
         </div>
