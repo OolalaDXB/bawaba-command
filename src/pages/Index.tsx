@@ -1,15 +1,18 @@
 import { useState, useMemo } from 'react';
-import { Area, AreaChart, ResponsiveContainer } from 'recharts';
+import { Area, AreaChart, ReferenceLine, ResponsiveContainer } from 'recharts';
 import { useLiveFeed } from '@/hooks/use-live-feed';
 import { AGENTS, JURISDICTIONS, generateSparklineData, getJurisdictionFlag } from '@/lib/mock-data';
 
 /* ── Sparkline ──────────────────────────────────── */
 function Sparkline({ data, color }: { data: number[]; color: string }) {
+  const min = Math.min(...data);
+  const base = Math.max(0, min - (Math.max(...data) - min) * 0.1);
   const chartData = data.map((v, i) => ({ i, v }));
   return (
-    <div className="h-8 w-20">
+    <div className="h-10 w-24">
       <ResponsiveContainer width="100%" height="100%">
-        <AreaChart data={chartData} margin={{ top: 0, right: 0, left: 0, bottom: 0 }}>
+        <AreaChart data={chartData} margin={{ top: 2, right: 0, left: 0, bottom: 0 }}>
+          <ReferenceLine y={base} stroke="hsl(var(--border))" strokeWidth={1} />
           <Area type="monotone" dataKey="v" stroke={color} strokeWidth={1.5} fill="none" dot={false} />
         </AreaChart>
       </ResponsiveContainer>
@@ -47,7 +50,7 @@ function LiveFeed() {
   const [expandedId, setExpandedId] = useState<string | null>(null);
 
   return (
-    <div className="card-surface shadow-card flex flex-col" style={{ height: 520 }}>
+    <div className="bg-background border border-border rounded-sm flex flex-col" style={{ height: 520 }}>
       <div className="flex items-center justify-between px-5 py-3 border-b border-border">
         <div className="flex items-center gap-3">
           <span className="section-number">02</span>
@@ -111,7 +114,7 @@ function LiveFeed() {
 /* ── Jurisdiction Panel ─────────────────────────── */
 function JurisdictionPanel() {
   return (
-    <div className="card-surface shadow-card p-5">
+    <div className="bg-background border border-border rounded-sm p-5">
       <div className="flex items-center gap-3 mb-5">
         <span className="section-number">03</span>
         <div>
@@ -174,7 +177,7 @@ function ComplianceBar() {
   return (
     <div className="grid grid-cols-4 gap-4">
       {JURISDICTIONS.map(j => (
-        <div key={j.code} className="card-surface shadow-card p-4">
+        <div key={j.code} className="bg-background border border-border rounded-sm p-4">
           <div className="flex items-center justify-between mb-3">
             <span className="text-xs font-body font-medium text-foreground">{j.name}</span>
             <span className={`text-[10px] font-mono px-2 py-0.5 rounded-sm ${
