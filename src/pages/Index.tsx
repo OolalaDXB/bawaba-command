@@ -1,18 +1,21 @@
 import { useState, useMemo } from 'react';
-import { Area, AreaChart, ReferenceLine, ResponsiveContainer } from 'recharts';
+import { Area, AreaChart, CartesianGrid, ReferenceLine, ResponsiveContainer, YAxis } from 'recharts';
 import { useLiveFeed } from '@/hooks/use-live-feed';
 import { AGENTS, JURISDICTIONS, generateSparklineData, getJurisdictionFlag } from '@/lib/mock-data';
 
 /* ── Sparkline ──────────────────────────────────── */
 function Sparkline({ data, color }: { data: number[]; color: string }) {
-  const min = Math.min(...data);
-  const base = Math.max(0, min - (Math.max(...data) - min) * 0.1);
   const chartData = data.map((v, i) => ({ i, v }));
+  const min = Math.min(...data);
+  const max = Math.max(...data);
+  const padding = (max - min) * 0.15;
   return (
     <div className="h-10 w-24">
       <ResponsiveContainer width="100%" height="100%">
         <AreaChart data={chartData} margin={{ top: 2, right: 0, left: 0, bottom: 0 }}>
-          <ReferenceLine y={base} stroke="hsl(var(--border))" strokeWidth={1} />
+          <YAxis domain={[Math.max(0, min - padding), max + padding]} hide />
+          <CartesianGrid horizontal verticalPoints={[]} stroke="hsl(var(--border))" strokeDasharray="3 3" horizontalPoints={[0]} />
+          <ReferenceLine y={0} stroke="hsl(var(--muted-foreground))" strokeWidth={0.5} />
           <Area type="monotone" dataKey="v" stroke={color} strokeWidth={1.5} fill="none" dot={false} />
         </AreaChart>
       </ResponsiveContainer>
@@ -30,7 +33,7 @@ function MetricCard({ label, value, sparkData, sparkColor, subtitle }: {
       <div className="flex items-end justify-between">
         <div>
           <div className="text-2xl font-mono font-light tracking-tight text-foreground">{value}</div>
-          {subtitle && <div className="mt-1 text-xs text-muted-foreground">{subtitle}</div>}
+          {subtitle && <div className="mt-1 text-xs">{subtitle}</div>}
         </div>
         <Sparkline data={sparkData} color={sparkColor} />
       </div>
@@ -232,7 +235,7 @@ export default function Dashboard() {
             value="3,149"
             sparkData={sparkCalls}
             sparkColor="hsl(30, 24%, 44%)"
-            subtitle="+12.4% vs yesterday"
+            subtitle={<span className="text-safe">+12.4% vs yesterday</span>}
           />
           <MetricCard
             label="PII Entities Tokenized"
@@ -246,7 +249,7 @@ export default function Dashboard() {
             value="84"
             sparkData={sparkDenials}
             sparkColor="hsl(343, 78%, 35%)"
-            subtitle="-6.7% vs yesterday"
+            subtitle={<span className="text-danger">-6.7% vs yesterday</span>}
           />
           <MetricCard
             label="Active Agents"
