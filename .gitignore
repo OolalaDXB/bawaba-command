@@ -22,3 +22,19 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# Go
+bin/
+*.exe
+
+# Rust
+rust/tokenizer/target/
+
+# Keys (never commit real keys)
+keys/*.key
+keys/*.pem
+!keys/.gitkeep
+
+# Environment
+.env
+.env.local
