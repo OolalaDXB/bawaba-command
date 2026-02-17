@@ -1,11 +1,11 @@
 # Stage 1: Build Rust tokenizer
-FROM rust:1.82-bookworm AS rust-builder
+FROM rust:1.85-bookworm AS rust-builder
 WORKDIR /build/rust/tokenizer
 COPY rust/tokenizer/ .
 RUN cargo build --release
 
 # Stage 2: Build Go gateway
-FROM golang:1.22-bookworm AS go-builder
+FROM golang:1.24-bookworm AS go-builder
 WORKDIR /build
 
 # Install Rust library from previous stage
