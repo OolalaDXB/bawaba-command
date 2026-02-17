@@ -1,5 +1,6 @@
 import { Outlet, NavLink, useLocation } from 'react-router-dom';
-import { BarChart3, Shield, Scale, ScrollText, Fingerprint, Globe, Settings } from 'lucide-react';
+import { BarChart3, Shield, Scale, ScrollText, Fingerprint, Globe, Settings, Sun, Moon } from 'lucide-react';
+import { useTheme } from '@/hooks/use-theme';
 
 const navItems = [
   { path: '/', label: 'Dashboard', icon: BarChart3 },
@@ -12,6 +13,7 @@ const navItems = [
 
 export default function AppLayout() {
   const location = useLocation();
+  const { theme, toggle } = useTheme();
   const currentPage = navItems.find(item =>
     item.path === '/' ? location.pathname === '/' : location.pathname.startsWith(item.path)
   )?.label || 'Dashboard';
@@ -81,6 +83,13 @@ export default function AppLayout() {
             <select className="text-xs bg-transparent border border-border rounded px-2 py-1 text-muted-foreground font-body">
               <option>Attijariwafa</option>
             </select>
+            <button
+              onClick={toggle}
+              className="p-1.5 rounded hover:bg-secondary transition-colors text-muted-foreground hover:text-foreground"
+              aria-label="Toggle dark mode"
+            >
+              {theme === 'light' ? <Moon className="h-4 w-4" strokeWidth={1.5} /> : <Sun className="h-4 w-4" strokeWidth={1.5} />}
+            </button>
             <div className="flex items-center gap-2">
               <div className="w-7 h-7 rounded-full bg-primary flex items-center justify-center text-primary-foreground text-xs font-medium">
                 MT
