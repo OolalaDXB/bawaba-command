@@ -1,0 +1,46 @@
+version: "3.8"
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: bawaba-postgres
+    environment:
+      POSTGRES_USER: bawaba
+      POSTGRES_PASSWORD: bawaba_secret
+      POSTGRES_DB: bawaba
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./migrations/001_audit_schema.sql:/docker-entrypoint-initdb.d/001_audit_schema.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U bawaba -d bawaba"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  gateway:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: bawaba-gateway
+    depends_on:
+      postgres:
+        condition: service_healthy
+    ports:
+      - "8080:8080"
+      - "9090:9090"
+    environment:
+      BAWABA_CONFIG_PATH: /app/configs/bawaba.yaml
+      BAWABA_DB_URL: postgres://bawaba:bawaba_secret@postgres:5432/bawaba?sslmode=disable
+      BAWABA_SIGNING_KEY_PATH: /app/keys/ed25519.key
+      BAWABA_LOG_LEVEL: info
+      BAWABA_PORT: "8080"
+      BAWABA_METRICS_PORT: "9090"
+      BAWABA_AGENT_KEY_test-agent: test-key-12345
+    volumes:
+      - gateway_keys:/app/keys
+
+volumes:
+  postgres_data:
+  gateway_keys:

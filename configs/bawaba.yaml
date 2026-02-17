@@ -1,0 +1,70 @@
+server:
+  port: 8080
+  metrics_port: 9090
+  log_level: info
+
+database:
+  url: postgres://bawaba:bawaba_secret@localhost:5432/bawaba?sslmode=disable
+  max_open_conns: 25
+  max_idle_conns: 5
+  conn_max_lifetime: 5m
+
+signing:
+  key_path: ./keys/ed25519.key
+
+agents:
+  test-agent:
+    auth: api_key
+    allowed_tools:
+      - echo
+      - time
+    denied_tools: []
+    pii_mode: tokenize
+    rate_limit: 1000/hour
+    max_results: 50
+
+  claude-code:
+    auth: api_key
+    allowed_tools:
+      - database-query
+      - git-read
+      - jira-read
+    denied_tools:
+      - database-write
+      - git-push
+    pii_mode: tokenize
+    rate_limit: 1000/hour
+    max_results: 50
+
+  cursor-ide:
+    auth: api_key
+    allowed_tools:
+      - git-read
+      - git-write
+    denied_tools: []
+    pii_mode: mask
+    rate_limit: 500/hour
+    max_results: 100
+
+routing:
+  default_backend: localhost
+  rules:
+    - jurisdiction: ma
+      backend: inwi-dc-casa
+      compliance: [loi-09-08, cndp]
+    - jurisdiction: sa
+      backend: stc-cloud-riyadh
+      compliance: [pdpl, sama-scf]
+    - jurisdiction: ae
+      backend: g42-abu-dhabi
+      compliance: [fpdl, difc, adgm]
+    - jurisdiction: eu
+      backend: hetzner-frankfurt
+      compliance: [gdpr, dora]
+
+audit:
+  merkle_window_hours: 24
+  retention_days: 2555
+  siem_export:
+    format: jsonlines
+    endpoint: ""
