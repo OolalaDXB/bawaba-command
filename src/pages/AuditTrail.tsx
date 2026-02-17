@@ -8,7 +8,6 @@ function MerkleChain({ events }: { events: MCPEvent[] }) {
   return (
     <div className="card-surface shadow-card p-5">
       <div className="flex items-center gap-3 mb-4">
-        <span className="section-number">02</span>
         <div>
           <div className="text-sm font-body font-medium text-foreground">Hash Chain</div>
           <div className="text-xs text-muted-foreground">Tamper-evident audit trail</div>
@@ -159,7 +158,6 @@ export default function AuditTrail() {
       {/* Export controls */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
-          <span className="section-number">01</span>
           <div>
             <div className="text-sm font-body font-medium text-foreground">Audit Explorer</div>
             <div className="text-xs text-muted-foreground">{events.length} events · Tamper-evident chain</div>

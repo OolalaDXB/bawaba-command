@@ -98,7 +98,6 @@ export default function Agents() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
-          <span className="section-number">01</span>
           <div>
             <div className="text-sm font-body font-medium text-foreground">Agent Registry</div>
             <div className="text-xs text-muted-foreground">{AGENTS.length} agents connected</div>

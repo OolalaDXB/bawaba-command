@@ -94,7 +94,6 @@ export default function Policy() {
   return (
     <div className="space-y-6">
       <div className="flex items-center gap-3">
-        <span className="section-number">01</span>
         <div>
           <div className="text-sm font-body font-medium text-foreground">Policy Configuration</div>
           <div className="text-xs text-muted-foreground">{POLICY_RULES.length} active rules</div>
@@ -152,7 +151,6 @@ export default function Policy() {
       {/* Evaluation log */}
       <div>
         <div className="flex items-center gap-3 mb-4">
-          <span className="section-number">02</span>
           <div className="text-sm font-body font-medium text-foreground">Policy Evaluation Log</div>
         </div>
         <div className="card-surface shadow-card overflow-hidden">
