@@ -1,6 +1,6 @@
 import { useState } from 'react';
+import { useAuditEvents } from '@/hooks/use-audit-events';
 import { POLICY_RULES } from '@/lib/mock-data';
-import { useLiveFeed } from '@/hooks/use-live-feed';
 
 const POLICY_YAML = `# bawaba.yaml — Policy Configuration
 version: "1.0"
@@ -88,7 +88,7 @@ deny {
 }`;
 
 export default function Policy() {
-  const { events } = useLiveFeed(20);
+  const { data: events = [] } = useAuditEvents(20);
   const [activeTab, setActiveTab] = useState<'yaml' | 'rego'>('yaml');
 
   return (
@@ -148,30 +148,34 @@ export default function Policy() {
         </div>
       </div>
 
-      {/* Evaluation log */}
+      {/* Evaluation log from Supabase */}
       <div>
         <div className="flex items-center gap-3 mb-4">
           <div className="text-sm font-body font-medium text-foreground">Policy Evaluation Log</div>
         </div>
         <div className="card-surface shadow-card overflow-hidden">
           <div className="grid grid-cols-[80px_100px_110px_70px_1fr_60px] gap-2 px-5 py-2 border-b border-border">
-            {['Time', 'Agent', 'Tool', 'Result', 'Matched Rule', 'Eval'].map(h => (
+            {['Time', 'Agent', 'Tool', 'Result', 'Matched Rule', 'Lat.'].map(h => (
               <span key={h} className="table-header">{h}</span>
             ))}
           </div>
           <div className="max-h-[300px] overflow-y-auto">
-            {events.slice(0, 15).map(evt => (
-              <div key={evt.id} className="grid grid-cols-[80px_100px_110px_70px_1fr_60px] gap-2 px-5 py-2 text-xs font-mono border-b border-border">
-                <span className="text-muted-foreground">{evt.timestamp.toLocaleTimeString('en-GB', { hour12: false })}</span>
-                <span className="text-foreground truncate">{evt.agent}</span>
-                <span className="text-ink-2 truncate">{evt.tool}</span>
-                <span className={evt.decision === 'allow' ? 'text-safe' : evt.decision === 'deny' ? 'text-danger' : 'text-warn'}>
-                  {evt.decision}
-                </span>
-                <span className="text-ink-3 truncate">{String(evt.details.policy_matched)}</span>
-                <span className="text-muted-foreground">{String(evt.details.evaluation_time_ms)}ms</span>
-              </div>
-            ))}
+            {events.length === 0 ? (
+              <div className="p-8 text-center text-xs text-muted-foreground">No evaluation events yet</div>
+            ) : (
+              events.slice(0, 15).map(evt => (
+                <div key={evt.event_id} className="grid grid-cols-[80px_100px_110px_70px_1fr_60px] gap-2 px-5 py-2 text-xs font-mono border-b border-border">
+                  <span className="text-muted-foreground">{new Date(evt.timestamp).toLocaleTimeString('en-GB', { hour12: false })}</span>
+                  <span className="text-foreground truncate">{evt.agent_id}</span>
+                  <span className="text-ink-2 truncate">{evt.tool}</span>
+                  <span className={evt.policy_result === 'allow' ? 'text-safe' : evt.policy_result === 'deny' ? 'text-danger' : 'text-warn'}>
+                    {evt.policy_result}
+                  </span>
+                  <span className="text-ink-3 truncate">{evt.matched_rule || '—'}</span>
+                  <span className="text-muted-foreground">{evt.latency_ms}ms</span>
+                </div>
+              ))
+            )}
           </div>
         </div>
       </div>

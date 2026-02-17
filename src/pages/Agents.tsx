@@ -1,10 +1,9 @@
 import { useState } from 'react';
-import { AGENTS, type Agent } from '@/lib/mock-data';
+import { useAgents, type AgentRow } from '@/hooks/use-agents';
 import { X } from 'lucide-react';
 import { Area, AreaChart, ResponsiveContainer } from 'recharts';
 
-function AgentDetailPanel({ agent, onClose }: { agent: Agent; onClose: () => void }) {
-  // Mock activity data
+function AgentDetailPanel({ agent, onClose }: { agent: AgentRow; onClose: () => void }) {
   const activityData = Array.from({ length: 30 }, (_, i) => ({
     day: i,
     calls: Math.floor(Math.random() * 200) + 50,
@@ -14,8 +13,8 @@ function AgentDetailPanel({ agent, onClose }: { agent: Agent; onClose: () => voi
     <div className="fixed inset-y-0 right-0 w-[480px] bg-card border-l border-border z-50 overflow-y-auto shadow-card">
       <div className="flex items-center justify-between p-5 border-b border-border">
         <div>
-          <div className="text-lg font-heading text-foreground">{agent.name}</div>
-          <div className="text-xs text-muted-foreground font-mono">{agent.id}</div>
+          <div className="text-lg font-heading text-foreground">{agent.agent_id}</div>
+          <div className="text-xs text-muted-foreground font-mono">{agent.tenant_id}</div>
         </div>
         <button onClick={onClose} className="text-muted-foreground hover:text-foreground transition-colors">
           <X className="h-4 w-4" strokeWidth={1.5} />
@@ -28,32 +27,17 @@ function AgentDetailPanel({ agent, onClose }: { agent: Agent; onClose: () => voi
           <div className="table-header mb-3">Identity</div>
           <div className="space-y-2">
             {[
-              ['Auth Method', agent.auth],
-              ['PII Mode', agent.piiMode],
-              ['Rate Limit', `${agent.rateLimit} req/hr`],
-              ['Status', agent.status],
-              ['Created', agent.created.toLocaleDateString()],
+              ['Agent ID', agent.agent_id],
+              ['Tenant', agent.tenant_id],
+              ['Auth Method', agent.auth_method],
+              ['Status', agent.active ? 'active' : 'inactive'],
+              ['Created', new Date(agent.created_at).toLocaleDateString()],
+              ['Updated', new Date(agent.updated_at).toLocaleDateString()],
             ].map(([k, v]) => (
               <div key={k} className="flex justify-between text-xs">
                 <span className="text-muted-foreground">{k}</span>
-                <span className={`font-mono ${k === 'Status' ? `status-${v}` : 'text-foreground'}`}>{v}</span>
+                <span className={`font-mono ${k === 'Status' ? (v === 'active' ? 'text-safe' : 'text-danger') : 'text-foreground'}`}>{v}</span>
               </div>
-            ))}
-          </div>
-        </div>
-
-        {/* Capabilities */}
-        <div>
-          <div className="table-header mb-3">Allowed Tools</div>
-          <div className="flex flex-wrap gap-1.5">
-            {agent.allowedTools.map(t => (
-              <span key={t} className="text-[10px] font-mono px-2 py-1 bg-safe-bg text-safe border border-safe/10 rounded-sm">{t}</span>
-            ))}
-          </div>
-          <div className="table-header mb-3 mt-4">Denied Tools</div>
-          <div className="flex flex-wrap gap-1.5">
-            {agent.deniedTools.map(t => (
-              <span key={t} className="text-[10px] font-mono px-2 py-1 bg-danger-bg text-danger border border-danger/10 rounded-sm">{t}</span>
             ))}
           </div>
         </div>
@@ -69,30 +53,14 @@ function AgentDetailPanel({ agent, onClose }: { agent: Agent; onClose: () => voi
             </ResponsiveContainer>
           </div>
         </div>
-
-        {/* Stats */}
-        <div>
-          <div className="table-header mb-3">Statistics</div>
-          <div className="grid grid-cols-3 gap-3">
-            {[
-              ['Today', agent.callsToday.toLocaleString()],
-              ['Total', agent.callsTotal.toLocaleString()],
-              ['Violations', agent.violations.toString()],
-            ].map(([label, val]) => (
-              <div key={label} className="p-3 bg-background border border-border rounded-sm text-center">
-                <div className="text-lg font-mono font-light text-foreground">{val}</div>
-                <div className="text-[10px] text-muted-foreground mt-1">{label}</div>
-              </div>
-            ))}
-          </div>
-        </div>
       </div>
     </div>
   );
 }
 
 export default function Agents() {
-  const [selectedAgent, setSelectedAgent] = useState<Agent | null>(null);
+  const { data: agents, isLoading } = useAgents();
+  const [selectedAgent, setSelectedAgent] = useState<AgentRow | null>(null);
 
   return (
     <div className="space-y-6">
@@ -100,7 +68,7 @@ export default function Agents() {
         <div className="flex items-center gap-3">
           <div>
             <div className="text-sm font-body font-medium text-foreground">Agent Registry</div>
-            <div className="text-xs text-muted-foreground">{AGENTS.length} agents connected</div>
+            <div className="text-xs text-muted-foreground">{agents?.length ?? 0} agents registered</div>
           </div>
         </div>
         <button className="text-xs font-body font-medium px-4 py-2 bg-primary text-primary-foreground rounded-sm hover:opacity-90 transition-opacity">
@@ -110,39 +78,35 @@ export default function Agents() {
 
       <div className="card-surface shadow-card overflow-hidden">
         {/* Table header */}
-        <div className="grid grid-cols-[160px_100px_1fr_1fr_80px_80px_80px_120px] gap-2 px-5 py-3 border-b border-border">
-          {['Agent', 'Auth', 'Allowed Tools', 'Denied Tools', 'PII Mode', 'Rate Limit', 'Status', 'Last Active'].map(h => (
+        <div className="grid grid-cols-[200px_120px_120px_100px_160px_160px] gap-2 px-5 py-3 border-b border-border">
+          {['Agent ID', 'Auth Method', 'Tenant', 'Status', 'Created', 'Updated'].map(h => (
             <span key={h} className="table-header">{h}</span>
           ))}
         </div>
 
         {/* Rows */}
-        {AGENTS.map(agent => (
-          <div
-            key={agent.id}
-            onClick={() => setSelectedAgent(agent)}
-            className="grid grid-cols-[160px_100px_1fr_1fr_80px_80px_80px_120px] gap-2 px-5 py-3 border-b border-border last:border-0 cursor-pointer hover:bg-secondary/30 transition-colors"
-          >
-            <span className="text-xs font-mono text-foreground">{agent.name}</span>
-            <span className="text-xs text-muted-foreground">{agent.auth}</span>
-            <div className="flex flex-wrap gap-1">
-              {agent.allowedTools.map(t => (
-                <span key={t} className="text-[9px] font-mono px-1.5 py-0.5 bg-safe-bg text-safe rounded-sm">{t}</span>
-              ))}
+        {isLoading ? (
+          <div className="p-8 text-center text-xs text-muted-foreground">Loading agents…</div>
+        ) : (agents ?? []).length === 0 ? (
+          <div className="p-8 text-center text-xs text-muted-foreground">No agents registered yet</div>
+        ) : (
+          (agents ?? []).map(agent => (
+            <div
+              key={agent.agent_id}
+              onClick={() => setSelectedAgent(agent)}
+              className="grid grid-cols-[200px_120px_120px_100px_160px_160px] gap-2 px-5 py-3 border-b border-border last:border-0 cursor-pointer hover:bg-secondary/30 transition-colors"
+            >
+              <span className="text-xs font-mono text-foreground truncate">{agent.agent_id}</span>
+              <span className="text-xs text-muted-foreground">{agent.auth_method}</span>
+              <span className="text-xs font-mono text-muted-foreground">{agent.tenant_id}</span>
+              <span className={`text-xs font-mono ${agent.active ? 'text-safe' : 'text-danger'}`}>
+                {agent.active ? 'active' : 'inactive'}
+              </span>
+              <span className="text-xs text-muted-foreground">{new Date(agent.created_at).toLocaleDateString()}</span>
+              <span className="text-xs text-muted-foreground">{new Date(agent.updated_at).toLocaleDateString()}</span>
             </div>
-            <div className="flex flex-wrap gap-1">
-              {agent.deniedTools.map(t => (
-                <span key={t} className="text-[9px] font-mono px-1.5 py-0.5 bg-danger-bg text-danger rounded-sm">{t}</span>
-              ))}
-            </div>
-            <span className="text-xs font-mono text-muted-foreground">{agent.piiMode}</span>
-            <span className="text-xs font-mono text-muted-foreground">{agent.rateLimit}/hr</span>
-            <span className={`text-xs font-mono status-${agent.status}`}>{agent.status}</span>
-            <span className="text-xs text-muted-foreground">
-              {agent.lastActive.toLocaleTimeString('en-GB', { hour12: false })}
-            </span>
-          </div>
-        ))}
+          ))
+        )}
       </div>
 
       {/* Detail panel */}

@@ -1,7 +1,9 @@
 import { useState, useMemo } from 'react';
 import { Area, AreaChart, CartesianGrid, ReferenceLine, ResponsiveContainer, YAxis } from 'recharts';
 import { useLiveFeed } from '@/hooks/use-live-feed';
-import { AGENTS, JURISDICTIONS, generateSparklineData, getJurisdictionFlag } from '@/lib/mock-data';
+import { useAgents } from '@/hooks/use-agents';
+import { useAuditEvents, useJurisdictionStats } from '@/hooks/use-audit-events';
+import { generateSparklineData, JURISDICTIONS, getJurisdictionFlag } from '@/lib/mock-data';
 
 /* ── Sparkline ──────────────────────────────────── */
 function Sparkline({ data, color }: { data: number[]; color: string }) {
@@ -82,32 +84,46 @@ function LiveFeed() {
       {/* Events */}
       <div className="flex-1 overflow-y-auto">
         {events.map((evt, i) => (
-          <div key={evt.id}>
+          <div key={evt.event_id}>
             <div
-              onClick={() => setExpandedId(expandedId === evt.id ? null : evt.id)}
+              onClick={() => setExpandedId(expandedId === evt.event_id ? null : evt.event_id)}
               className={`grid grid-cols-[90px_100px_120px_70px_50px_50px_40px] gap-2 px-5 py-2 text-xs font-mono cursor-pointer transition-colors hover:bg-secondary/50 ${
                 i === 0 ? 'animate-fade-in-row' : ''
-              } ${evt.decision === 'deny' ? 'row-deny' : evt.decision === 'rate-limited' ? 'row-rate-limited' : ''}`}
+              } ${evt.policy_result === 'deny' ? 'row-deny' : evt.policy_result === 'rate-limited' ? 'row-rate-limited' : ''}`}
             >
-              <span className="text-muted-foreground">{evt.timestamp.toLocaleTimeString('en-GB', { hour12: false })}</span>
-              <span className="text-foreground truncate">{evt.agent}</span>
+              <span className="text-muted-foreground">{new Date(evt.timestamp).toLocaleTimeString('en-GB', { hour12: false })}</span>
+              <span className="text-foreground truncate">{evt.agent_id}</span>
               <span className="text-ink-2 truncate">{evt.tool}</span>
-              <span className={evt.decision === 'allow' ? 'text-safe' : evt.decision === 'deny' ? 'text-danger' : 'text-warn'}>
-                {evt.decision}
+              <span className={evt.policy_result === 'allow' ? 'text-safe' : evt.policy_result === 'deny' ? 'text-danger' : 'text-warn'}>
+                {evt.policy_result}
               </span>
-              <span className="text-muted-foreground">{evt.piiTokens}</span>
-              <span className="text-muted-foreground">{evt.latency}ms</span>
+              <span className="text-muted-foreground">{evt.tokens_generated}</span>
+              <span className="text-muted-foreground">{evt.latency_ms}ms</span>
               <span className="text-ink-3 uppercase">{evt.jurisdiction}</span>
             </div>
-            {expandedId === evt.id && (
+            {expandedId === evt.event_id && (
               <div className="px-5 py-3 bg-secondary/30 border-y border-border">
                 <pre className="text-xs font-mono text-ink-2 whitespace-pre-wrap">
-                  {JSON.stringify(evt.details, null, 2)}
+                  {JSON.stringify({
+                    event_id: evt.event_id,
+                    event_type: evt.event_type,
+                    agent_id: evt.agent_id,
+                    tool: evt.tool,
+                    matched_rule: evt.matched_rule,
+                    pii_mode: evt.pii_mode,
+                    entities_detected: evt.entities_detected,
+                    jurisdiction: evt.jurisdiction,
+                    latency_ms: evt.latency_ms,
+                    overhead_ms: evt.overhead_ms,
+                  }, null, 2)}
                 </pre>
               </div>
             )}
           </div>
         ))}
+        {events.length === 0 && (
+          <div className="p-8 text-center text-xs text-muted-foreground">No audit events yet</div>
+        )}
       </div>
     </div>
   );
@@ -115,6 +131,8 @@ function LiveFeed() {
 
 /* ── Jurisdiction Panel ─────────────────────────── */
 function JurisdictionPanel() {
+  const { data: jStats } = useJurisdictionStats();
+
   return (
     <div className="bg-background border border-border rounded-sm p-5">
       <div className="flex items-center gap-3 mb-5">
@@ -143,22 +161,25 @@ function JurisdictionPanel() {
         ))}
       </div>
 
-      {/* Per-jurisdiction stats */}
+      {/* Per-jurisdiction stats from Supabase */}
       <div className="border-t border-border pt-4">
         <div className="table-header mb-3">Jurisdiction Statistics</div>
-        {JURISDICTIONS.map(j => (
-          <div key={j.code} className="flex items-center justify-between py-2 border-b border-border last:border-0">
-            <div className="flex items-center gap-2">
-              <span className="text-xs font-mono text-ink-3 w-6">{getJurisdictionFlag(j.code)}</span>
-              <span className="text-xs text-foreground">{j.name}</span>
+        {JURISDICTIONS.map(j => {
+          const stats = jStats?.[j.code];
+          return (
+            <div key={j.code} className="flex items-center justify-between py-2 border-b border-border last:border-0">
+              <div className="flex items-center gap-2">
+                <span className="text-xs font-mono text-ink-3 w-6">{getJurisdictionFlag(j.code)}</span>
+                <span className="text-xs text-foreground">{j.name}</span>
+              </div>
+              <div className="flex gap-4 text-xs font-mono">
+                <span className="text-muted-foreground">{(stats?.calls ?? 0).toLocaleString()}</span>
+                <span className="text-safe">{(stats?.pii ?? 0).toLocaleString()}</span>
+                <span className="text-danger">{stats?.denials ?? 0}</span>
+              </div>
             </div>
-            <div className="flex gap-4 text-xs font-mono">
-              <span className="text-muted-foreground">{j.callsToday.toLocaleString()}</span>
-              <span className="text-safe">{j.piiTokenized.toLocaleString()}</span>
-              <span className="text-danger">{j.denials}</span>
-            </div>
-          </div>
-        ))}
+          );
+        })}
         <div className="flex gap-6 mt-2">
           {[
             { label: 'Calls', cls: 'text-muted-foreground' },
@@ -210,61 +231,64 @@ function ComplianceBar() {
 
 /* ── Dashboard Page ─────────────────────────────── */
 export default function Dashboard() {
-  const sparkCalls = useMemo(() => generateSparklineData(7, 3200, 400), []);
-  const sparkPii = useMemo(() => generateSparklineData(7, 13000, 1500), []);
-  const sparkDenials = useMemo(() => generateSparklineData(7, 84, 20), []);
-  const sparkAgents = useMemo(() => generateSparklineData(7, 4, 1), []);
+  const { data: auditEvents } = useAuditEvents(100);
+  const { data: agentsData } = useAgents();
 
-  const healthyCount = AGENTS.filter(a => a.status === 'healthy').length;
-  const rateLimitedCount = AGENTS.filter(a => a.status === 'rate-limited').length;
-  const blockedCount = AGENTS.filter(a => a.status === 'blocked').length;
+  const totalCalls = auditEvents?.length ?? 0;
+  const totalPii = useMemo(() => (auditEvents ?? []).reduce((s, e) => s + (e.tokens_generated ?? 0), 0), [auditEvents]);
+  const totalDenials = useMemo(() => (auditEvents ?? []).filter(e => e.policy_result === 'deny').length, [auditEvents]);
+  const agentCount = agentsData?.length ?? 0;
+  const activeAgents = agentsData?.filter(a => a.active).length ?? 0;
+  const inactiveAgents = agentCount - activeAgents;
+
+  const sparkCalls = useMemo(() => generateSparklineData(7, Math.max(totalCalls, 10), Math.max(totalCalls * 0.1, 5)), [totalCalls]);
+  const sparkPii = useMemo(() => generateSparklineData(7, Math.max(totalPii, 10), Math.max(totalPii * 0.1, 5)), [totalPii]);
+  const sparkDenials = useMemo(() => generateSparklineData(7, Math.max(totalDenials, 5), Math.max(totalDenials * 0.2, 2)), [totalDenials]);
+  const sparkAgents = useMemo(() => generateSparklineData(7, Math.max(agentCount, 1), 1), [agentCount]);
 
   return (
     <div className="space-y-6">
-      {/* Section 01: Metrics */}
+      {/* Section: Metrics */}
       <div>
         <div className="flex items-center gap-3 mb-4">
           <div className="text-sm font-body font-medium text-foreground">Overview</div>
         </div>
         <div className="grid grid-cols-4 gap-4">
           <MetricCard
-            label="MCP Calls Today"
-            value="3,149"
+            label="MCP Calls"
+            value={totalCalls.toLocaleString()}
             sparkData={sparkCalls}
             sparkColor="hsl(30, 24%, 44%)"
-            subtitle={<span className="text-safe">+12.4% vs yesterday</span>}
           />
           <MetricCard
             label="PII Entities Tokenized"
-            value="13,057"
+            value={totalPii.toLocaleString()}
             sparkData={sparkPii}
             sparkColor="hsl(148, 59%, 24%)"
-            subtitle="Across 4 jurisdictions"
+            subtitle="Across all jurisdictions"
           />
           <MetricCard
             label="Policy Denials"
-            value="84"
+            value={totalDenials.toLocaleString()}
             sparkData={sparkDenials}
             sparkColor="hsl(343, 78%, 35%)"
-            subtitle={<span className="text-danger">-6.7% vs yesterday</span>}
           />
           <MetricCard
-            label="Active Agents"
-            value={AGENTS.length.toString()}
+            label="Registered Agents"
+            value={agentCount.toString()}
             sparkData={sparkAgents}
             sparkColor="hsl(30, 24%, 44%)"
             subtitle={
               <span className="flex items-center gap-2">
-                <StatusDot status="healthy" /> {healthyCount}
-                <StatusDot status="rate-limited" /> {rateLimitedCount}
-                <StatusDot status="blocked" /> {blockedCount}
+                <StatusDot status="healthy" /> {activeAgents}
+                <StatusDot status="blocked" /> {inactiveAgents}
               </span>
             }
           />
         </div>
       </div>
 
-      {/* Section 02 + 03: Feed + Jurisdiction */}
+      {/* Feed + Jurisdiction */}
       <div className="grid grid-cols-12 gap-6">
         <div className="col-span-8">
           <LiveFeed />
@@ -274,7 +298,7 @@ export default function Dashboard() {
         </div>
       </div>
 
-      {/* Section 04: Compliance */}
+      {/* Compliance */}
       <div>
         <div className="flex items-center gap-3 mb-4">
           <div className="text-sm font-body font-medium text-foreground">Compliance Status</div>
