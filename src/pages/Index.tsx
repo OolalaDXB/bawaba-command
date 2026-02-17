@@ -132,7 +132,7 @@ function JurisdictionPanel() {
           { code: 'ma', label: 'Casablanca', provider: 'Inwi DC' },
           { code: 'sa', label: 'Riyadh', provider: 'stc cloud' },
           { code: 'ae', label: 'Abu Dhabi', provider: 'G42' },
-          { code: 'eu', label: 'Frankfurt', provider: 'Hetzner' },
+          { code: 'fr', label: 'Paris', provider: 'OVHcloud' },
         ].map(node => (
           <div key={node.code} className="flex items-center gap-3 p-3 border border-border rounded-sm bg-background">
             <span className="w-2 h-2 rounded-full bg-safe animate-pulse-dot shrink-0" />

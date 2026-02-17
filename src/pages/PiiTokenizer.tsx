@@ -132,7 +132,7 @@ export default function PiiTokenizer() {
                 ['Al Maghrib Bank', '3,210'],
                 ['SAMA Corp', '2,891'],
                 ['DIFC Holdings', '1,420'],
-                ['EU Branch', '900'],
+                ['France Branch', '900'],
               ].map(([t, c]) => (
                 <div key={t} className="flex justify-between py-1.5 text-xs">
                   <span className="text-muted-foreground">{t}</span>
