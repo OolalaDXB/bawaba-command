@@ -10,13 +10,7 @@ function Sparkline({ data, color }: { data: number[]; color: string }) {
     <div className="h-8 w-20">
       <ResponsiveContainer width="100%" height="100%">
         <AreaChart data={chartData} margin={{ top: 0, right: 0, left: 0, bottom: 0 }}>
-          <defs>
-            <linearGradient id={`grad-${color}`} x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stopColor={color} stopOpacity={0.15} />
-              <stop offset="100%" stopColor={color} stopOpacity={0} />
-            </linearGradient>
-          </defs>
-          <Area type="monotone" dataKey="v" stroke={color} strokeWidth={1.5} fill={`url(#grad-${color})`} dot={false} />
+          <Area type="monotone" dataKey="v" stroke={color} strokeWidth={1.5} fill="none" dot={false} />
         </AreaChart>
       </ResponsiveContainer>
     </div>
@@ -28,7 +22,7 @@ function MetricCard({ label, value, sparkData, sparkColor, subtitle }: {
   label: string; value: string; sparkData: number[]; sparkColor: string; subtitle?: React.ReactNode;
 }) {
   return (
-    <div className="card-surface p-5 shadow-card">
+    <div className="bg-background border border-border rounded-sm p-5">
       <div className="table-header mb-3">{label}</div>
       <div className="flex items-end justify-between">
         <div>
