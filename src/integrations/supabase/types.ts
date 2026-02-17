@@ -14,7 +14,117 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      agents: {
+        Row: {
+          active: boolean
+          agent_id: string
+          api_key_hash: string | null
+          auth_method: string
+          created_at: string
+          tenant_id: string
+          updated_at: string
+        }
+        Insert: {
+          active?: boolean
+          agent_id: string
+          api_key_hash?: string | null
+          auth_method: string
+          created_at?: string
+          tenant_id?: string
+          updated_at?: string
+        }
+        Update: {
+          active?: boolean
+          agent_id?: string
+          api_key_hash?: string | null
+          auth_method?: string
+          created_at?: string
+          tenant_id?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      audit_events: {
+        Row: {
+          agent_id: string
+          entities_detected: number | null
+          event_hash: string
+          event_id: string
+          event_type: string
+          jurisdiction: string
+          latency_ms: number | null
+          matched_rule: string | null
+          mcp_server: string | null
+          merkle_root: string | null
+          overhead_ms: number | null
+          params_hash: string | null
+          pii_mode: string | null
+          policy_result: string | null
+          policy_version: string | null
+          prev_hash: string
+          resource_path: string | null
+          response_status: string | null
+          result_count: number | null
+          signature: string
+          tenant_id: string
+          timestamp: string
+          tokens_generated: number | null
+          tool: string | null
+        }
+        Insert: {
+          agent_id: string
+          entities_detected?: number | null
+          event_hash: string
+          event_id: string
+          event_type: string
+          jurisdiction?: string
+          latency_ms?: number | null
+          matched_rule?: string | null
+          mcp_server?: string | null
+          merkle_root?: string | null
+          overhead_ms?: number | null
+          params_hash?: string | null
+          pii_mode?: string | null
+          policy_result?: string | null
+          policy_version?: string | null
+          prev_hash: string
+          resource_path?: string | null
+          response_status?: string | null
+          result_count?: number | null
+          signature: string
+          tenant_id: string
+          timestamp?: string
+          tokens_generated?: number | null
+          tool?: string | null
+        }
+        Update: {
+          agent_id?: string
+          entities_detected?: number | null
+          event_hash?: string
+          event_id?: string
+          event_type?: string
+          jurisdiction?: string
+          latency_ms?: number | null
+          matched_rule?: string | null
+          mcp_server?: string | null
+          merkle_root?: string | null
+          overhead_ms?: number | null
+          params_hash?: string | null
+          pii_mode?: string | null
+          policy_result?: string | null
+          policy_version?: string | null
+          prev_hash?: string
+          resource_path?: string | null
+          response_status?: string | null
+          result_count?: number | null
+          signature?: string
+          tenant_id?: string
+          timestamp?: string
+          tokens_generated?: number | null
+          tool?: string | null
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
