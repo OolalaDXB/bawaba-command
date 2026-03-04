@@ -67,6 +67,18 @@ func testConfig() *config.Config {
 				{Jurisdiction: "sa", Backend: "stc-cloud-riyadh", Compliance: []string{"pdpl"}},
 			},
 		},
+		Quotas: config.QuotaConfig{
+			DefaultLimit: 1000,
+			Period:       "1h",
+			Overrides: map[string]int{
+				"claude-code": 5000,
+			},
+		},
+		SIEM: config.SIEMForwarderConfig{
+			Enabled: false,
+			Type:    "webhook",
+			Format:  "json",
+		},
 	}
 }
 
@@ -394,7 +406,7 @@ func TestPoliciesEndpoint(t *testing.T) {
 	}
 }
 
-func TestAgentQuotaStub(t *testing.T) {
+func TestAgentQuotaEndpoint(t *testing.T) {
 	_, ts := testServer(t)
 
 	resp, err := http.Get(ts.URL + "/api/v1/agents/test-agent/quota")
@@ -409,17 +421,29 @@ func TestAgentQuotaStub(t *testing.T) {
 
 	var body struct {
 		Data struct {
-			Quota string `json:"quota"`
-			Used  int    `json:"used"`
+			Agent   string `json:"agent"`
+			Quota   struct {
+				Limit     int    `json:"limit"`
+				Period    string `json:"period"`
+				Used      int    `json:"used"`
+				Remaining int    `json:"remaining"`
+			} `json:"quota"`
+			ResetAt string `json:"reset_at"`
 		} `json:"data"`
 	}
 	json.NewDecoder(resp.Body).Decode(&body)
 
-	if body.Data.Quota != "unlimited" {
-		t.Errorf("expected quota=unlimited, got %q", body.Data.Quota)
+	if body.Data.Agent != "test-agent" {
+		t.Errorf("expected agent=test-agent, got %q", body.Data.Agent)
 	}
-	if body.Data.Used != 0 {
-		t.Errorf("expected used=0, got %d", body.Data.Used)
+	if body.Data.Quota.Limit <= 0 {
+		t.Errorf("expected positive limit, got %d", body.Data.Quota.Limit)
+	}
+	if body.Data.Quota.Used != 0 {
+		t.Errorf("expected used=0, got %d", body.Data.Quota.Used)
+	}
+	if body.Data.ResetAt == "" {
+		t.Error("expected reset_at to be set")
 	}
 }
 

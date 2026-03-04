@@ -1,6 +1,7 @@
-import { useState, useEffect } from 'react';
-import { ROUTING_NODES, JURISDICTIONS as MOCK_JURISDICTIONS } from '@/lib/mock-data';
+import { useState, useEffect, useMemo } from 'react';
+import { ROUTING_NODES } from '@/lib/mock-data';
 import { isApiAvailable, fetchJurisdictions, type JurisdictionEntry } from '@/services/api';
+import SovereignMap from '@/components/SovereignMap';
 
 /** Routing rule shape for the sidebar. */
 interface RoutingRule {
@@ -16,6 +17,21 @@ const JURISDICTION_META: Record<string, { label: string; backend: string }> = {
   sa: { label: 'KSA (sa)', backend: 'stc cloud -- Riyadh' },
   ae: { label: 'UAE (ae)', backend: 'G42 -- Abu Dhabi' },
   fr: { label: 'France (fr)', backend: 'OVHcloud -- Paris' },
+};
+
+/** Extended jurisdiction info for the "Pourquoi cette route ?" panel. */
+const JURISDICTION_DETAIL: Record<string, {
+  country: string;
+  law: string;
+  city: string;
+  dataPlane: string;
+  cloudActStatus: string;
+  dataType: string;
+}> = {
+  ma: { country: 'Maroc', law: 'Loi 09-08', city: 'Casablanca', dataPlane: 'Inwi DC', cloudActStatus: 'Hors Cloud Act', dataType: 'CIN (Carte d\'Identite Nationale)' },
+  sa: { country: 'KSA', law: 'PDPL / SAMA', city: 'Riyadh', dataPlane: 'stc cloud', cloudActStatus: 'Hors Cloud Act', dataType: 'National ID (Iqama)' },
+  ae: { country: 'UAE', law: 'DIFC / ADGM', city: 'Abu Dhabi', dataPlane: 'G42', cloudActStatus: 'Hors Cloud Act', dataType: 'Emirates ID' },
+  fr: { country: 'France', law: 'CNIL / RGPD', city: 'Paris', dataPlane: 'OVHcloud', cloudActStatus: 'Hors Cloud Act (UE)', dataType: 'CNI / Carte Vitale' },
 };
 
 /** Mock routing rules as fallback. */
@@ -37,6 +53,17 @@ function mapJurisdictionToRule(entry: JurisdictionEntry): RoutingRule {
   };
 }
 
+/** Shape of a routing proof row. */
+interface RoutingProof {
+  id: string;
+  time: string;
+  request: string;
+  decision: string;
+  hash: string;
+  jurisdictionCode: string;
+  tool: string;
+}
+
 /* ── Skeleton for routing rules ─────────────────── */
 function RulesSkeleton() {
   return (
@@ -52,78 +79,113 @@ function RulesSkeleton() {
   );
 }
 
-function RoutingMap() {
+/* ── "Pourquoi cette route ?" Side Panel ─────────── */
+function RouteExplainerPanel({
+  proof,
+  onClose,
+}: {
+  proof: RoutingProof;
+  onClose: () => void;
+}) {
+  const detail = JURISDICTION_DETAIL[proof.jurisdictionCode];
+
+  if (!detail) return null;
+
   return (
-    <div className="card-surface shadow-card p-6">
-      <div className="flex items-center gap-3 mb-6">
-        <div>
-          <div className="text-sm font-body font-medium text-foreground">Data Plane Map</div>
-          <div className="text-xs text-muted-foreground">MENA + Europe sovereign infrastructure</div>
+    <>
+      {/* Backdrop */}
+      <div
+        className="fixed inset-0 bg-foreground/10 z-40"
+        onClick={onClose}
+      />
+      {/* Panel */}
+      <div className="fixed top-0 right-0 h-full w-[380px] z-50 animate-slide-in-right shadow-lg">
+        <div className="h-full card-surface border-l border-border flex flex-col">
+          {/* Header */}
+          <div className="flex items-center justify-between px-5 py-4 border-b border-border">
+            <div>
+              <div className="text-sm font-body font-medium text-foreground">Pourquoi cette route ?</div>
+              <div className="text-[10px] text-muted-foreground font-mono mt-0.5">{proof.request}</div>
+            </div>
+            <button
+              onClick={onClose}
+              className="w-7 h-7 flex items-center justify-center rounded-sm border border-border text-muted-foreground hover:text-foreground hover:bg-secondary/30 transition-colors"
+            >
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <line x1="18" y1="6" x2="6" y2="18" />
+                <line x1="6" y1="6" x2="18" y2="18" />
+              </svg>
+            </button>
+          </div>
+
+          {/* Content */}
+          <div className="flex-1 overflow-y-auto px-5 py-5 space-y-5">
+            {/* Detected data */}
+            <div>
+              <div className="table-header mb-2">Donnee detectee</div>
+              <div className="card-surface p-3">
+                <div className="flex items-center gap-2">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="text-warn shrink-0">
+                    <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
+                    <path d="M7 11V7a5 5 0 0 1 10 0v4" />
+                  </svg>
+                  <span className="text-xs font-body text-foreground">{detail.dataType}</span>
+                </div>
+              </div>
+            </div>
+
+            {/* Jurisdiction */}
+            <div>
+              <div className="table-header mb-2">Juridiction</div>
+              <div className="card-surface p-3">
+                <div className="flex items-center gap-2">
+                  <span className="text-xs font-mono text-foreground uppercase">{proof.jurisdictionCode}</span>
+                  <span className="text-[10px] text-muted-foreground">--</span>
+                  <span className="text-xs font-body text-foreground">{detail.country}, {detail.law}</span>
+                </div>
+              </div>
+            </div>
+
+            {/* Data plane */}
+            <div>
+              <div className="table-header mb-2">Data Plane</div>
+              <div className="card-surface p-3">
+                <div className="text-xs font-body text-foreground">{detail.city} -- {detail.dataPlane}</div>
+              </div>
+            </div>
+
+            {/* Cloud Act guarantee */}
+            <div>
+              <div className="table-header mb-2">Garantie</div>
+              <div className="card-surface p-3">
+                <div className="flex items-center gap-2">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="text-safe shrink-0">
+                    <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+                  </svg>
+                  <span className="text-xs font-body text-safe font-medium">{detail.cloudActStatus}</span>
+                </div>
+              </div>
+            </div>
+
+            {/* Proof hash */}
+            <div>
+              <div className="table-header mb-2">Preuve</div>
+              <div className="card-surface p-3">
+                <div className="font-mono text-xs text-foreground">{proof.hash.slice(0, 8)}</div>
+                <div className="font-mono text-[10px] text-muted-foreground mt-1 break-all">{proof.hash}</div>
+              </div>
+            </div>
+          </div>
+
+          {/* Footer */}
+          <div className="px-5 py-3 border-t border-border">
+            <div className="text-[10px] text-muted-foreground font-body">
+              Cette decision de routage est journalisee et signee cryptographiquement dans l'audit trail.
+            </div>
+          </div>
         </div>
       </div>
-
-      {/* Stylized SVG map */}
-      <svg viewBox="0 0 800 400" className="w-full" style={{ maxHeight: 380 }}>
-        {/* Background grid */}
-        {Array.from({ length: 20 }).map((_, i) => (
-          <line key={`vg-${i}`} x1={i * 40} y1={0} x2={i * 40} y2={400} stroke="hsl(24, 6%, 90%)" strokeWidth={0.5} />
-        ))}
-        {Array.from({ length: 10 }).map((_, i) => (
-          <line key={`hg-${i}`} x1={0} y1={i * 40} x2={800} y2={i * 40} stroke="hsl(24, 6%, 90%)" strokeWidth={0.5} />
-        ))}
-
-        {/* Simplified landmasses */}
-        {/* Europe */}
-        <path d="M 300 80 L 420 60 L 480 90 L 450 140 L 380 160 L 320 130 Z" fill="hsl(24, 6%, 93%)" stroke="hsl(24, 6%, 83%)" strokeWidth={1} />
-        {/* North Africa */}
-        <path d="M 280 180 L 500 170 L 520 220 L 480 260 L 300 250 L 260 210 Z" fill="hsl(24, 6%, 93%)" stroke="hsl(24, 6%, 83%)" strokeWidth={1} />
-        {/* Arabian Peninsula */}
-        <path d="M 520 160 L 620 140 L 680 200 L 660 280 L 580 300 L 530 240 Z" fill="hsl(24, 6%, 93%)" stroke="hsl(24, 6%, 83%)" strokeWidth={1} />
-
-        {/* Connection lines */}
-        <line x1={340} y1={215} x2={400} y2={110} stroke="hsl(30, 24%, 44%)" strokeWidth={1} strokeDasharray="4 4" opacity={0.4} />
-        <line x1={340} y1={215} x2={600} y2={200} stroke="hsl(30, 24%, 44%)" strokeWidth={1} strokeDasharray="4 4" opacity={0.4} />
-        <line x1={340} y1={215} x2={620} y2={240} stroke="hsl(30, 24%, 44%)" strokeWidth={1} strokeDasharray="4 4" opacity={0.4} />
-        <line x1={400} y1={110} x2={600} y2={200} stroke="hsl(30, 24%, 44%)" strokeWidth={1} strokeDasharray="4 4" opacity={0.4} />
-        <line x1={600} y1={200} x2={620} y2={240} stroke="hsl(30, 24%, 44%)" strokeWidth={1} strokeDasharray="4 4" opacity={0.4} />
-
-        {/* Node: Frankfurt */}
-        <circle cx={400} cy={110} r={6} fill="hsl(148, 59%, 24%)" />
-        <circle cx={400} cy={110} r={10} fill="none" stroke="hsl(148, 59%, 24%)" strokeWidth={1} opacity={0.3}>
-          <animate attributeName="r" values="10;16;10" dur="3s" repeatCount="indefinite" />
-          <animate attributeName="opacity" values="0.3;0;0.3" dur="3s" repeatCount="indefinite" />
-        </circle>
-        <text x={400} y={98} textAnchor="middle" fill="hsl(24, 10%, 10%)" fontSize={10} fontFamily="Hanken Grotesk">Frankfurt</text>
-        <text x={400} y={130} textAnchor="middle" fill="hsl(25, 6%, 45%)" fontSize={8} fontFamily="JetBrains Mono">Hetzner · 445 calls · 8ms</text>
-
-        {/* Node: Casablanca */}
-        <circle cx={340} cy={215} r={6} fill="hsl(148, 59%, 24%)" />
-        <circle cx={340} cy={215} r={10} fill="none" stroke="hsl(148, 59%, 24%)" strokeWidth={1} opacity={0.3}>
-          <animate attributeName="r" values="10;16;10" dur="3s" begin="0.5s" repeatCount="indefinite" />
-          <animate attributeName="opacity" values="0.3;0;0.3" dur="3s" begin="0.5s" repeatCount="indefinite" />
-        </circle>
-        <text x={340} y={240} textAnchor="middle" fill="hsl(24, 10%, 10%)" fontSize={10} fontFamily="Hanken Grotesk">Casablanca</text>
-        <text x={340} y={253} textAnchor="middle" fill="hsl(25, 6%, 45%)" fontSize={8} fontFamily="JetBrains Mono">Inwi DC · 892 calls · 12ms</text>
-
-        {/* Node: Riyadh */}
-        <circle cx={600} cy={200} r={6} fill="hsl(148, 59%, 24%)" />
-        <circle cx={600} cy={200} r={10} fill="none" stroke="hsl(148, 59%, 24%)" strokeWidth={1} opacity={0.3}>
-          <animate attributeName="r" values="10;16;10" dur="3s" begin="1s" repeatCount="indefinite" />
-          <animate attributeName="opacity" values="0.3;0;0.3" dur="3s" begin="1s" repeatCount="indefinite" />
-        </circle>
-        <text x={600} y={190} textAnchor="middle" fill="hsl(24, 10%, 10%)" fontSize={10} fontFamily="Hanken Grotesk">Riyadh</text>
-        <text x={600} y={220} textAnchor="middle" fill="hsl(25, 6%, 45%)" fontSize={8} fontFamily="JetBrains Mono">stc cloud · 1,134 calls · 18ms</text>
-
-        {/* Node: Abu Dhabi */}
-        <circle cx={620} cy={240} r={6} fill="hsl(148, 59%, 24%)" />
-        <circle cx={620} cy={240} r={10} fill="none" stroke="hsl(148, 59%, 24%)" strokeWidth={1} opacity={0.3}>
-          <animate attributeName="r" values="10;16;10" dur="3s" begin="1.5s" repeatCount="indefinite" />
-          <animate attributeName="opacity" values="0.3;0;0.3" dur="3s" begin="1.5s" repeatCount="indefinite" />
-        </circle>
-        <text x={660} y={248} textAnchor="start" fill="hsl(24, 10%, 10%)" fontSize={10} fontFamily="Hanken Grotesk">Abu Dhabi</text>
-        <text x={620} y={263} textAnchor="middle" fill="hsl(25, 6%, 45%)" fontSize={8} fontFamily="JetBrains Mono">G42 · 678 calls · 15ms</text>
-      </svg>
-    </div>
+    </>
   );
 }
 
@@ -131,6 +193,18 @@ export default function SovereignRouting() {
   const [testInput, setTestInput] = useState('');
   const [routingRules, setRoutingRules] = useState<RoutingRule[]>(MOCK_ROUTING_RULES);
   const [loading, setLoading] = useState(true);
+  const [selectedProof, setSelectedProof] = useState<RoutingProof | null>(null);
+
+  // Raw jurisdiction data used by SovereignMap
+  const [jurisdictionEntries, setJurisdictionEntries] = useState<
+    Array<{ code: string; event_count: number; avg_latency?: number }>
+  >(
+    ROUTING_NODES.map((n) => ({
+      code: n.jurisdiction,
+      event_count: n.calls,
+      avg_latency: n.latency,
+    })),
+  );
 
   useEffect(() => {
     let cancelled = false;
@@ -144,6 +218,12 @@ export default function SovereignRouting() {
           const data = await fetchJurisdictions();
           if (!cancelled && data && data.length > 0) {
             setRoutingRules(data.map(mapJurisdictionToRule));
+            setJurisdictionEntries(
+              data.map((d) => ({
+                code: d.code,
+                event_count: d.event_count,
+              })),
+            );
           }
         } catch {
           // Keep mock routing rules on failure
@@ -157,9 +237,35 @@ export default function SovereignRouting() {
     return () => { cancelled = true; };
   }, []);
 
+  // Generate routing proof rows (memoized to keep stable hashes)
+  const routingProofs = useMemo<RoutingProof[]>(() => {
+    const toolNames = ['database-query', 'git-read', 'slack-send', 'jira-read'];
+    return ROUTING_NODES.flatMap(node =>
+      Array.from({ length: 4 }, (_, i) => ({
+        id: `${node.id}-${i}`,
+        time: new Date(Date.now() - i * 60000 - Math.floor(Math.random() * 60000))
+          .toLocaleTimeString('en-GB', { hour12: false }),
+        request: `${node.jurisdiction}/${toolNames[i]}`,
+        decision: `-> ${node.name}`,
+        hash: Math.random().toString(36).substring(2, 14) + Math.random().toString(36).substring(2, 14),
+        jurisdictionCode: node.jurisdiction,
+        tool: toolNames[i],
+      }))
+    );
+  }, []);
+
   return (
     <div className="space-y-6">
-      <RoutingMap />
+      {/* Interactive sovereign data-plane map */}
+      <div className="card-surface shadow-card p-6">
+        <div className="flex items-center gap-3 mb-4">
+          <div>
+            <div className="text-sm font-body font-medium text-foreground">Data Plane Map</div>
+            <div className="text-xs text-muted-foreground">MENA + Europe sovereign infrastructure</div>
+          </div>
+        </div>
+        <SovereignMap jurisdictions={jurisdictionEntries} />
+      </div>
 
       <div className="grid grid-cols-12 gap-6">
         {/* Routing rules */}
@@ -204,6 +310,7 @@ export default function SovereignRouting() {
         <div className="col-span-7">
           <div className="flex items-center gap-3 mb-4">
             <div className="text-sm font-body font-medium text-foreground">Routing Proofs</div>
+            <div className="text-[10px] text-muted-foreground font-body">Cliquez sur une ligne pour voir le detail</div>
           </div>
           <div className="card-surface shadow-card overflow-hidden">
             <div className="grid grid-cols-[80px_120px_100px_1fr_60px] gap-2 px-5 py-2 border-b border-border">
@@ -212,27 +319,41 @@ export default function SovereignRouting() {
               ))}
             </div>
             <div className="max-h-[350px] overflow-y-auto">
-              {ROUTING_NODES.flatMap(node =>
-                Array.from({ length: 4 }, (_, i) => ({
-                  time: new Date(Date.now() - i * 60000 - Math.random() * 60000).toLocaleTimeString('en-GB', { hour12: false }),
-                  request: `${node.jurisdiction}/${['database-query', 'git-read', 'slack-send', 'jira-read'][i]}`,
-                  decision: `-> ${node.name}`,
-                  hash: Math.random().toString(36).substring(2, 14),
-                  id: `${node.id}-${i}`,
-                }))
-              ).map(proof => (
-                <div key={proof.id} className="grid grid-cols-[80px_120px_100px_1fr_60px] gap-2 px-5 py-2 text-xs font-mono border-b border-border">
+              {routingProofs.map(proof => (
+                <div
+                  key={proof.id}
+                  onClick={() => setSelectedProof(proof)}
+                  className={`grid grid-cols-[80px_120px_100px_1fr_60px] gap-2 px-5 py-2 text-xs font-mono border-b border-border cursor-pointer hover:bg-secondary/30 transition-colors ${
+                    selectedProof?.id === proof.id ? 'bg-secondary/20' : ''
+                  }`}
+                >
                   <span className="text-muted-foreground">{proof.time}</span>
                   <span className="text-foreground truncate">{proof.request}</span>
                   <span className="text-safe truncate">{proof.decision}</span>
-                  <span className="text-ink-4 truncate">{proof.hash}</span>
-                  <button className="text-[10px] text-primary hover:underline text-left">verify</button>
+                  <span className="text-ink-4 truncate">{proof.hash.slice(0, 8)}...</span>
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setSelectedProof(proof);
+                    }}
+                    className="text-[10px] text-primary hover:underline text-left"
+                  >
+                    verify
+                  </button>
                 </div>
               ))}
             </div>
           </div>
         </div>
       </div>
+
+      {/* Route Explainer Side Panel */}
+      {selectedProof && (
+        <RouteExplainerPanel
+          proof={selectedProof}
+          onClose={() => setSelectedProof(null)}
+        />
+      )}
     </div>
   );
 }

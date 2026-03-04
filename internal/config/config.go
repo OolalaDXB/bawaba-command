@@ -15,6 +15,24 @@ type Config struct {
 	Routing  RoutingConfig             `yaml:"routing"`
 	Audit    AuditConfig               `yaml:"audit"`
 	Signing  SigningConfig             `yaml:"signing"`
+	Quotas   QuotaConfig               `yaml:"quotas"`
+	SIEM     SIEMForwarderConfig       `yaml:"siem"`
+}
+
+// QuotaConfig controls per-agent call quotas.
+type QuotaConfig struct {
+	DefaultLimit int            `yaml:"default_limit"` // calls per period (default: 1000)
+	Period       string         `yaml:"period"`        // duration string (default: "1h")
+	Overrides    map[string]int `yaml:"overrides"`     // per-agent overrides
+}
+
+// SIEMForwarderConfig controls the SIEM event forwarding.
+type SIEMForwarderConfig struct {
+	Enabled  bool   `yaml:"enabled"`
+	Type     string `yaml:"type"`     // "webhook" or "noop"
+	Endpoint string `yaml:"endpoint"`
+	Token    string `yaml:"token"`
+	Format   string `yaml:"format"` // "json"
 }
 
 type ServerConfig struct {
@@ -116,6 +134,25 @@ func applyDefaults(cfg *Config) {
 			agent.MaxResults = 50
 		}
 		cfg.Agents[name] = agent
+	}
+
+	// Quota defaults
+	if cfg.Quotas.DefaultLimit == 0 {
+		cfg.Quotas.DefaultLimit = 1000
+	}
+	if cfg.Quotas.Period == "" {
+		cfg.Quotas.Period = "1h"
+	}
+	if cfg.Quotas.Overrides == nil {
+		cfg.Quotas.Overrides = map[string]int{}
+	}
+
+	// SIEM defaults
+	if cfg.SIEM.Type == "" {
+		cfg.SIEM.Type = "webhook"
+	}
+	if cfg.SIEM.Format == "" {
+		cfg.SIEM.Format = "json"
 	}
 }
 

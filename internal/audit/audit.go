@@ -40,6 +40,25 @@ type Event struct {
 	Signature        string    `json:"signature"`
 }
 
+// SIEMForwarder is the interface for optional SIEM event forwarding.
+type SIEMForwarder interface {
+	Forward(event SIEMEvent)
+}
+
+// SIEMEvent is a lightweight event representation for SIEM forwarding.
+type SIEMEvent struct {
+	EventID      string  `json:"event_id"`
+	Timestamp    string  `json:"timestamp"`
+	EventType    string  `json:"event_type"`
+	AgentID      string  `json:"agent_id"`
+	TenantID     string  `json:"tenant_id"`
+	Jurisdiction string  `json:"jurisdiction"`
+	Tool         string  `json:"tool"`
+	PolicyResult string  `json:"policy_result"`
+	PIIMode      string  `json:"pii_mode"`
+	LatencyMS    float64 `json:"latency_ms"`
+}
+
 // Trail manages the append-only audit log with hash chaining.
 type Trail struct {
 	mu         sync.Mutex
@@ -49,6 +68,7 @@ type Trail struct {
 	prevHash   string
 	events     []Event // in-memory buffer for testing without DB
 	noDB       bool
+	forwarder  SIEMForwarder
 }
 
 // NewTrail creates a new audit trail. If db is nil, operates in memory-only mode.
@@ -78,6 +98,12 @@ func NewTrail(db *sql.DB, keyPath string) (*Trail, error) {
 	return t, nil
 }
 
+// SetForwarder attaches an optional SIEM forwarder to the trail.
+// Events will be forwarded in a non-blocking goroutine after DB insertion.
+func (t *Trail) SetForwarder(f SIEMForwarder) {
+	t.forwarder = f
+}
+
 // Log records an audit event.
 func (t *Trail) Log(evt Event) error {
 	t.mu.Lock()
@@ -105,10 +131,36 @@ func (t *Trail) Log(evt Event) error {
 
 	if t.noDB {
 		t.events = append(t.events, evt)
+		t.forwardToSIEM(evt)
 		return nil
 	}
 
-	return t.insertEvent(evt)
+	if err := t.insertEvent(evt); err != nil {
+		return err
+	}
+
+	t.forwardToSIEM(evt)
+	return nil
+}
+
+// forwardToSIEM sends the event to the SIEM forwarder if one is configured.
+// The forwarder's Forward method must be non-blocking (fire-and-forget).
+func (t *Trail) forwardToSIEM(evt Event) {
+	if t.forwarder == nil {
+		return
+	}
+	t.forwarder.Forward(SIEMEvent{
+		EventID:      evt.EventID,
+		Timestamp:    evt.Timestamp.Format("2006-01-02T15:04:05Z07:00"),
+		EventType:    evt.EventType,
+		AgentID:      evt.AgentID,
+		TenantID:     evt.TenantID,
+		Jurisdiction: evt.Jurisdiction,
+		Tool:         evt.Tool,
+		PolicyResult: evt.PolicyResult,
+		PIIMode:      evt.PIIMode,
+		LatencyMS:    evt.LatencyMS,
+	})
 }
 
 func (t *Trail) insertEvent(evt Event) error {

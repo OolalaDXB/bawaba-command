@@ -14,9 +14,11 @@ const navItems = [
 export default function AppLayout() {
   const location = useLocation();
   const { theme, toggle } = useTheme();
-  const currentPage = navItems.find(item =>
-    item.path === '/' ? location.pathname === '/' : location.pathname.startsWith(item.path)
-  )?.label || 'Dashboard';
+  const currentPage = location.pathname === '/settings' ? 'Settings' : (
+    navItems.find(item =>
+      item.path === '/' ? location.pathname === '/' : location.pathname.startsWith(item.path)
+    )?.label || 'Dashboard'
+  );
 
   return (
     <div className="flex min-h-screen bg-background" style={{ minWidth: 1280 }}>
@@ -54,12 +56,21 @@ export default function AppLayout() {
 
         {/* Bottom */}
         <div className="border-t border-border py-3">
-          <button className="flex items-center gap-3 px-4 h-10 w-full text-muted-foreground hover:text-foreground transition-colors">
+          <NavLink
+            to="/settings"
+            className={({ isActive }) =>
+              `flex items-center gap-3 px-4 h-10 w-full transition-colors ${
+                isActive
+                  ? 'text-foreground bg-secondary font-medium border-r-2 border-primary'
+                  : 'text-muted-foreground hover:text-foreground hover:bg-secondary/50'
+              }`
+            }
+          >
             <Settings className="h-4 w-4 shrink-0" strokeWidth={1.5} />
             <span className="opacity-0 group-hover/sidebar:opacity-100 transition-opacity duration-300 text-xs tracking-wide whitespace-nowrap">
               Settings
             </span>
-          </button>
+          </NavLink>
         </div>
       </nav>
 

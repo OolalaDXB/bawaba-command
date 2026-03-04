@@ -21,6 +21,7 @@ import (
 	"github.com/OolalaDXB/bawaba-command/internal/proxy"
 	"github.com/OolalaDXB/bawaba-command/internal/ratelimit"
 	"github.com/OolalaDXB/bawaba-command/internal/router"
+	"github.com/OolalaDXB/bawaba-command/internal/siem"
 	"github.com/OolalaDXB/bawaba-command/internal/tokenizer"
 )
 
@@ -140,6 +141,15 @@ func main() {
 	}
 	logger.Info("audit trail initialized")
 
+	// Init SIEM forwarder
+	siemForwarder, err := siem.NewForwarder(cfg.SIEM)
+	if err != nil {
+		logger.Error("failed to init SIEM forwarder", "error", err)
+		os.Exit(1)
+	}
+	trail.SetForwarder(&siemAdapter{fwd: siemForwarder})
+	logger.Info("SIEM forwarder initialized", "enabled", cfg.SIEM.Enabled, "type", cfg.SIEM.Type)
+
 	// Init sovereign router
 	routerEngine := router.NewEngine(cfg.Routing, trail.PrivateKey())
 	logger.Info("sovereign router initialized")
@@ -225,4 +235,24 @@ func envOrDefault(key, def string) string {
 		return v
 	}
 	return def
+}
+
+// siemAdapter bridges audit.SIEMForwarder interface with siem.Forwarder.
+type siemAdapter struct {
+	fwd siem.Forwarder
+}
+
+func (a *siemAdapter) Forward(evt audit.SIEMEvent) {
+	a.fwd.Forward(siem.AuditEvent{
+		EventID:      evt.EventID,
+		Timestamp:    evt.Timestamp,
+		EventType:    evt.EventType,
+		AgentID:      evt.AgentID,
+		TenantID:     evt.TenantID,
+		Jurisdiction: evt.Jurisdiction,
+		Tool:         evt.Tool,
+		PolicyResult: evt.PolicyResult,
+		PIIMode:      evt.PIIMode,
+		LatencyMS:    evt.LatencyMS,
+	})
 }

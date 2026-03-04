@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { Area, AreaChart, CartesianGrid, ReferenceLine, ResponsiveContainer, YAxis } from 'recharts';
 import { useLiveFeed } from '@/hooks/use-live-feed';
 import { AGENTS as MOCK_AGENTS, JURISDICTIONS as MOCK_JURISDICTIONS, generateSparklineData, getJurisdictionFlag, type JurisdictionData } from '@/lib/mock-data';
@@ -20,13 +20,13 @@ function timeAgo(date: Date): string {
 function MetricSkeleton() {
   return (
     <div className="bg-background border border-border rounded-sm p-5">
-      <div className="animate-pulse bg-muted rounded h-3 w-24 mb-3" />
+      <div className="animate-shimmer rounded h-3 w-24 mb-3" />
       <div className="flex items-end justify-between">
         <div>
-          <div className="animate-pulse bg-muted rounded h-7 w-20 mb-1" />
-          <div className="animate-pulse bg-muted rounded h-3 w-32 mt-1" />
+          <div className="animate-shimmer rounded h-7 w-20 mb-1" />
+          <div className="animate-shimmer rounded h-3 w-32 mt-1" />
         </div>
-        <div className="animate-pulse bg-muted rounded h-10 w-24" />
+        <div className="animate-shimmer rounded h-10 w-24" />
       </div>
     </div>
   );
@@ -52,19 +52,69 @@ function Sparkline({ data, color }: { data: number[]; color: string }) {
   );
 }
 
+/* ── Count-up hook ─────────────────────────────── */
+function useCountUp(target: string, duration = 800) {
+  const [display, setDisplay] = useState('0');
+  const [done, setDone] = useState(false);
+  const rafRef = useRef<number>(0);
+
+  useEffect(() => {
+    // Parse numeric value from formatted string (e.g. "3,149" -> 3149)
+    const numeric = parseFloat(target.replace(/,/g, ''));
+    if (isNaN(numeric)) {
+      setDisplay(target);
+      setDone(true);
+      return;
+    }
+
+    const isInteger = !target.includes('.');
+    const start = performance.now();
+
+    function tick(now: number) {
+      const elapsed = now - start;
+      const progress = Math.min(elapsed / duration, 1);
+      // ease-out: 1 - (1-t)^3
+      const eased = 1 - Math.pow(1 - progress, 3);
+      const current = eased * numeric;
+
+      if (isInteger) {
+        setDisplay(Math.round(current).toLocaleString());
+      } else {
+        setDisplay(current.toFixed(1));
+      }
+
+      if (progress < 1) {
+        rafRef.current = requestAnimationFrame(tick);
+      } else {
+        setDisplay(target);
+        setDone(true);
+      }
+    }
+
+    rafRef.current = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(rafRef.current);
+  }, [target, duration]);
+
+  return { display, done };
+}
+
 /* ── Metric Card ────────────────────────────────── */
 function MetricCard({ label, value, sparkData, sparkColor, subtitle }: {
   label: string; value: string; sparkData: number[]; sparkColor: string; subtitle?: React.ReactNode;
 }) {
+  const { display, done } = useCountUp(value);
+
   return (
-    <div className="bg-background border border-border rounded-sm p-5">
+    <div className="bg-background border border-border rounded-sm p-5 animate-fade-in">
       <div className="table-header mb-3 font-body" style={{ fontSize: '12px' }}>{label}</div>
       <div className="flex items-end justify-between">
         <div>
-          <div className="font-heading font-light tracking-tight text-foreground" style={{ fontSize: '32px', lineHeight: 1 }}>{value}</div>
+          <div className="font-heading font-light tracking-tight text-foreground" style={{ fontSize: '32px', lineHeight: 1 }}>{display}</div>
           {subtitle && <div className="mt-1 text-xs">{subtitle}</div>}
         </div>
-        <Sparkline data={sparkData} color={sparkColor} />
+        <div className={done ? 'animate-fade-in' : 'opacity-0'}>
+          <Sparkline data={sparkData} color={sparkColor} />
+        </div>
       </div>
     </div>
   );
@@ -76,17 +126,90 @@ function StatusDot({ status }: { status: string }) {
   return <span className={`inline-block w-1.5 h-1.5 rounded-full ${cls} animate-pulse-dot`} />;
 }
 
+/* ── PII Count-up display ──────────────────────── */
+function PiiCount({ value, isNew }: { value: number; isNew: boolean }) {
+  const [display, setDisplay] = useState(isNew ? 0 : value);
+  const rafRef = useRef<number>(0);
+
+  useEffect(() => {
+    if (!isNew || value === 0) {
+      setDisplay(value);
+      return;
+    }
+    const start = performance.now();
+    const duration = 400;
+
+    function tick(now: number) {
+      const progress = Math.min((now - start) / duration, 1);
+      const eased = 1 - Math.pow(1 - progress, 2);
+      setDisplay(Math.round(eased * value));
+      if (progress < 1) {
+        rafRef.current = requestAnimationFrame(tick);
+      }
+    }
+
+    rafRef.current = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(rafRef.current);
+  }, [value, isNew]);
+
+  return <span className="text-muted-foreground">{display}</span>;
+}
+
 /* ── Live Feed ──────────────────────────────────── */
 function LiveFeed() {
   const { events, isLive, toggleLive } = useLiveFeed(30);
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [, setTick] = useState(0);
+  const prevEventsLenRef = useRef(0);
+  const seenIdsRef = useRef<Set<string>>(new Set());
+
+  // Track which events are "new" (appeared since last render)
+  const newEventIds = useMemo(() => {
+    const newIds = new Set<string>();
+    for (const evt of events) {
+      if (!seenIdsRef.current.has(evt.id)) {
+        newIds.add(evt.id);
+      }
+    }
+    return newIds;
+  }, [events]);
+
+  // After render, record all seen IDs
+  useEffect(() => {
+    for (const evt of events) {
+      seenIdsRef.current.add(evt.id);
+    }
+    prevEventsLenRef.current = events.length;
+  }, [events]);
 
   // Update "time ago" every second
   useEffect(() => {
     const interval = setInterval(() => setTick(t => t + 1), 1000);
     return () => clearInterval(interval);
   }, []);
+
+  // Build row animation class based on decision + freshness
+  const getRowAnimClass = useCallback((evt: { id: string; decision: string }, index: number) => {
+    const isNew = newEventIds.has(evt.id);
+    const classes: string[] = [];
+
+    if (isNew) {
+      classes.push('animate-slide-in-left');
+      if (evt.decision === 'allow') {
+        classes.push('animate-flash-green');
+      } else if (evt.decision === 'deny') {
+        classes.push('animate-flash-red', 'animate-shake');
+      }
+    }
+
+    return classes.join(' ');
+  }, [newEventIds]);
+
+  // Progressive opacity: index 0 = 1.0, then fade to min 0.5
+  const getRowOpacity = (index: number) => {
+    if (index === 0) return 1;
+    return Math.max(0.5, 1 - index * 0.07);
+  };
 
   return (
     <div className="bg-background border border-border rounded-sm flex flex-col" style={{ height: 520 }}>
@@ -117,33 +240,37 @@ function LiveFeed() {
 
       {/* Events */}
       <div className="flex-1 overflow-y-auto">
-        {events.map((evt, i) => (
-          <div key={evt.id}>
-            <div
-              onClick={() => setExpandedId(expandedId === evt.id ? null : evt.id)}
-              className={`grid grid-cols-[90px_100px_120px_70px_50px_50px_40px] gap-2 px-5 py-2 text-xs font-mono cursor-pointer transition-colors hover:bg-secondary/50 ${
-                i === 0 ? 'animate-fade-in-row' : ''
-              } ${evt.decision === 'deny' ? 'row-deny' : evt.decision === 'rate-limited' ? 'row-rate-limited' : ''}`}
-            >
-              <span className="text-muted-foreground font-mono" style={{ fontSize: '11px' }}>{timeAgo(evt.timestamp)}</span>
-              <span className="text-foreground truncate font-body font-medium">{evt.agent}</span>
-              <span className="text-ink-2 truncate">{evt.tool}</span>
-              <span className={evt.decision === 'allow' ? 'text-safe' : evt.decision === 'deny' ? 'text-danger' : 'text-warn'}>
-                {evt.decision}
-              </span>
-              <span className="text-muted-foreground">{evt.piiTokens}</span>
-              <span className="text-muted-foreground">{evt.latency}ms</span>
-              <span className="text-ink-3 uppercase">{evt.jurisdiction}</span>
-            </div>
-            {expandedId === evt.id && (
-              <div className="px-5 py-3 bg-secondary/30 border-y border-border">
-                <pre className="text-xs font-mono text-ink-2 whitespace-pre-wrap">
-                  {JSON.stringify(evt.details, null, 2)}
-                </pre>
+        {events.map((evt, i) => {
+          const isNew = newEventIds.has(evt.id);
+          return (
+            <div key={evt.id}>
+              <div
+                onClick={() => setExpandedId(expandedId === evt.id ? null : evt.id)}
+                style={{ opacity: getRowOpacity(i) }}
+                className={`grid grid-cols-[90px_100px_120px_70px_50px_50px_40px] gap-2 px-5 py-2 text-xs font-mono cursor-pointer transition-colors hover:bg-secondary/50 ${
+                  getRowAnimClass(evt, i)
+                } ${evt.decision === 'deny' && !isNew ? 'row-deny' : evt.decision === 'rate-limited' ? 'row-rate-limited' : ''}`}
+              >
+                <span className="text-muted-foreground font-mono" style={{ fontSize: '11px' }}>{timeAgo(evt.timestamp)}</span>
+                <span className="text-foreground truncate font-body font-medium">{evt.agent}</span>
+                <span className="text-ink-2 truncate">{evt.tool}</span>
+                <span className={evt.decision === 'allow' ? 'text-safe' : evt.decision === 'deny' ? 'text-danger' : 'text-warn'}>
+                  {evt.decision}
+                </span>
+                <PiiCount value={evt.piiTokens} isNew={isNew} />
+                <span className="text-muted-foreground">{evt.latency}ms</span>
+                <span className="text-ink-3 uppercase">{evt.jurisdiction}</span>
               </div>
-            )}
-          </div>
-        ))}
+              {expandedId === evt.id && (
+                <div className="px-5 py-3 bg-secondary/30 border-y border-border animate-fade-in">
+                  <pre className="text-xs font-mono text-ink-2 whitespace-pre-wrap">
+                    {JSON.stringify(evt.details, null, 2)}
+                  </pre>
+                </div>
+              )}
+            </div>
+          );
+        })}
       </div>
     </div>
   );
@@ -165,12 +292,12 @@ function JurisdictionPanel({ jurisdictions, loading }: { jurisdictions: Jurisdic
         {loading ? (
           Array.from({ length: 4 }).map((_, i) => (
             <div key={i} className="flex items-center gap-3 p-3 border border-border rounded-sm bg-background">
-              <div className="animate-pulse bg-muted rounded-full w-2 h-2 shrink-0" />
+              <div className="animate-shimmer rounded-full w-2 h-2 shrink-0" />
               <div className="flex-1 min-w-0">
-                <div className="animate-pulse bg-muted rounded h-3 w-20 mb-1" />
-                <div className="animate-pulse bg-muted rounded h-2 w-16" />
+                <div className="animate-shimmer rounded h-3 w-20 mb-1" />
+                <div className="animate-shimmer rounded h-2 w-16" />
               </div>
-              <div className="animate-pulse bg-muted rounded h-3 w-6" />
+              <div className="animate-shimmer rounded h-3 w-6" />
             </div>
           ))
         ) : (
@@ -198,11 +325,11 @@ function JurisdictionPanel({ jurisdictions, loading }: { jurisdictions: Jurisdic
         {loading ? (
           Array.from({ length: 4 }).map((_, i) => (
             <div key={i} className="flex items-center justify-between py-2 border-b border-border last:border-0">
-              <div className="animate-pulse bg-muted rounded h-3 w-20" />
+              <div className="animate-shimmer rounded h-3 w-20" />
               <div className="flex gap-4">
-                <div className="animate-pulse bg-muted rounded h-3 w-10" />
-                <div className="animate-pulse bg-muted rounded h-3 w-10" />
-                <div className="animate-pulse bg-muted rounded h-3 w-6" />
+                <div className="animate-shimmer rounded h-3 w-10" />
+                <div className="animate-shimmer rounded h-3 w-10" />
+                <div className="animate-shimmer rounded h-3 w-6" />
               </div>
             </div>
           ))
@@ -243,15 +370,15 @@ function ComplianceBar({ jurisdictions, loading }: { jurisdictions: Jurisdiction
         {Array.from({ length: 4 }).map((_, i) => (
           <div key={i} className="bg-background border border-border rounded-sm p-4">
             <div className="flex items-center justify-between mb-3">
-              <div className="animate-pulse bg-muted rounded h-3 w-16" />
-              <div className="animate-pulse bg-muted rounded h-4 w-20" />
+              <div className="animate-shimmer rounded h-3 w-16" />
+              <div className="animate-shimmer rounded h-4 w-20" />
             </div>
-            <div className="animate-pulse bg-muted rounded h-3 w-24 mb-2" />
-            <div className="animate-pulse bg-muted rounded h-6 w-12 mb-3" />
-            <div className="animate-pulse bg-muted rounded h-1 w-full mb-3" />
+            <div className="animate-shimmer rounded h-3 w-24 mb-2" />
+            <div className="animate-shimmer rounded h-6 w-12 mb-3" />
+            <div className="animate-shimmer rounded h-1 w-full mb-3" />
             <div className="flex justify-between">
-              <div className="animate-pulse bg-muted rounded h-2 w-20" />
-              <div className="animate-pulse bg-muted rounded h-2 w-20" />
+              <div className="animate-shimmer rounded h-2 w-20" />
+              <div className="animate-shimmer rounded h-2 w-20" />
             </div>
           </div>
         ))}

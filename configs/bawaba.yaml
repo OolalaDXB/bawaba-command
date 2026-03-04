@@ -68,3 +68,17 @@ audit:
   siem_export:
     format: jsonlines
     endpoint: ""
+
+quotas:
+  default_limit: 1000
+  period: 1h
+  overrides:
+    claude-code: 5000
+    cursor-ide: 3000
+
+siem:
+  enabled: false
+  type: webhook
+  endpoint: ""
+  token: ""
+  format: json

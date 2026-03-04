@@ -1,278 +1,170 @@
 #!/usr/bin/env bash
-# ──────────────────────────────────────────────────────────────────────
-# Bawaba Gateway — Deploy to OVHcloud VPS
-#
-# Usage:
-#   ./scripts/deploy-ovh.sh <vps-ip> [domain]
-#
-# Examples:
-#   ./scripts/deploy-ovh.sh 51.210.1.2
-#   ./scripts/deploy-ovh.sh 51.210.1.2 bawaba.example.com
-#
-# Prerequisites on VPS:
-#   - Ubuntu 22.04+ or Debian 12+
-#   - SSH access with key auth
-#   - Ports 80, 443, 8080, 8081 open in firewall
-# ──────────────────────────────────────────────────────────────────────
+# BAWABA — Deploy to OVHcloud VPS
+# Prérequis : VPS OVHcloud (Ubuntu 22.04+)
+# Usage : ./scripts/deploy-ovh.sh <IP_INSTANCE> [DOMAIN]
+
 set -euo pipefail
 
-# ─── Config ───────────────────────────────────────────────
-VPS_IP="${1:?Usage: deploy-ovh.sh <vps-ip> [domain]}"
-DOMAIN="${2:-}"
-SSH_USER="${SSH_USER:-root}"
-REPO_URL="${REPO_URL:-https://github.com/OolalaDXB/bawaba-command.git}"
-DEPLOY_DIR="/opt/bawaba"
-BRANCH="${BRANCH:-main}"
+IP="${1:?Usage: $0 <IP_INSTANCE> [DOMAIN]}"
+USER="ubuntu"
+REPO="https://github.com/OolalaDXB/bawaba-command.git"
+DOMAIN="${2:-}"  # optionnel : ton domaine (ex: demo.bawaba.io)
 
-# Colors
-G='\033[0;32m'; R='\033[0;31m'; Y='\033[0;33m'; C='\033[0;36m'; NC='\033[0m'
+echo "═══════════════════════════════════════════════"
+echo "  BAWABA بوابة — Deploy OVHcloud"
+echo "  OVHcloud · Europe · Hors Cloud Act"
+echo "═══════════════════════════════════════════════"
 
-log()  { echo -e "${G}[deploy]${NC} $*"; }
-warn() { echo -e "${Y}[deploy]${NC} $*"; }
-err()  { echo -e "${R}[deploy]${NC} $*"; exit 1; }
+# 1. Install Docker + Docker Compose on the instance
+echo ""
+echo "[1/6] Installing Docker..."
+ssh -o StrictHostKeyChecking=no ${USER}@${IP} << 'REMOTE'
+  # Docker
+  if ! command -v docker &> /dev/null; then
+    curl -fsSL https://get.docker.com | sh
+    sudo usermod -aG docker $USER
+    sudo systemctl enable docker
+    sudo systemctl start docker
+    echo "✓ Docker installed"
+  else
+    echo "✓ Docker already installed"
+  fi
 
-SSH="ssh -o StrictHostKeyChecking=accept-new ${SSH_USER}@${VPS_IP}"
-SCP="scp -o StrictHostKeyChecking=accept-new"
+  # Docker Compose plugin
+  if ! docker compose version &> /dev/null; then
+    sudo apt-get update -qq
+    sudo apt-get install -y -qq docker-compose-plugin
+    echo "✓ Docker Compose installed"
+  else
+    echo "✓ Docker Compose already installed"
+  fi
+REMOTE
 
-# ─── Step 1: Install Docker if needed ────────────────────
-log "Step 1/6: Ensuring Docker is installed on ${VPS_IP}..."
+# 2. Open firewall ports (OVHcloud VPS uses UFW)
+echo ""
+echo "[2/6] Configuring UFW firewall..."
+ssh ${USER}@${IP} << 'REMOTE'
+  sudo ufw allow 22/tcp
+  sudo ufw allow 80/tcp
+  sudo ufw allow 443/tcp
+  sudo ufw allow 8080/tcp
+  sudo ufw allow 8081/tcp
+  sudo ufw allow 5173/tcp
+  sudo ufw --force enable
+  echo "✓ UFW enabled — ports 22, 80, 443, 8080, 8081, 5173 opened"
+REMOTE
 
-$SSH bash -s <<'REMOTE_DOCKER'
-set -euo pipefail
-if command -v docker &>/dev/null && docker compose version &>/dev/null; then
-    echo "Docker already installed: $(docker --version)"
-    exit 0
-fi
+# 3. Clone or update repo
+echo ""
+echo "[3/6] Cloning/updating repo..."
+ssh ${USER}@${IP} << REMOTE
+  if [ -d ~/bawaba-command ]; then
+    cd ~/bawaba-command && git pull
+    echo "✓ Repo updated"
+  else
+    git clone ${REPO} ~/bawaba-command
+    echo "✓ Repo cloned"
+  fi
+REMOTE
 
-echo "Installing Docker..."
-apt-get update -qq
-apt-get install -y -qq ca-certificates curl gnupg
+# 4. Build and start
+echo ""
+echo "[4/6] Building and starting Bawaba..."
+ssh ${USER}@${IP} << 'REMOTE'
+  cd ~/bawaba-command
 
-install -m 0755 -d /etc/apt/keyrings
-curl -fsSL https://download.docker.com/linux/ubuntu/gpg | gpg --dearmor -o /etc/apt/keyrings/docker.gpg
-chmod a+r /etc/apt/keyrings/docker.gpg
+  # Generate Ed25519 key if not exists
+  if [ ! -f configs/ed25519.key ]; then
+    openssl genpkey -algorithm Ed25519 -out configs/ed25519.key 2>/dev/null
+    echo "✓ Ed25519 key generated"
+  fi
 
-echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] \
-https://download.docker.com/linux/ubuntu $(. /etc/os-release && echo "$VERSION_CODENAME") stable" > \
-/etc/apt/sources.list.d/docker.list
+  # Build and start
+  docker compose up --build -d
 
-apt-get update -qq
-apt-get install -y -qq docker-ce docker-ce-cli containerd.io docker-compose-plugin
-systemctl enable docker
-systemctl start docker
-echo "Docker installed: $(docker --version)"
-REMOTE_DOCKER
-
-# ─── Step 2: Clone or pull repo ──────────────────────────
-log "Step 2/6: Syncing repository..."
-
-$SSH bash -s <<REMOTE_REPO
-set -euo pipefail
-if [ -d "$DEPLOY_DIR/.git" ]; then
-    cd "$DEPLOY_DIR"
-    git fetch origin
-    git checkout "$BRANCH"
-    git reset --hard "origin/$BRANCH"
-    echo "Repository updated"
-else
-    git clone --branch "$BRANCH" "$REPO_URL" "$DEPLOY_DIR"
-    echo "Repository cloned"
-fi
-REMOTE_REPO
-
-# ─── Step 3: Generate keys & env ─────────────────────────
-log "Step 3/6: Configuring environment..."
-
-$SSH bash -s <<'REMOTE_ENV'
-set -euo pipefail
-cd /opt/bawaba
-
-# Generate Ed25519 key if missing
-mkdir -p keys
-if [ ! -f keys/ed25519.key ]; then
-    openssl genpkey -algorithm Ed25519 -out keys/ed25519.key 2>/dev/null
-    openssl pkey -in keys/ed25519.key -pubout -out keys/ed25519.pub 2>/dev/null
-    echo "Ed25519 key pair generated"
-fi
-
-# Create .env if missing
-if [ ! -f .env ]; then
-    DB_PASS=$(openssl rand -base64 24 | tr -d '/+=' | head -c 32)
-    cat > .env <<EOF
-BAWABA_DB_PASSWORD=${DB_PASS}
-BAWABA_AGENT_KEY_test_agent=$(openssl rand -hex 16)
-BAWABA_AGENT_KEY_claude_code=$(openssl rand -hex 16)
-BAWABA_AGENT_KEY_cursor_ide=$(openssl rand -hex 16)
-GRAFANA_PASSWORD=$(openssl rand -hex 12)
-EOF
-    chmod 600 .env
-    echo ".env created with random secrets"
-else
-    echo ".env already exists, keeping current secrets"
-fi
-REMOTE_ENV
-
-# ─── Step 4: Build & start ───────────────────────────────
-log "Step 4/6: Building and starting services..."
-
-$SSH bash -s <<'REMOTE_START'
-set -euo pipefail
-cd /opt/bawaba
-
-# Use production compose only (no override)
-docker compose -f docker-compose.yml up --build -d
-
-# Wait for gateway health
-echo "Waiting for gateway to be healthy..."
-for i in $(seq 1 30); do
-    if curl -sS -o /dev/null -w '%{http_code}' http://localhost:8081/api/v1/health 2>/dev/null | grep -q "200"; then
-        echo "Gateway is healthy!"
-        break
+  # Wait for health
+  echo "Waiting for gateway..."
+  for i in $(seq 1 30); do
+    if curl -sf http://localhost:8081/api/v1/health > /dev/null 2>&1; then
+      echo "✓ Gateway is healthy"
+      break
     fi
-    if [ "$i" -eq 30 ]; then
-        echo "WARNING: Gateway health check timed out after 30s"
-        docker compose logs --tail=20 gateway
-        exit 1
-    fi
-    sleep 1
-done
+    sleep 2
+  done
+REMOTE
 
-# Load demo seed data if this is first deploy
-docker compose exec -T postgres psql -U bawaba -d bawaba -c "SELECT COUNT(*) FROM audit_events" 2>/dev/null | grep -q "0" && {
-    echo "Loading demo seed data..."
-    docker compose exec -T postgres psql -U bawaba -d bawaba < migrations/999_demo_seed.sql
-    echo "Demo data loaded"
-} || echo "Audit events already present, skipping seed"
-REMOTE_START
+# 5. Optional: setup HTTPS with Let's Encrypt
+if [ -n "${DOMAIN}" ]; then
+  echo ""
+  echo "[5/6] Setting up HTTPS for ${DOMAIN}..."
+  ssh ${USER}@${IP} << REMOTE
+    sudo apt-get install -y -qq certbot
 
-# ─── Step 5: Let's Encrypt (if domain provided) ─────────
-if [ -n "$DOMAIN" ]; then
-    log "Step 5/6: Setting up Let's Encrypt for ${DOMAIN}..."
+    # Nginx reverse proxy
+    sudo apt-get install -y -qq nginx
 
-    $SSH bash -s <<REMOTE_TLS
-set -euo pipefail
-
-# Install certbot + nginx
-apt-get update -qq
-apt-get install -y -qq certbot nginx
-
-# Create nginx config
-cat > /etc/nginx/sites-available/bawaba <<NGINX
+    sudo tee /etc/nginx/sites-available/bawaba << 'NGINX'
 server {
     listen 80;
     server_name ${DOMAIN};
 
-    location /.well-known/acme-challenge/ {
-        root /var/www/certbot;
-    }
-
     location / {
-        return 301 https://\\\$host\\\$request_uri;
-    }
-}
-
-server {
-    listen 443 ssl http2;
-    server_name ${DOMAIN};
-
-    ssl_certificate     /etc/letsencrypt/live/${DOMAIN}/fullchain.pem;
-    ssl_certificate_key /etc/letsencrypt/live/${DOMAIN}/privkey.pem;
-    ssl_protocols       TLSv1.2 TLSv1.3;
-    ssl_ciphers         HIGH:!aNULL:!MD5;
-
-    # MCP Gateway
-    location /mcp {
-        proxy_pass http://127.0.0.1:8080;
-        proxy_set_header Host \\\$host;
-        proxy_set_header X-Real-IP \\\$remote_addr;
-        proxy_set_header X-Forwarded-For \\\$proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto \\\$scheme;
-    }
-
-    # SSE (MCP)
-    location /sse {
-        proxy_pass http://127.0.0.1:8080;
-        proxy_set_header Host \\\$host;
+        proxy_pass http://localhost:5173;
         proxy_http_version 1.1;
-        proxy_set_header Connection "";
-        proxy_buffering off;
+        proxy_set_header Upgrade \$http_upgrade;
+        proxy_set_header Connection "upgrade";
+        proxy_set_header Host \$host;
     }
 
-    # REST API
     location /api/ {
-        proxy_pass http://127.0.0.1:8081;
-        proxy_set_header Host \\\$host;
-        proxy_set_header X-Real-IP \\\$remote_addr;
-        proxy_set_header X-Forwarded-For \\\$proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto \\\$scheme;
-    }
-
-    # SSE (API)
-    location /api/v1/events/stream {
-        proxy_pass http://127.0.0.1:8081;
-        proxy_set_header Host \\\$host;
+        proxy_pass http://localhost:8081;
         proxy_http_version 1.1;
-        proxy_set_header Connection "";
+        proxy_set_header Host \$host;
         proxy_buffering off;
-        proxy_read_timeout 86400s;
+        proxy_cache off;
+        # SSE support
+        proxy_set_header Connection '';
+        chunked_transfer_encoding off;
     }
 }
 NGINX
 
-ln -sf /etc/nginx/sites-available/bawaba /etc/nginx/sites-enabled/
-rm -f /etc/nginx/sites-enabled/default
+    sudo ln -sf /etc/nginx/sites-available/bawaba /etc/nginx/sites-enabled/
+    sudo rm -f /etc/nginx/sites-enabled/default
+    sudo nginx -t && sudo systemctl reload nginx
 
-# Get certificate
-mkdir -p /var/www/certbot
-nginx -t && systemctl restart nginx
-
-certbot certonly --webroot -w /var/www/certbot \
-    -d ${DOMAIN} \
-    --non-interactive --agree-tos \
-    --email admin@${DOMAIN} || {
-    echo "WARNING: certbot failed. Check DNS for ${DOMAIN} -> ${VPS_IP}"
-    echo "You can retry: certbot certonly --webroot -w /var/www/certbot -d ${DOMAIN}"
-}
-
-# Reload nginx with SSL
-nginx -t && systemctl reload nginx
-
-# Auto-renew cron
-echo "0 3 * * * certbot renew --quiet --post-hook 'systemctl reload nginx'" | crontab -
-
-echo "TLS configured for ${DOMAIN}"
-REMOTE_TLS
-
+    # SSL
+    sudo certbot --nginx -d ${DOMAIN} --non-interactive --agree-tos --email contact@bawaba.io
+    echo "✓ HTTPS configured for ${DOMAIN}"
+REMOTE
 else
-    warn "Step 5/6: No domain provided, skipping TLS setup"
-    warn "  To add TLS later: ./scripts/deploy-ovh.sh ${VPS_IP} your-domain.com"
+  echo ""
+  echo "[5/6] Skipping HTTPS (no domain provided)"
 fi
 
-# ─── Step 6: Summary ─────────────────────────────────────
-log "Step 6/6: Deployment complete!"
+# 6. Verify and show status
 echo ""
-echo -e "${C}╔══════════════════════════════════════════════════════╗${NC}"
-echo -e "${C}║          BAWABA GATEWAY — DEPLOYED                  ║${NC}"
-echo -e "${C}╠══════════════════════════════════════════════════════╣${NC}"
-echo -e "${C}║${NC}  VPS:          ${VPS_IP}                          ${C}║${NC}"
-
-if [ -n "$DOMAIN" ]; then
-echo -e "${C}║${NC}  Domain:        ${DOMAIN}                         ${C}║${NC}"
-echo -e "${C}║${NC}                                                      ${C}║${NC}"
-echo -e "${C}║${NC}  MCP Gateway:   https://${DOMAIN}/mcp              ${C}║${NC}"
-echo -e "${C}║${NC}  REST API:      https://${DOMAIN}/api/v1/health    ${C}║${NC}"
-echo -e "${C}║${NC}  Health:        https://${DOMAIN}/api/v1/health    ${C}║${NC}"
+echo "[6/6] Verifying deployment..."
+HEALTH=$(ssh ${USER}@${IP} "curl -sf http://localhost:8081/api/v1/health" 2>/dev/null || echo '{"status":"error"}')
+echo ""
+echo "═══════════════════════════════════════════════"
+echo "  BAWABA بوابة — Deployment Complete"
+echo "  OVHcloud · Europe · Hors Cloud Act"
+echo "═══════════════════════════════════════════════"
+echo ""
+echo "  Health: ${HEALTH}"
+echo ""
+if [ -n "${DOMAIN}" ]; then
+  echo "  Dashboard: https://${DOMAIN}"
+  echo "  API:       https://${DOMAIN}/api/v1/health"
 else
-echo -e "${C}║${NC}                                                      ${C}║${NC}"
-echo -e "${C}║${NC}  MCP Gateway:   http://${VPS_IP}:8080/mcp           ${C}║${NC}"
-echo -e "${C}║${NC}  REST API:      http://${VPS_IP}:8081/api/v1/health ${C}║${NC}"
-echo -e "${C}║${NC}  Health:        http://${VPS_IP}:8081/api/v1/health ${C}║${NC}"
+  echo "  Dashboard: http://${IP}:5173"
+  echo "  API:       http://${IP}:8081/api/v1/health"
+  echo "  Proxy MCP: http://${IP}:8080"
 fi
-
-echo -e "${C}╚══════════════════════════════════════════════════════╝${NC}"
 echo ""
-echo -e "  Next steps:"
-echo -e "    make demo        # Run demo scenario"
-echo -e "    make verify      # Check audit chain integrity"
-echo -e "    make logs        # Follow gateway logs"
+echo "  Run demo:  ssh ${USER}@${IP} 'cd ~/bawaba-command && make demo'"
+echo "  Stop:      ssh ${USER}@${IP} 'cd ~/bawaba-command && docker compose down'"
+echo "  Logs:      ssh ${USER}@${IP} 'cd ~/bawaba-command && docker compose logs -f'"
 echo ""
+echo "═══════════════════════════════════════════════"

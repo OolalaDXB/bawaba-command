@@ -187,6 +187,8 @@
   }
 }
 
+/* ── Keyframes ─────────────────────────────────── */
+
 @keyframes fadeInRow {
   from {
     opacity: 0;
@@ -203,10 +205,192 @@
   50% { opacity: 0.4; }
 }
 
+@keyframes slideInLeft {
+  from {
+    opacity: 0;
+    transform: translateX(-20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes flashGreen {
+  0% {
+    background-color: hsl(var(--safe) / 0.18);
+  }
+  100% {
+    background-color: transparent;
+  }
+}
+
+@keyframes flashRed {
+  0% {
+    background-color: hsl(var(--danger) / 0.18);
+  }
+  100% {
+    background-color: transparent;
+  }
+}
+
+@keyframes shake {
+  0%   { transform: translateX(0); }
+  25%  { transform: translateX(2px); }
+  50%  { transform: translateX(-2px); }
+  75%  { transform: translateX(2px); }
+  100% { transform: translateX(0); }
+}
+
+@keyframes shimmer {
+  0% {
+    background-position: -400px 0;
+  }
+  100% {
+    background-position: 400px 0;
+  }
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes countPop {
+  0% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.12);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
+/* ── Animation utility classes ─────────────────── */
+
 .animate-fade-in-row {
   animation: fadeInRow 0.4s ease-out;
 }
 
 .animate-pulse-dot {
   animation: pulseDot 2s ease-in-out infinite;
+}
+
+.animate-slide-in-left {
+  animation: slideInLeft 300ms ease both;
+}
+
+.animate-flash-green {
+  animation: flashGreen 500ms ease-out both;
+}
+
+.animate-flash-red {
+  animation: flashRed 500ms ease-out both;
+}
+
+.animate-shake {
+  animation: shake 200ms ease both;
+}
+
+.animate-shimmer {
+  background: linear-gradient(
+    90deg,
+    hsl(var(--muted)) 0%,
+    hsl(var(--muted-foreground) / 0.08) 50%,
+    hsl(var(--muted)) 100%
+  );
+  background-size: 800px 100%;
+  animation: shimmer 1.5s infinite linear;
+}
+
+.animate-fade-in {
+  animation: fadeIn 500ms ease both;
+}
+
+.animate-fade-in-delayed {
+  opacity: 0;
+  animation: fadeIn 500ms ease 800ms both;
+}
+
+.animate-count-pop {
+  animation: countPop 300ms ease;
+}
+
+/* ── Chain verification animations ─────────────── */
+
+@keyframes chainVerify {
+  0% {
+    border-color: hsl(var(--border));
+    background: hsl(var(--background));
+  }
+  100% {
+    border-color: hsl(var(--safe));
+    background: hsl(var(--safe-bg));
+  }
+}
+
+@keyframes chainCorrupt {
+  0%, 100% {
+    border-color: hsl(var(--danger));
+    background: hsl(var(--danger-bg));
+    transform: scale(1);
+  }
+  50% {
+    border-color: hsl(var(--danger));
+    background: hsl(var(--danger-bg));
+    transform: scale(1.04);
+  }
+}
+
+@keyframes lineVerify {
+  0% { background-color: hsl(var(--ink-5)); }
+  100% { background-color: hsl(var(--safe)); }
+}
+
+@keyframes slideInRight {
+  from {
+    transform: translateX(100%);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+
+@keyframes slideOutRight {
+  from {
+    transform: translateX(0);
+    opacity: 1;
+  }
+  to {
+    transform: translateX(100%);
+    opacity: 0;
+  }
+}
+
+.animate-chain-verify {
+  animation: chainVerify 0.3s ease-out forwards;
+}
+
+.animate-chain-corrupt {
+  animation: chainCorrupt 0.8s ease-in-out infinite;
+}
+
+.animate-line-verify {
+  animation: lineVerify 0.3s ease-out forwards;
+}
+
+.animate-slide-in-right {
+  animation: slideInRight 0.25s ease-out forwards;
+}
+
+.animate-slide-out-right {
+  animation: slideOutRight 0.2s ease-in forwards;
 }

@@ -1,6 +1,12 @@
-import { useState, useEffect, useMemo, useCallback } from 'react';
-import { generateInitialEvents, getJurisdictionName, type MCPEvent, AGENTS, TOOLS } from '@/lib/mock-data';
-import { BarChart, Bar, PieChart, Pie, Cell, LineChart, Line, ResponsiveContainer, XAxis, YAxis, Tooltip } from 'recharts';
+import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
+import { generateInitialEvents, getJurisdictionName, type MCPEvent } from '@/lib/mock-data';
+import { BarChart, Bar, PieChart, Pie, Cell, LineChart, Line, ResponsiveContainer, XAxis, YAxis, Tooltip as RechartsTooltip } from 'recharts';
+import {
+  Tooltip,
+  TooltipTrigger,
+  TooltipContent,
+  TooltipProvider,
+} from '@/components/ui/tooltip';
 import {
   isApiAvailable, fetchEvents, verifyChain, exportEvents,
   type ApiEvent, type ChainVerification,
@@ -45,53 +51,122 @@ function mapApiEvent(apiEvt: ApiEvent): MCPEvent {
   };
 }
 
-/* ── Merkle Chain Viz ───────────────────────────── */
-function MerkleChain({ events, verification }: { events: MCPEvent[]; verification: ChainVerification | null }) {
-  const chain = events.slice(0, 6);
-  const verified = verification?.valid ?? true;
-  const verifiedLabel = verification
-    ? (verification.valid ? 'Merkle root verified' : `Chain invalid: ${verification.error || 'unknown error'}`)
-    : 'Merkle root verified';
+/* ── Collapsible Explainer Panel ─────────────────── */
+function ExplainerPanel() {
+  const [open, setOpen] = useState(true);
 
   return (
-    <div className="card-surface shadow-card p-5">
-      <div className="flex items-center gap-3 mb-4">
-        <div>
-          <div className="text-sm font-body font-medium text-foreground">Hash Chain</div>
-          <div className="text-xs text-muted-foreground">Tamper-evident audit trail</div>
-        </div>
-      </div>
+    <div className="card-surface shadow-card overflow-hidden">
+      <button
+        onClick={() => setOpen(!open)}
+        className="w-full flex items-center gap-3 px-5 py-3 text-left hover:bg-secondary/20 transition-colors"
+      >
+        {/* Shield icon */}
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="text-safe shrink-0">
+          <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+        </svg>
+        <span className="text-xs font-body font-medium text-foreground flex-1">
+          Comment fonctionne la chaine d'audit ?
+        </span>
+        <svg
+          width="14" height="14" viewBox="0 0 24 24" fill="none"
+          stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
+          className={`text-muted-foreground shrink-0 transition-transform duration-200 ${open ? 'rotate-180' : ''}`}
+        >
+          <polyline points="6 9 12 15 18 9" />
+        </svg>
+      </button>
 
-      <div className="flex items-center gap-0 overflow-x-auto pb-2">
+      {open && (
+        <div className="px-5 pb-4 pt-0">
+          <p className="text-xs font-body text-muted-foreground leading-relaxed">
+            Chaque evenement contient l'empreinte du precedent (SHA-256) et est signe
+            cryptographiquement (Ed25519). Si quelqu'un modifie un seul evenement, la chaine
+            se casse — et Bawaba le detecte immediatement.
+          </p>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* ── Hash Chain Visualization ───────────────────── */
+type BlockStatus = 'idle' | 'verified' | 'corrupt';
+
+function HashChainViz({
+  events,
+  blockStatuses,
+  lineStatuses,
+}: {
+  events: MCPEvent[];
+  blockStatuses: BlockStatus[];
+  lineStatuses: ('idle' | 'verified')[];
+}) {
+  const chain = events.slice(0, 8);
+
+  return (
+    <div className="flex items-center gap-0 overflow-x-auto pb-2">
+      <TooltipProvider delayDuration={150}>
         {chain.map((evt, i) => (
           <div key={evt.id} className="flex items-center shrink-0">
-            <div className="border border-border rounded-sm p-3 bg-background min-w-[140px]">
-              <div className="text-[9px] text-muted-foreground mb-1">{evt.id}</div>
-              <div className="font-mono text-[10px] text-foreground truncate">{evt.hash}</div>
+            {/* Block */}
+            <div
+              className={`border rounded-sm p-3 bg-background min-w-[130px] transition-none ${
+                blockStatuses[i] === 'verified'
+                  ? 'animate-chain-verify'
+                  : blockStatuses[i] === 'corrupt'
+                    ? 'animate-chain-corrupt'
+                    : 'border-border'
+              }`}
+            >
+              <div className="text-[9px] text-muted-foreground mb-1 font-body">#{i + 1}</div>
+
+              {/* Hash with tooltip */}
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <div className="font-mono text-[10px] text-foreground cursor-help">
+                    {evt.hash.slice(0, 8)}
+                  </div>
+                </TooltipTrigger>
+                <TooltipContent side="top" className="font-mono text-[10px] max-w-[260px] break-all">
+                  {evt.hash}
+                </TooltipContent>
+              </Tooltip>
+
+              {/* Prev hash */}
               <div className="text-[9px] text-muted-foreground mt-1.5 flex items-center gap-1">
-                <span>prev:</span>
-                <span className="font-mono">{evt.prevHash.slice(0, 8)}{evt.prevHash.length > 8 ? '...' : ''}</span>
+                <span className="font-body">prev:</span>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <span className="font-mono cursor-help">
+                      {evt.prevHash.slice(0, 8)}
+                    </span>
+                  </TooltipTrigger>
+                  <TooltipContent side="bottom" className="font-mono text-[10px] max-w-[260px] break-all">
+                    {evt.prevHash}
+                  </TooltipContent>
+                </Tooltip>
               </div>
+
+              {/* Decision badge */}
               <div className={`text-[9px] font-mono mt-1 ${
                 evt.decision === 'allow' ? 'text-safe' : evt.decision === 'deny' ? 'text-danger' : 'text-warn'
               }`}>
                 {evt.decision}
               </div>
             </div>
+
+            {/* Connecting line */}
             {i < chain.length - 1 && (
-              <div className="w-6 h-px bg-ink-5 shrink-0" />
+              <div
+                className={`w-8 h-px shrink-0 ${
+                  lineStatuses[i] === 'verified' ? 'animate-line-verify' : 'bg-ink-5'
+                }`}
+              />
             )}
           </div>
         ))}
-      </div>
-
-      <div className={`mt-4 flex items-center gap-3 p-3 ${verified ? 'bg-safe-bg border border-safe/10' : 'bg-danger-bg border border-danger/10'} rounded-sm`}>
-        <span className={`w-2 h-2 rounded-full ${verified ? 'bg-safe' : 'bg-danger'}`} />
-        <span className={`text-xs ${verified ? 'text-safe' : 'text-danger'} font-mono`}>{verifiedLabel}</span>
-        <span className="text-[10px] text-muted-foreground font-mono ml-auto">
-          {verification ? `${verification.events} events checked` : `Root: ${chain[0]?.hash || '-'}`}
-        </span>
-      </div>
+      </TooltipProvider>
     </div>
   );
 }
@@ -136,7 +211,7 @@ function AuditStats({ events }: { events: MCPEvent[] }) {
               <Pie data={byDecision} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={45} strokeWidth={1} stroke="hsl(0, 0%, 100%)">
                 {byDecision.map((_, i) => <Cell key={i} fill={COLORS[i]} />)}
               </Pie>
-              <Tooltip contentStyle={{ fontSize: 10, fontFamily: 'JetBrains Mono' }} />
+              <RechartsTooltip contentStyle={{ fontSize: 10, fontFamily: 'JetBrains Mono' }} />
             </PieChart>
           </ResponsiveContainer>
         </div>
@@ -229,12 +304,33 @@ export default function AuditTrail() {
   const [exporting, setExporting] = useState(false);
   const [, setTick] = useState(0);
 
+  /* Chain verification animation state */
+  const [blockStatuses, setBlockStatuses] = useState<BlockStatus[]>([]);
+  const [lineStatuses, setLineStatuses] = useState<('idle' | 'verified')[]>([]);
+  const [verifyMessage, setVerifyMessage] = useState<string | null>(null);
+  const animTimers = useRef<ReturnType<typeof setTimeout>[]>([]);
+
   const PAGE_SIZE = 50;
+  const CHAIN_SIZE = 8;
 
   // Live timestamp updates
   useEffect(() => {
     const interval = setInterval(() => setTick(t => t + 1), 1000);
     return () => clearInterval(interval);
+  }, []);
+
+  // Initialize block/line statuses when events change
+  useEffect(() => {
+    const count = Math.min(events.length, CHAIN_SIZE);
+    setBlockStatuses(Array(count).fill('idle'));
+    setLineStatuses(Array(Math.max(0, count - 1)).fill('idle'));
+  }, [events]);
+
+  // Clean up timers on unmount
+  useEffect(() => {
+    return () => {
+      animTimers.current.forEach(t => clearTimeout(t));
+    };
   }, []);
 
   // Initial load
@@ -295,18 +391,77 @@ export default function AuditTrail() {
     setLoadingMore(false);
   }, [apiAvailable, loadingMore, hasMore, page]);
 
-  // Verify chain
+  // Verify chain with animated block-by-block progression
   const handleVerify = useCallback(async () => {
-    if (!apiAvailable) return;
+    // Clear previous animation timers
+    animTimers.current.forEach(t => clearTimeout(t));
+    animTimers.current = [];
+
+    setVerifyMessage(null);
     setVerifying(true);
-    try {
-      const result = await verifyChain();
-      setVerification(result);
-    } catch {
-      setVerification({ valid: false, events: 0, verified_at: new Date().toISOString(), error: 'Verification request failed' });
+
+    const count = Math.min(events.length, CHAIN_SIZE);
+    // Reset all to idle
+    setBlockStatuses(Array(count).fill('idle'));
+    setLineStatuses(Array(Math.max(0, count - 1)).fill('idle'));
+
+    // Try API verification
+    let result: ChainVerification;
+    if (apiAvailable) {
+      try {
+        result = await verifyChain();
+      } catch {
+        result = { valid: false, events: 0, verified_at: new Date().toISOString(), error: 'Verification request failed' };
+      }
+    } else {
+      // Mock: simulate a valid chain for demo
+      result = {
+        valid: true,
+        events: events.length,
+        verified_at: new Date().toISOString(),
+      };
     }
-    setVerifying(false);
-  }, [apiAvailable]);
+
+    setVerification(result);
+
+    // Animate blocks left-to-right with 100ms delay between each
+    const DELAY = 100;
+    for (let i = 0; i < count; i++) {
+      const timer = setTimeout(() => {
+        setBlockStatuses(prev => {
+          const next = [...prev];
+          next[i] = result.valid ? 'verified' : (i === count - 1 ? 'corrupt' : 'verified');
+          return next;
+        });
+
+        // Animate connecting line (the line before this block)
+        if (i > 0) {
+          setLineStatuses(prev => {
+            const next = [...prev];
+            next[i - 1] = 'verified';
+            return next;
+          });
+        }
+
+        // After last block, show the result message
+        if (i === count - 1) {
+          if (result.valid) {
+            setVerifyMessage(`Chaine verifiee -- ${result.events} evenements -- 0 alteration`);
+          } else {
+            setVerifyMessage(`Alteration detectee a l'evenement #${count}`);
+          }
+          setVerifying(false);
+        }
+      }, i * DELAY);
+      animTimers.current.push(timer);
+    }
+
+    // Safety: ensure verifying is reset even if no events
+    if (count === 0) {
+      setVerifying(false);
+      setVerifyMessage('Aucun evenement a verifier');
+    }
+  }, [apiAvailable, events]);
 
   // Export
   const handleExport = useCallback(async () => {
@@ -331,6 +486,9 @@ export default function AuditTrail() {
 
   return (
     <div className="space-y-6">
+      {/* Explainer Panel */}
+      <ExplainerPanel />
+
       {/* Export controls */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
@@ -350,18 +508,52 @@ export default function AuditTrail() {
           <button className="text-xs font-body px-3 py-1.5 border border-border rounded-sm text-muted-foreground hover:text-foreground transition-colors">
             Generate Report
           </button>
-          <button
-            onClick={handleVerify}
-            disabled={verifying}
-            className="text-xs font-body px-3 py-1.5 bg-safe-bg border border-safe/10 text-safe rounded-sm hover:opacity-90 transition-opacity disabled:opacity-50"
-          >
-            {verifying ? 'Verifying...' : 'Verify Merkle Root'}
-          </button>
         </div>
       </div>
 
-      {/* Merkle Chain */}
-      <MerkleChain events={events} verification={verification} />
+      {/* Hash Chain Visualization */}
+      <div className="card-surface shadow-card p-5">
+        <div className="flex items-center justify-between mb-4">
+          <div>
+            <div className="text-sm font-body font-medium text-foreground">Hash Chain</div>
+            <div className="text-xs text-muted-foreground">Tamper-evident audit trail</div>
+          </div>
+          <button
+            onClick={handleVerify}
+            disabled={verifying}
+            className="text-xs font-body px-4 py-2 bg-safe-bg border border-safe/10 text-safe rounded-sm hover:opacity-90 transition-opacity disabled:opacity-50 flex items-center gap-2"
+          >
+            {/* Checkmark / shield icon */}
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="shrink-0">
+              <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+            </svg>
+            {verifying ? 'Verification...' : "Verifier l'integrite"}
+          </button>
+        </div>
+
+        <HashChainViz
+          events={events}
+          blockStatuses={blockStatuses}
+          lineStatuses={lineStatuses}
+        />
+
+        {/* Verification result message */}
+        {verifyMessage && (
+          <div className={`mt-4 flex items-center gap-3 p-3 rounded-sm ${
+            verification?.valid
+              ? 'bg-safe-bg border border-safe/10'
+              : 'bg-danger-bg border border-danger/10'
+          }`}>
+            <span className={`w-2 h-2 rounded-full ${verification?.valid ? 'bg-safe' : 'bg-danger'}`} />
+            <span className={`text-xs font-mono ${verification?.valid ? 'text-safe' : 'text-danger'}`}>
+              {verifyMessage}
+            </span>
+            <span className="text-[10px] text-muted-foreground font-mono ml-auto">
+              {verification ? `${verification.events} events` : ''}
+            </span>
+          </div>
+        )}
+      </div>
 
       {/* Main content + stats sidebar */}
       <div className="grid grid-cols-12 gap-6">

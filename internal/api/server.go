@@ -39,6 +39,7 @@ type Server struct {
 	logger    *slog.Logger
 	startTime time.Time
 	sse       *SSEHub
+	quota     *QuotaManager
 }
 
 // NewServer creates a new API server.
@@ -52,6 +53,19 @@ func NewServer(db *sql.DB, cfg *config.Config, trail *audit.Trail, logger *slog.
 		startTime: time.Now(),
 		sse:       NewSSEHub(db, logger),
 	}
+
+	// Initialize quota manager from config
+	qm, err := NewQuotaManager(cfg.Quotas)
+	if err != nil {
+		logger.Error("failed to init quota manager, using defaults", "error", err)
+		qm, _ = NewQuotaManager(config.QuotaConfig{
+			DefaultLimit: 1000,
+			Period:       "1h",
+			Overrides:    map[string]int{},
+		})
+	}
+	s.quota = qm
+
 	return s
 }
 
@@ -72,26 +86,28 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("GET /api/v1/agents", s.handleAgents)
 	mux.HandleFunc("GET /api/v1/policies", s.handlePolicies)
 	mux.HandleFunc("GET /api/v1/jurisdictions", s.handleJurisdictions)
+	mux.HandleFunc("GET /api/v1/siem/status", s.handleSIEMStatus)
 
 	return Chain(mux,
 		RecoveryMiddleware(s.logger),
 		LoggingMiddleware(s.logger),
 		CORSMiddleware,
-		// P2 stubs
-		QuotaMiddleware,
+		s.quota.Middleware(),
 		CacheMiddleware,
 		MetricsMiddleware,
 	)
 }
 
-// Start starts the SSE hub background goroutine.
+// Start starts the SSE hub and quota manager background goroutines.
 func (s *Server) Start() {
 	s.sse.Start()
+	s.quota.Start()
 }
 
-// Stop shuts down the SSE hub.
+// Stop shuts down the SSE hub and quota manager.
 func (s *Server) Stop() {
 	s.sse.Stop()
+	s.quota.Stop()
 }
 
 // --- Response helpers ---
@@ -175,9 +191,6 @@ func RecoveryMiddleware(logger *slog.Logger) Middleware {
 		})
 	}
 }
-
-// QuotaMiddleware is a P2 stub (pass-through).
-func QuotaMiddleware(next http.Handler) http.Handler { return next }
 
 // CacheMiddleware is a P2 stub (pass-through).
 func CacheMiddleware(next http.Handler) http.Handler { return next }
@@ -649,11 +662,34 @@ func (s *Server) handleAgentQuota(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	usage := s.quota.GetUsage(id)
+
 	writeJSON(w, http.StatusOK, envelope{
 		Data: map[string]interface{}{
-			"agent_id": id,
-			"quota":    "unlimited",
-			"used":     0,
+			"agent": id,
+			"quota": map[string]interface{}{
+				"limit":     usage.Limit,
+				"period":    usage.Period,
+				"used":      usage.Used,
+				"remaining": usage.Remaining,
+			},
+			"reset_at": usage.ResetAt.Format(time.RFC3339),
+		},
+		Meta: map[string]string{"timestamp": time.Now().UTC().Format(time.RFC3339)},
+	})
+}
+
+func (s *Server) handleSIEMStatus(w http.ResponseWriter, r *http.Request) {
+	status := "disabled"
+	if s.cfg.SIEM.Enabled {
+		status = "active"
+	}
+
+	writeJSON(w, http.StatusOK, envelope{
+		Data: map[string]interface{}{
+			"enabled": s.cfg.SIEM.Enabled,
+			"type":    s.cfg.SIEM.Type,
+			"status":  status,
 		},
 		Meta: map[string]string{"timestamp": time.Now().UTC().Format(time.RFC3339)},
 	})

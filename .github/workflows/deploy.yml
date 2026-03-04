@@ -1,0 +1,39 @@
+name: Deploy
+
+on:
+  workflow_dispatch:
+    inputs:
+      target:
+        description: "Deployment target"
+        required: true
+        type: choice
+        options:
+          - ovh
+          - hetzner
+
+jobs:
+  deploy:
+    name: Deploy to ${{ github.event.inputs.target }}
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Deploy via SSH
+        env:
+          DEPLOY_SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+          DEPLOY_IP: ${{ secrets.DEPLOY_IP }}
+          DEPLOY_USER: ${{ secrets.DEPLOY_USER || 'deploy' }}
+          TARGET: ${{ github.event.inputs.target }}
+        run: |
+          mkdir -p ~/.ssh
+          echo "$DEPLOY_SSH_KEY" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          ssh-keyscan -H "$DEPLOY_IP" >> ~/.ssh/known_hosts 2>/dev/null
+
+          ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no "$DEPLOY_USER@$DEPLOY_IP" << 'REMOTE_SCRIPT'
+            cd /opt/bawaba-command || exit 1
+            git pull origin main
+            docker compose up --build -d
+            echo "Deployed to $TARGET at $(date -u +%Y-%m-%dT%H:%M:%SZ)"
+          REMOTE_SCRIPT

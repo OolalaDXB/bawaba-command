@@ -10,6 +10,7 @@ import Policy from "./pages/Policy";
 import AuditTrail from "./pages/AuditTrail";
 import PiiTokenizer from "./pages/PiiTokenizer";
 import SovereignRouting from "./pages/SovereignRouting";
+import Settings from "./pages/Settings";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -28,6 +29,7 @@ const App = () => (
             <Route path="/audit" element={<AuditTrail />} />
             <Route path="/pii" element={<PiiTokenizer />} />
             <Route path="/routing" element={<SovereignRouting />} />
+            <Route path="/settings" element={<Settings />} />
           </Route>
           <Route path="*" element={<NotFound />} />
         </Routes>
