@@ -1,0 +1,21 @@
+# Development overrides — automatically loaded by docker compose
+# Exposes PostgreSQL, enables debug logging, mounts source for iteration
+
+services:
+  postgres:
+    ports:
+      - "5433:5432"
+
+  gateway:
+    ports:
+      - "8080:8080"
+      - "8081:8081"
+      - "9090:9090"
+    environment:
+      BAWABA_LOG_LEVEL: debug
+      BAWABA_AGENT_KEY_test-agent: test-key-12345
+      BAWABA_AGENT_KEY_claude-code: claude-key-67890
+      BAWABA_AGENT_KEY_cursor-ide: cursor-key-11111
+    volumes:
+      - ./configs:/app/configs:ro
+      - ./migrations:/app/migrations:ro

@@ -49,6 +49,6 @@ COPY migrations/ /app/migrations/
 
 RUN mkdir -p /app/keys
 
-EXPOSE 8080 9090
+EXPOSE 8080 8081 9090
 
 ENTRYPOINT ["/app/bawaba-gateway"]

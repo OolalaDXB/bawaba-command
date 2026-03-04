@@ -1,0 +1,38 @@
+groups:
+  - name: bawaba
+    rules:
+      - alert: GatewayDown
+        expr: up{job="bawaba-gateway"} == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Bawaba gateway is down"
+          description: "Gateway has been unreachable for more than 1 minute."
+
+      - alert: APIDown
+        expr: up{job="bawaba-api"} == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Bawaba API server is down"
+          description: "API server on :8081 has been unreachable for more than 1 minute."
+
+      - alert: HighDenyRate
+        expr: rate(bawaba_policy_denials_total[5m]) > 10
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High policy denial rate"
+          description: "More than 10 denials/sec over the last 5 minutes."
+
+      - alert: HighErrorRate
+        expr: rate(bawaba_errors_total[5m]) > 5
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High error rate on Bawaba gateway"
+          description: "More than 5 errors/sec over the last 5 minutes."

@@ -1,0 +1,40 @@
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+
+rule_files:
+  - /etc/prometheus/alert_rules.yml
+
+alerting:
+  alertmanagers:
+    - static_configs:
+        - targets:
+            - alertmanager:9093
+
+scrape_configs:
+  - job_name: "bawaba-gateway"
+    metrics_path: /metrics
+    scrape_interval: 10s
+    static_configs:
+      - targets: ["gateway:9090"]
+        labels:
+          service: bawaba
+          component: gateway
+
+  - job_name: "bawaba-api"
+    metrics_path: /api/v1/stats
+    scrape_interval: 30s
+    static_configs:
+      - targets: ["gateway:8081"]
+        labels:
+          service: bawaba
+          component: api
+
+  - job_name: "postgres"
+    metrics_path: /metrics
+    scrape_interval: 30s
+    static_configs:
+      - targets: ["postgres-exporter:9187"]
+        labels:
+          service: bawaba
+          component: database

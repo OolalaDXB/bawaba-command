@@ -24,7 +24,7 @@ export default function AppLayout() {
       <nav className="group/sidebar fixed left-0 top-0 h-full w-14 hover:w-56 transition-all duration-300 ease-in-out bg-card border-r border-border z-50 flex flex-col overflow-hidden">
         {/* Logo */}
         <div className="h-14 flex items-center px-4 border-b border-border shrink-0">
-          <span className="font-heading text-lg tracking-wide whitespace-nowrap">
+          <span className="font-heading text-xl font-light whitespace-nowrap" style={{ letterSpacing: '3px' }}>
             B<span className="inline opacity-0 group-hover/sidebar:opacity-100 transition-opacity duration-300">AWABA</span>
           </span>
         </div>
@@ -68,9 +68,9 @@ export default function AppLayout() {
         {/* Top bar */}
         <header className="h-14 border-b border-border flex items-center px-6 bg-card sticky top-0 z-40">
           <div className="flex items-center gap-2">
-            <span className="font-heading text-base tracking-wide text-foreground">BAWABA</span>
+            <span className="font-heading text-xl font-light text-foreground" style={{ letterSpacing: '3px' }}>BAWABA</span>
             <span className="text-ink-4 text-xs">·</span>
-            <span className="font-heading text-base" style={{ direction: 'rtl' }}>بوابة</span>
+            <span className="font-heading text-xl font-light" style={{ direction: 'rtl', letterSpacing: '2px' }}>بوابة</span>
           </div>
 
           <div className="flex-1 flex justify-center">

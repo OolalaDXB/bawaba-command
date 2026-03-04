@@ -1,46 +1,73 @@
-version: "3.8"
-
 services:
   postgres:
     image: postgres:16-alpine
     container_name: bawaba-postgres
+    restart: unless-stopped
     environment:
       POSTGRES_USER: bawaba
-      POSTGRES_PASSWORD: bawaba_secret
+      POSTGRES_PASSWORD: ${BAWABA_DB_PASSWORD:-bawaba_secret}
       POSTGRES_DB: bawaba
-    ports:
-      - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
       - ./migrations/001_audit_schema.sql:/docker-entrypoint-initdb.d/001_audit_schema.sql
+      - ./migrations/999_demo_seed.sql:/docker-entrypoint-initdb.d/999_demo_seed.sql
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U bawaba -d bawaba"]
       interval: 5s
       timeout: 5s
       retries: 5
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    networks:
+      - backend
 
   gateway:
     build:
       context: .
       dockerfile: Dockerfile
     container_name: bawaba-gateway
+    restart: unless-stopped
     depends_on:
       postgres:
         condition: service_healthy
     ports:
       - "8080:8080"
-      - "9090:9090"
+      - "8081:8081"
     environment:
       BAWABA_CONFIG_PATH: /app/configs/bawaba.yaml
-      BAWABA_DB_URL: postgres://bawaba:bawaba_secret@postgres:5432/bawaba?sslmode=disable
+      BAWABA_DB_URL: postgres://bawaba:${BAWABA_DB_PASSWORD:-bawaba_secret}@postgres:5432/bawaba?sslmode=disable
       BAWABA_SIGNING_KEY_PATH: /app/keys/ed25519.key
       BAWABA_LOG_LEVEL: info
       BAWABA_PORT: "8080"
-      BAWABA_METRICS_PORT: "9090"
-      BAWABA_AGENT_KEY_test-agent: test-key-12345
+      BAWABA_API_PORT: "8081"
+      BAWABA_AGENT_KEY_test-agent: ${BAWABA_AGENT_KEY_test_agent:-test-key-12345}
+      BAWABA_AGENT_KEY_claude-code: ${BAWABA_AGENT_KEY_claude_code:-claude-key-67890}
+      BAWABA_AGENT_KEY_cursor-ide: ${BAWABA_AGENT_KEY_cursor_ide:-cursor-key-11111}
     volumes:
       - gateway_keys:/app/keys
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8081/api/v1/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    networks:
+      - backend
 
 volumes:
   postgres_data:
+    driver: local
   gateway_keys:
+    driver: local
+
+networks:
+  backend:
+    driver: bridge

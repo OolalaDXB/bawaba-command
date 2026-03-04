@@ -14,30 +14,30 @@ import (
 
 // Event represents a single audit event.
 type Event struct {
-	EventID          string
-	Timestamp        time.Time
-	EventType        string // tool_call, auth, policy_deny, route, anomaly
-	AgentID          string
-	TenantID         string
-	Jurisdiction     string
-	MCPServer        string
-	Tool             string
-	ParamsHash       string
-	ResourcePath     string
-	PolicyResult     string // allow, deny
-	PolicyVersion    string
-	MatchedRule      string
-	PIIMode          string // tokenize, mask, none
-	EntitiesDetected int
-	TokensGenerated  int
-	ResponseStatus   string
-	ResultCount      int
-	LatencyMS        float64
-	OverheadMS       float64
-	EventHash        string
-	PrevHash         string
-	MerkleRoot       string
-	Signature        string
+	EventID          string    `json:"event_id"`
+	Timestamp        time.Time `json:"timestamp"`
+	EventType        string    `json:"event_type"`
+	AgentID          string    `json:"agent_id"`
+	TenantID         string    `json:"tenant_id"`
+	Jurisdiction     string    `json:"jurisdiction"`
+	MCPServer        string    `json:"mcp_server"`
+	Tool             string    `json:"tool"`
+	ParamsHash       string    `json:"params_hash"`
+	ResourcePath     string    `json:"resource_path"`
+	PolicyResult     string    `json:"policy_result"`
+	PolicyVersion    string    `json:"policy_version"`
+	MatchedRule      string    `json:"matched_rule"`
+	PIIMode          string    `json:"pii_mode"`
+	EntitiesDetected int       `json:"entities_detected"`
+	TokensGenerated  int       `json:"tokens_generated"`
+	ResponseStatus   string    `json:"response_status"`
+	ResultCount      int       `json:"result_count"`
+	LatencyMS        float64   `json:"latency_ms"`
+	OverheadMS       float64   `json:"overhead_ms"`
+	EventHash        string    `json:"event_hash"`
+	PrevHash         string    `json:"prev_hash"`
+	MerkleRoot       string    `json:"merkle_root"`
+	Signature        string    `json:"signature"`
 }
 
 // Trail manages the append-only audit log with hash chaining.

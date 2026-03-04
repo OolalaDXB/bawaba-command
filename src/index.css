@@ -4,7 +4,7 @@
 
 @layer base {
   :root {
-    --background: 40 14% 97%;
+    --background: 36 33% 97%;
     --foreground: 24 10% 10%;
 
     --card: 0 0% 100%;
@@ -13,42 +13,42 @@
     --popover: 0 0% 100%;
     --popover-foreground: 24 10% 10%;
 
-    --primary: 30 24% 44%;
+    --primary: 33 24% 44%;
     --primary-foreground: 0 0% 100%;
 
-    --secondary: 24 6% 93%;
+    --secondary: 30 6% 93%;
     --secondary-foreground: 24 10% 10%;
 
-    --muted: 24 6% 93%;
-    --muted-foreground: 25 6% 45%;
+    --muted: 30 6% 93%;
+    --muted-foreground: 39 6% 58%;
 
-    --accent: 30 24% 44%;
+    --accent: 33 24% 44%;
     --accent-foreground: 0 0% 100%;
 
-    --destructive: 343 78% 35%;
+    --destructive: 343 80% 35%;
     --destructive-foreground: 0 0% 100%;
 
-    --border: 24 6% 90%;
-    --input: 24 6% 83%;
-    --ring: 30 24% 44%;
+    --border: 30 6% 90%;
+    --input: 30 6% 83%;
+    --ring: 33 24% 44%;
 
     --radius: 2px;
 
     /* Bawaba custom tokens */
-    --ink-2: 24 7% 25%;
-    --ink-3: 25 6% 45%;
-    --ink-4: 24 5% 64%;
-    --ink-5: 24 6% 83%;
+    --ink-2: 30 6% 25%;
+    --ink-3: 39 6% 58%;
+    --ink-4: 30 5% 64%;
+    --ink-5: 30 6% 83%;
 
-    --accent-bg: 30 24% 44%;
-    --safe: 148 59% 24%;
+    --accent-bg: 33 24% 44%;
+    --safe: 143 64% 24%;
     --safe-foreground: 0 0% 100%;
-    --safe-bg: 148 59% 97%;
+    --safe-bg: 143 64% 97%;
     --warn: 28 84% 31%;
     --warn-foreground: 0 0% 100%;
     --warn-bg: 28 84% 97%;
-    --danger: 343 78% 35%;
-    --danger-bg: 343 78% 97%;
+    --danger: 343 80% 35%;
+    --danger-bg: 343 80% 97%;
 
     --sidebar-background: 0 0% 100%;
     --sidebar-foreground: 24 10% 10%;
@@ -121,7 +121,7 @@
 
   body {
     @apply bg-background text-foreground;
-    font-family: 'Hanken Grotesk', sans-serif;
+    font-family: 'DM Sans', sans-serif;
     font-weight: 400;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
@@ -133,7 +133,7 @@
 
   h1, h2, h3, h4, h5, h6 {
     font-family: 'Cormorant Garamond', serif;
-    font-weight: 400;
+    font-weight: 300;
   }
 
   code, pre, .font-mono {
@@ -157,7 +157,7 @@
     font-size: 10px;
     font-weight: 600;
     color: hsl(var(--ink-3));
-    font-family: 'Hanken Grotesk', sans-serif;
+    font-family: 'DM Sans', sans-serif;
   }
 
   .card-surface {

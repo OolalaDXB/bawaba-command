@@ -15,7 +15,7 @@ export default {
     extend: {
       fontFamily: {
         heading: ["Cormorant Garamond", "serif"],
-        body: ["Hanken Grotesk", "sans-serif"],
+        body: ["DM Sans", "sans-serif"],
         mono: ["JetBrains Mono", "monospace"],
       },
       colors: {

@@ -13,6 +13,7 @@ import (
 
 	_ "github.com/lib/pq"
 
+	"github.com/OolalaDXB/bawaba-command/internal/api"
 	"github.com/OolalaDXB/bawaba-command/internal/audit"
 	"github.com/OolalaDXB/bawaba-command/internal/auth"
 	"github.com/OolalaDXB/bawaba-command/internal/config"
@@ -156,17 +157,34 @@ func main() {
 		true, // PII enabled
 	)
 
-	// Start HTTP server
+	// Start MCP proxy server
 	port := cfg.Server.Port
 	if p := os.Getenv("BAWABA_PORT"); p != "" {
 		fmt.Sscanf(p, "%d", &port)
 	}
 
-	server := &http.Server{
+	mcpServer := &http.Server{
 		Addr:         fmt.Sprintf(":%d", port),
 		Handler:      gateway.NewHTTPHandler(),
 		ReadTimeout:  30 * time.Second,
 		WriteTimeout: 30 * time.Second,
+		IdleTimeout:  120 * time.Second,
+	}
+
+	// Start REST API server
+	apiPort := 8081
+	if p := os.Getenv("BAWABA_API_PORT"); p != "" {
+		fmt.Sscanf(p, "%d", &apiPort)
+	}
+
+	apiSrv := api.NewServer(db, cfg, trail, logger)
+	apiSrv.Start() // Start SSE hub
+
+	apiServer := &http.Server{
+		Addr:         fmt.Sprintf(":%d", apiPort),
+		Handler:      apiSrv.Handler(),
+		ReadTimeout:  30 * time.Second,
+		WriteTimeout: 120 * time.Second, // longer for SSE
 		IdleTimeout:  120 * time.Second,
 	}
 
@@ -175,9 +193,17 @@ func main() {
 	signal.Notify(done, os.Interrupt, syscall.SIGTERM)
 
 	go func() {
-		logger.Info("gateway listening", "port", port)
-		if err := server.ListenAndServe(); err != http.ErrServerClosed {
-			logger.Error("server error", "error", err)
+		logger.Info("MCP proxy listening", "port", port)
+		if err := mcpServer.ListenAndServe(); err != http.ErrServerClosed {
+			logger.Error("mcp server error", "error", err)
+			os.Exit(1)
+		}
+	}()
+
+	go func() {
+		logger.Info("REST API listening", "port", apiPort)
+		if err := apiServer.ListenAndServe(); err != http.ErrServerClosed {
+			logger.Error("api server error", "error", err)
 			os.Exit(1)
 		}
 	}()
@@ -185,10 +211,11 @@ func main() {
 	<-done
 	logger.Info("shutting down gateway")
 
-	// Graceful shutdown with timeout
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
-	server.Shutdown(ctx)
+	mcpServer.Shutdown(ctx)
+	apiServer.Shutdown(ctx)
+	apiSrv.Stop()
 
 	logger.Info("gateway stopped")
 }

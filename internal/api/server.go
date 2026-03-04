@@ -1,0 +1,729 @@
+package api
+
+import (
+	"crypto/ed25519"
+	"database/sql"
+	"encoding/csv"
+	"encoding/json"
+	"fmt"
+	"log/slog"
+	"net/http"
+	"strconv"
+	"strings"
+	"time"
+
+	"github.com/OolalaDXB/bawaba-command/internal/audit"
+	"github.com/OolalaDXB/bawaba-command/internal/config"
+)
+
+// Version is set at build time or defaults to dev.
+const Version = "0.1.0"
+
+// Middleware is a composable HTTP middleware.
+type Middleware func(http.Handler) http.Handler
+
+// Chain applies middlewares in order (last wraps first).
+func Chain(h http.Handler, middlewares ...Middleware) http.Handler {
+	for i := len(middlewares) - 1; i >= 0; i-- {
+		h = middlewares[i](h)
+	}
+	return h
+}
+
+// Server is the REST API server that exposes the gateway internals.
+type Server struct {
+	db        *sql.DB
+	cfg       *config.Config
+	trail     *audit.Trail
+	pubKey    ed25519.PublicKey
+	logger    *slog.Logger
+	startTime time.Time
+	sse       *SSEHub
+}
+
+// NewServer creates a new API server.
+func NewServer(db *sql.DB, cfg *config.Config, trail *audit.Trail, logger *slog.Logger) *Server {
+	s := &Server{
+		db:        db,
+		cfg:       cfg,
+		trail:     trail,
+		pubKey:    trail.PublicKey(),
+		logger:    logger,
+		startTime: time.Now(),
+		sse:       NewSSEHub(db, logger),
+	}
+	return s
+}
+
+// Handler returns the fully configured HTTP handler with middleware chain.
+func (s *Server) Handler() http.Handler {
+	mux := http.NewServeMux()
+
+	mux.HandleFunc("GET /api/v1/health", s.handleHealth)
+	mux.HandleFunc("GET /api/v1/events/stream", s.handleEventsStream)
+	mux.HandleFunc("POST /api/v1/events/verify", s.handleEventsVerify)
+	mux.HandleFunc("POST /api/v1/events/export", s.handleEventsExport)
+	mux.HandleFunc("GET /api/v1/events/{id}", s.handleEventByID)
+	mux.HandleFunc("GET /api/v1/events", s.handleEvents)
+	mux.HandleFunc("GET /api/v1/stats/pii", s.handleStatsPII)
+	mux.HandleFunc("GET /api/v1/stats", s.handleStats)
+	mux.HandleFunc("GET /api/v1/agents/{id}/activity", s.handleAgentActivity)
+	mux.HandleFunc("GET /api/v1/agents/{id}/quota", s.handleAgentQuota)
+	mux.HandleFunc("GET /api/v1/agents", s.handleAgents)
+	mux.HandleFunc("GET /api/v1/policies", s.handlePolicies)
+	mux.HandleFunc("GET /api/v1/jurisdictions", s.handleJurisdictions)
+
+	return Chain(mux,
+		RecoveryMiddleware(s.logger),
+		LoggingMiddleware(s.logger),
+		CORSMiddleware,
+		// P2 stubs
+		QuotaMiddleware,
+		CacheMiddleware,
+		MetricsMiddleware,
+	)
+}
+
+// Start starts the SSE hub background goroutine.
+func (s *Server) Start() {
+	s.sse.Start()
+}
+
+// Stop shuts down the SSE hub.
+func (s *Server) Stop() {
+	s.sse.Stop()
+}
+
+// --- Response helpers ---
+
+type envelope struct {
+	Data interface{} `json:"data"`
+	Meta interface{} `json:"meta,omitempty"`
+}
+
+type pageMeta struct {
+	Page      int    `json:"page"`
+	Limit     int    `json:"limit"`
+	Total     int    `json:"total"`
+	Timestamp string `json:"timestamp"`
+}
+
+func writeJSON(w http.ResponseWriter, status int, v interface{}) {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(status)
+	json.NewEncoder(w).Encode(v)
+}
+
+func writeError(w http.ResponseWriter, status int, msg string) {
+	writeJSON(w, status, envelope{
+		Data: nil,
+		Meta: map[string]interface{}{
+			"error":     msg,
+			"timestamp": time.Now().UTC().Format(time.RFC3339),
+		},
+	})
+}
+
+// --- Middlewares ---
+
+// LoggingMiddleware logs each request with method, path, status, and duration.
+func LoggingMiddleware(logger *slog.Logger) Middleware {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			start := time.Now()
+			rw := &responseWriter{ResponseWriter: w, status: 200}
+			next.ServeHTTP(rw, r)
+			logger.Info("api request",
+				"method", r.Method,
+				"path", r.URL.Path,
+				"status", rw.status,
+				"duration_ms", time.Since(start).Milliseconds(),
+			)
+		})
+	}
+}
+
+// CORSMiddleware adds CORS headers for the React dashboard.
+func CORSMiddleware(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		origin := r.Header.Get("Origin")
+		if strings.HasPrefix(origin, "http://localhost:") {
+			w.Header().Set("Access-Control-Allow-Origin", origin)
+		}
+		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
+		w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization")
+		w.Header().Set("Access-Control-Max-Age", "86400")
+		if r.Method == http.MethodOptions {
+			w.WriteHeader(http.StatusNoContent)
+			return
+		}
+		next.ServeHTTP(w, r)
+	})
+}
+
+// RecoveryMiddleware catches panics and returns a 500.
+func RecoveryMiddleware(logger *slog.Logger) Middleware {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			defer func() {
+				if err := recover(); err != nil {
+					logger.Error("panic recovered", "error", err, "path", r.URL.Path)
+					writeError(w, http.StatusInternalServerError, "internal server error")
+				}
+			}()
+			next.ServeHTTP(w, r)
+		})
+	}
+}
+
+// QuotaMiddleware is a P2 stub (pass-through).
+func QuotaMiddleware(next http.Handler) http.Handler { return next }
+
+// CacheMiddleware is a P2 stub (pass-through).
+func CacheMiddleware(next http.Handler) http.Handler { return next }
+
+// MetricsMiddleware is a P2 stub (pass-through).
+func MetricsMiddleware(next http.Handler) http.Handler { return next }
+
+// responseWriter wraps http.ResponseWriter to capture the status code.
+type responseWriter struct {
+	http.ResponseWriter
+	status int
+}
+
+func (rw *responseWriter) WriteHeader(code int) {
+	rw.status = code
+	rw.ResponseWriter.WriteHeader(code)
+}
+
+// --- Handlers ---
+
+func (s *Server) handleHealth(w http.ResponseWriter, r *http.Request) {
+	modules := map[string]string{
+		"database":  "ok",
+		"audit":     "ok",
+		"proxy_mcp": "ok",
+		"tokenizer": "ok",
+		"router":    "ok",
+	}
+
+	if s.db != nil {
+		if err := s.db.Ping(); err != nil {
+			modules["database"] = "error"
+		}
+	}
+
+	writeJSON(w, http.StatusOK, envelope{
+		Data: map[string]interface{}{
+			"status":         "healthy",
+			"uptime_seconds": int(time.Since(s.startTime).Seconds()),
+			"version":        Version,
+			"modules_status": modules,
+		},
+		Meta: map[string]string{
+			"timestamp": time.Now().UTC().Format(time.RFC3339),
+		},
+	})
+}
+
+func (s *Server) handleEvents(w http.ResponseWriter, r *http.Request) {
+	q := r.URL.Query()
+	page, _ := strconv.Atoi(q.Get("page"))
+	if page < 1 {
+		page = 1
+	}
+	limit, _ := strconv.Atoi(q.Get("limit"))
+	if limit < 1 || limit > 200 {
+		limit = 50
+	}
+	offset := (page - 1) * limit
+
+	agent := q.Get("agent")
+	action := q.Get("action")
+	jurisdiction := q.Get("jurisdiction")
+
+	// Build dynamic query
+	where := []string{"1=1"}
+	args := []interface{}{}
+	argN := 1
+
+	if agent != "" {
+		where = append(where, fmt.Sprintf("agent_id = $%d", argN))
+		args = append(args, agent)
+		argN++
+	}
+	if action != "" {
+		where = append(where, fmt.Sprintf("event_type = $%d", argN))
+		args = append(args, action)
+		argN++
+	}
+	if jurisdiction != "" {
+		where = append(where, fmt.Sprintf("jurisdiction = $%d", argN))
+		args = append(args, jurisdiction)
+		argN++
+	}
+
+	whereClause := strings.Join(where, " AND ")
+
+	// Count total
+	var total int
+	countQuery := fmt.Sprintf("SELECT COUNT(*) FROM audit_events WHERE %s", whereClause)
+	if err := s.db.QueryRow(countQuery, args...).Scan(&total); err != nil {
+		writeError(w, http.StatusInternalServerError, "database error")
+		return
+	}
+
+	// Fetch page
+	dataQuery := fmt.Sprintf(`SELECT event_id, timestamp, event_type, agent_id, tenant_id, jurisdiction,
+		mcp_server, tool, params_hash, resource_path,
+		policy_result, policy_version, matched_rule,
+		pii_mode, entities_detected, tokens_generated,
+		response_status, result_count, latency_ms, overhead_ms,
+		event_hash, prev_hash, merkle_root, signature
+		FROM audit_events WHERE %s
+		ORDER BY timestamp DESC
+		LIMIT $%d OFFSET $%d`, whereClause, argN, argN+1)
+	args = append(args, limit, offset)
+
+	rows, err := s.db.Query(dataQuery, args...)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "database error")
+		return
+	}
+	defer rows.Close()
+
+	events := []audit.Event{}
+	for rows.Next() {
+		var evt audit.Event
+		if err := rows.Scan(
+			&evt.EventID, &evt.Timestamp, &evt.EventType, &evt.AgentID, &evt.TenantID, &evt.Jurisdiction,
+			&evt.MCPServer, &evt.Tool, &evt.ParamsHash, &evt.ResourcePath,
+			&evt.PolicyResult, &evt.PolicyVersion, &evt.MatchedRule,
+			&evt.PIIMode, &evt.EntitiesDetected, &evt.TokensGenerated,
+			&evt.ResponseStatus, &evt.ResultCount, &evt.LatencyMS, &evt.OverheadMS,
+			&evt.EventHash, &evt.PrevHash, &evt.MerkleRoot, &evt.Signature,
+		); err != nil {
+			writeError(w, http.StatusInternalServerError, "scan error")
+			return
+		}
+		events = append(events, evt)
+	}
+
+	writeJSON(w, http.StatusOK, envelope{
+		Data: events,
+		Meta: pageMeta{
+			Page:      page,
+			Limit:     limit,
+			Total:     total,
+			Timestamp: time.Now().UTC().Format(time.RFC3339),
+		},
+	})
+}
+
+func (s *Server) handleEventByID(w http.ResponseWriter, r *http.Request) {
+	id := r.PathValue("id")
+	if id == "" {
+		writeError(w, http.StatusBadRequest, "missing event id")
+		return
+	}
+
+	var evt audit.Event
+	err := s.db.QueryRow(`SELECT event_id, timestamp, event_type, agent_id, tenant_id, jurisdiction,
+		mcp_server, tool, params_hash, resource_path,
+		policy_result, policy_version, matched_rule,
+		pii_mode, entities_detected, tokens_generated,
+		response_status, result_count, latency_ms, overhead_ms,
+		event_hash, prev_hash, merkle_root, signature
+		FROM audit_events WHERE event_id = $1`, id).Scan(
+		&evt.EventID, &evt.Timestamp, &evt.EventType, &evt.AgentID, &evt.TenantID, &evt.Jurisdiction,
+		&evt.MCPServer, &evt.Tool, &evt.ParamsHash, &evt.ResourcePath,
+		&evt.PolicyResult, &evt.PolicyVersion, &evt.MatchedRule,
+		&evt.PIIMode, &evt.EntitiesDetected, &evt.TokensGenerated,
+		&evt.ResponseStatus, &evt.ResultCount, &evt.LatencyMS, &evt.OverheadMS,
+		&evt.EventHash, &evt.PrevHash, &evt.MerkleRoot, &evt.Signature,
+	)
+	if err == sql.ErrNoRows {
+		writeError(w, http.StatusNotFound, "event not found")
+		return
+	}
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "database error")
+		return
+	}
+
+	writeJSON(w, http.StatusOK, envelope{
+		Data: evt,
+		Meta: map[string]string{"timestamp": time.Now().UTC().Format(time.RFC3339)},
+	})
+}
+
+func (s *Server) handleEventsVerify(w http.ResponseWriter, r *http.Request) {
+	rows, err := s.db.Query(`SELECT event_id, timestamp, event_type, agent_id, tenant_id, jurisdiction,
+		mcp_server, tool, params_hash, resource_path,
+		policy_result, policy_version, matched_rule,
+		pii_mode, entities_detected, tokens_generated,
+		response_status, result_count, latency_ms, overhead_ms,
+		event_hash, prev_hash, merkle_root, signature
+		FROM audit_events ORDER BY timestamp ASC`)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "database error")
+		return
+	}
+	defer rows.Close()
+
+	var events []audit.Event
+	for rows.Next() {
+		var evt audit.Event
+		if err := rows.Scan(
+			&evt.EventID, &evt.Timestamp, &evt.EventType, &evt.AgentID, &evt.TenantID, &evt.Jurisdiction,
+			&evt.MCPServer, &evt.Tool, &evt.ParamsHash, &evt.ResourcePath,
+			&evt.PolicyResult, &evt.PolicyVersion, &evt.MatchedRule,
+			&evt.PIIMode, &evt.EntitiesDetected, &evt.TokensGenerated,
+			&evt.ResponseStatus, &evt.ResultCount, &evt.LatencyMS, &evt.OverheadMS,
+			&evt.EventHash, &evt.PrevHash, &evt.MerkleRoot, &evt.Signature,
+		); err != nil {
+			writeError(w, http.StatusInternalServerError, "scan error")
+			return
+		}
+		events = append(events, evt)
+	}
+
+	result := map[string]interface{}{
+		"valid":       true,
+		"events":      len(events),
+		"verified_at": time.Now().UTC().Format(time.RFC3339),
+	}
+
+	if err := audit.VerifyChain(events, s.pubKey); err != nil {
+		result["valid"] = false
+		result["error"] = err.Error()
+	}
+
+	writeJSON(w, http.StatusOK, envelope{
+		Data: result,
+		Meta: map[string]string{"timestamp": time.Now().UTC().Format(time.RFC3339)},
+	})
+}
+
+func (s *Server) handleEventsExport(w http.ResponseWriter, r *http.Request) {
+	format := r.URL.Query().Get("format")
+	if format == "" {
+		format = "json"
+		if r.Header.Get("Content-Type") == "application/json" {
+			var body struct {
+				Format string `json:"format"`
+			}
+			if json.NewDecoder(r.Body).Decode(&body) == nil && body.Format != "" {
+				format = body.Format
+			}
+		}
+	}
+
+	rows, err := s.db.Query(`SELECT event_id, timestamp, event_type, agent_id, tenant_id, jurisdiction,
+		tool, policy_result, pii_mode, entities_detected, latency_ms
+		FROM audit_events ORDER BY timestamp DESC LIMIT 10000`)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "database error")
+		return
+	}
+	defer rows.Close()
+
+	type exportRow struct {
+		EventID          string    `json:"event_id"`
+		Timestamp        time.Time `json:"timestamp"`
+		EventType        string    `json:"event_type"`
+		AgentID          string    `json:"agent_id"`
+		TenantID         string    `json:"tenant_id"`
+		Jurisdiction     string    `json:"jurisdiction"`
+		Tool             string    `json:"tool"`
+		PolicyResult     string    `json:"policy_result"`
+		PIIMode          string    `json:"pii_mode"`
+		EntitiesDetected int       `json:"entities_detected"`
+		LatencyMS        float64   `json:"latency_ms"`
+	}
+
+	var data []exportRow
+	for rows.Next() {
+		var row exportRow
+		if err := rows.Scan(&row.EventID, &row.Timestamp, &row.EventType, &row.AgentID,
+			&row.TenantID, &row.Jurisdiction, &row.Tool, &row.PolicyResult,
+			&row.PIIMode, &row.EntitiesDetected, &row.LatencyMS); err != nil {
+			writeError(w, http.StatusInternalServerError, "scan error")
+			return
+		}
+		data = append(data, row)
+	}
+
+	if format == "csv" {
+		w.Header().Set("Content-Type", "text/csv")
+		w.Header().Set("Content-Disposition", "attachment; filename=bawaba_events.csv")
+		cw := csv.NewWriter(w)
+		cw.Write([]string{"event_id", "timestamp", "event_type", "agent_id", "tenant_id",
+			"jurisdiction", "tool", "policy_result", "pii_mode", "entities_detected", "latency_ms"})
+		for _, row := range data {
+			cw.Write([]string{
+				row.EventID, row.Timestamp.Format(time.RFC3339), row.EventType, row.AgentID,
+				row.TenantID, row.Jurisdiction, row.Tool, row.PolicyResult, row.PIIMode,
+				strconv.Itoa(row.EntitiesDetected), fmt.Sprintf("%.2f", row.LatencyMS),
+			})
+		}
+		cw.Flush()
+		return
+	}
+
+	// Default: JSON
+	writeJSON(w, http.StatusOK, envelope{
+		Data: data,
+		Meta: map[string]interface{}{
+			"format":    "json",
+			"count":     len(data),
+			"timestamp": time.Now().UTC().Format(time.RFC3339),
+		},
+	})
+}
+
+func (s *Server) handleStats(w http.ResponseWriter, r *http.Request) {
+	type stats struct {
+		TotalEvents   int     `json:"total_events"`
+		CallsLastMin  int     `json:"calls_last_minute"`
+		DenyRate      float64 `json:"deny_rate"`
+		AvgLatencyMS  float64 `json:"avg_latency_ms"`
+		EventsByType  map[string]int `json:"events_by_type"`
+	}
+
+	var st stats
+
+	s.db.QueryRow("SELECT COUNT(*) FROM audit_events").Scan(&st.TotalEvents)
+	s.db.QueryRow("SELECT COUNT(*) FROM audit_events WHERE timestamp > NOW() - INTERVAL '1 minute'").Scan(&st.CallsLastMin)
+
+	var totalDecisions, denials int
+	s.db.QueryRow("SELECT COUNT(*) FROM audit_events WHERE policy_result IN ('allow','deny')").Scan(&totalDecisions)
+	s.db.QueryRow("SELECT COUNT(*) FROM audit_events WHERE policy_result = 'deny'").Scan(&denials)
+	if totalDecisions > 0 {
+		st.DenyRate = float64(denials) / float64(totalDecisions) * 100
+	}
+
+	s.db.QueryRow("SELECT COALESCE(AVG(latency_ms), 0) FROM audit_events WHERE latency_ms > 0").Scan(&st.AvgLatencyMS)
+
+	st.EventsByType = make(map[string]int)
+	rows, err := s.db.Query("SELECT event_type, COUNT(*) FROM audit_events GROUP BY event_type")
+	if err == nil {
+		defer rows.Close()
+		for rows.Next() {
+			var etype string
+			var cnt int
+			rows.Scan(&etype, &cnt)
+			st.EventsByType[etype] = cnt
+		}
+	}
+
+	writeJSON(w, http.StatusOK, envelope{
+		Data: st,
+		Meta: map[string]string{"timestamp": time.Now().UTC().Format(time.RFC3339)},
+	})
+}
+
+func (s *Server) handleStatsPII(w http.ResponseWriter, r *http.Request) {
+	type piiDay struct {
+		Date             string `json:"date"`
+		PIIMode          string `json:"pii_mode"`
+		EntitiesDetected int    `json:"entities_detected"`
+		TokensGenerated  int    `json:"tokens_generated"`
+		EventCount       int    `json:"event_count"`
+	}
+
+	rows, err := s.db.Query(`
+		SELECT DATE(timestamp) as day, pii_mode,
+			SUM(entities_detected), SUM(tokens_generated), COUNT(*)
+		FROM audit_events
+		WHERE entities_detected > 0 OR tokens_generated > 0
+		GROUP BY day, pii_mode
+		ORDER BY day DESC
+		LIMIT 90`)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "database error")
+		return
+	}
+	defer rows.Close()
+
+	var data []piiDay
+	for rows.Next() {
+		var d piiDay
+		var day time.Time
+		if err := rows.Scan(&day, &d.PIIMode, &d.EntitiesDetected, &d.TokensGenerated, &d.EventCount); err != nil {
+			writeError(w, http.StatusInternalServerError, "scan error")
+			return
+		}
+		d.Date = day.Format("2006-01-02")
+		data = append(data, d)
+	}
+
+	writeJSON(w, http.StatusOK, envelope{
+		Data: data,
+		Meta: map[string]string{"timestamp": time.Now().UTC().Format(time.RFC3339)},
+	})
+}
+
+func (s *Server) handleEventsStream(w http.ResponseWriter, r *http.Request) {
+	s.sse.ServeHTTP(w, r)
+}
+
+func (s *Server) handleAgents(w http.ResponseWriter, r *http.Request) {
+	type agentInfo struct {
+		ID           string   `json:"id"`
+		Auth         string   `json:"auth"`
+		AllowedTools []string `json:"allowed_tools"`
+		DeniedTools  []string `json:"denied_tools"`
+		PIIMode      string   `json:"pii_mode"`
+		RateLimit    string   `json:"rate_limit"`
+		MaxResults   int      `json:"max_results"`
+	}
+
+	agents := []agentInfo{}
+	for id, a := range s.cfg.Agents {
+		agents = append(agents, agentInfo{
+			ID:           id,
+			Auth:         a.Auth,
+			AllowedTools: a.AllowedTools,
+			DeniedTools:  a.DeniedTools,
+			PIIMode:      a.PIIMode,
+			RateLimit:    a.RateLimit,
+			MaxResults:   a.MaxResults,
+		})
+	}
+
+	writeJSON(w, http.StatusOK, envelope{
+		Data: agents,
+		Meta: map[string]interface{}{
+			"count":     len(agents),
+			"timestamp": time.Now().UTC().Format(time.RFC3339),
+		},
+	})
+}
+
+func (s *Server) handleAgentActivity(w http.ResponseWriter, r *http.Request) {
+	id := r.PathValue("id")
+	if _, ok := s.cfg.Agents[id]; !ok {
+		writeError(w, http.StatusNotFound, "agent not found")
+		return
+	}
+
+	rows, err := s.db.Query(`SELECT event_id, timestamp, event_type, tool, policy_result, latency_ms
+		FROM audit_events WHERE agent_id = $1 ORDER BY timestamp DESC LIMIT 50`, id)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "database error")
+		return
+	}
+	defer rows.Close()
+
+	type activity struct {
+		EventID      string    `json:"event_id"`
+		Timestamp    time.Time `json:"timestamp"`
+		EventType    string    `json:"event_type"`
+		Tool         string    `json:"tool"`
+		PolicyResult string    `json:"policy_result"`
+		LatencyMS    float64   `json:"latency_ms"`
+	}
+
+	var data []activity
+	for rows.Next() {
+		var a activity
+		rows.Scan(&a.EventID, &a.Timestamp, &a.EventType, &a.Tool, &a.PolicyResult, &a.LatencyMS)
+		data = append(data, a)
+	}
+
+	writeJSON(w, http.StatusOK, envelope{
+		Data: data,
+		Meta: map[string]interface{}{
+			"agent_id":  id,
+			"count":     len(data),
+			"timestamp": time.Now().UTC().Format(time.RFC3339),
+		},
+	})
+}
+
+func (s *Server) handleAgentQuota(w http.ResponseWriter, r *http.Request) {
+	id := r.PathValue("id")
+	if _, ok := s.cfg.Agents[id]; !ok {
+		writeError(w, http.StatusNotFound, "agent not found")
+		return
+	}
+
+	writeJSON(w, http.StatusOK, envelope{
+		Data: map[string]interface{}{
+			"agent_id": id,
+			"quota":    "unlimited",
+			"used":     0,
+		},
+		Meta: map[string]string{"timestamp": time.Now().UTC().Format(time.RFC3339)},
+	})
+}
+
+func (s *Server) handlePolicies(w http.ResponseWriter, r *http.Request) {
+	type policyInfo struct {
+		AgentID      string   `json:"agent_id"`
+		AllowedTools []string `json:"allowed_tools"`
+		DeniedTools  []string `json:"denied_tools"`
+		PIIMode      string   `json:"pii_mode"`
+		RateLimit    string   `json:"rate_limit"`
+	}
+
+	var policies []policyInfo
+	for id, a := range s.cfg.Agents {
+		policies = append(policies, policyInfo{
+			AgentID:      id,
+			AllowedTools: a.AllowedTools,
+			DeniedTools:  a.DeniedTools,
+			PIIMode:      a.PIIMode,
+			RateLimit:    a.RateLimit,
+		})
+	}
+
+	writeJSON(w, http.StatusOK, envelope{
+		Data: policies,
+		Meta: map[string]interface{}{
+			"count":     len(policies),
+			"timestamp": time.Now().UTC().Format(time.RFC3339),
+		},
+	})
+}
+
+func (s *Server) handleJurisdictions(w http.ResponseWriter, r *http.Request) {
+	type jurisdictionInfo struct {
+		Code       string   `json:"code"`
+		Backend    string   `json:"backend"`
+		Compliance []string `json:"compliance"`
+		EventCount int      `json:"event_count"`
+	}
+
+	// Get event counts per jurisdiction from DB
+	counts := map[string]int{}
+	rows, err := s.db.Query("SELECT jurisdiction, COUNT(*) FROM audit_events GROUP BY jurisdiction")
+	if err == nil {
+		defer rows.Close()
+		for rows.Next() {
+			var j string
+			var c int
+			rows.Scan(&j, &c)
+			counts[j] = c
+		}
+	}
+
+	var data []jurisdictionInfo
+	for _, rule := range s.cfg.Routing.Rules {
+		data = append(data, jurisdictionInfo{
+			Code:       rule.Jurisdiction,
+			Backend:    rule.Backend,
+			Compliance: rule.Compliance,
+			EventCount: counts[rule.Jurisdiction],
+		})
+	}
+
+	writeJSON(w, http.StatusOK, envelope{
+		Data: data,
+		Meta: map[string]interface{}{
+			"count":     len(data),
+			"timestamp": time.Now().UTC().Format(time.RFC3339),
+		},
+	})
+}

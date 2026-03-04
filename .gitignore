@@ -38,3 +38,6 @@ keys/*.pem
 # Environment
 .env
 .env.local
+
+# Backups
+backups/

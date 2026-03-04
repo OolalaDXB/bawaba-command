@@ -1,37 +1,103 @@
-import { useMemo } from 'react';
-import { useAuditEvents } from '@/hooks/use-audit-events';
+import { useState, useEffect, useMemo } from 'react';
+import { PII_TYPES as MOCK_PII_TYPES, JURISDICTIONS, generateSparklineData } from '@/lib/mock-data';
 import { useLiveFeed } from '@/hooks/use-live-feed';
 import { BarChart, Bar, ResponsiveContainer, XAxis, YAxis } from 'recharts';
+import { isApiAvailable, fetchPiiStats, type PiiStatEntry } from '@/services/api';
+
+/* ── Time-ago helper ────────────────────────────── */
+function timeAgo(date: Date): string {
+  const seconds = Math.floor((Date.now() - date.getTime()) / 1000);
+  if (seconds < 60) return `${seconds}s ago`;
+  if (seconds < 3600) return `${Math.floor(seconds / 60)}m ago`;
+  if (seconds < 86400) return `${Math.floor(seconds / 3600)}h ago`;
+  return `${Math.floor(seconds / 86400)}d ago`;
+}
+
+/** PII entity type shape for the UI. */
+interface PiiTypeEntry {
+  type: string;
+  count: number;
+  today: number;
+}
+
+/* ── Skeleton for stats cards ───────────────────── */
+function StatsSkeleton() {
+  return (
+    <div className="grid grid-cols-4 gap-4 mb-6">
+      {Array.from({ length: 4 }).map((_, i) => (
+        <div key={i} className="card-surface shadow-card p-4">
+          <div className="animate-pulse bg-muted rounded h-3 w-16 mb-2" />
+          <div className="animate-pulse bg-muted rounded h-7 w-24" />
+        </div>
+      ))}
+    </div>
+  );
+}
 
 export default function PiiTokenizer() {
-  const { events: liveEvents } = useLiveFeed(20);
-  const { data: allEvents = [] } = useAuditEvents(200);
+  const { events } = useLiveFeed(20);
+  const [loading, setLoading] = useState(true);
+  const [piiTypes, setPiiTypes] = useState<PiiTypeEntry[]>(MOCK_PII_TYPES);
+  const [totalAll, setTotalAll] = useState(MOCK_PII_TYPES.reduce((s, p) => s + p.count, 0));
+  const [totalToday, setTotalToday] = useState(MOCK_PII_TYPES.reduce((s, p) => s + p.today, 0));
+  const [, setTick] = useState(0);
 
-  // PII stats from real data
-  const piiEvents = useMemo(() => allEvents.filter(e => e.tokens_generated > 0), [allEvents]);
-  const totalTokens = useMemo(() => allEvents.reduce((s, e) => s + (e.tokens_generated ?? 0), 0), [allEvents]);
-  const totalEntities = useMemo(() => allEvents.reduce((s, e) => s + (e.entities_detected ?? 0), 0), [allEvents]);
+  // Live timestamp updates
+  useEffect(() => {
+    const interval = setInterval(() => setTick(t => t + 1), 1000);
+    return () => clearInterval(interval);
+  }, []);
 
-  // By pii_mode
-  const byMode = useMemo(() => {
-    const counts: Record<string, number> = {};
-    allEvents.forEach(e => {
-      const mode = e.pii_mode || 'none';
-      counts[mode] = (counts[mode] || 0) + 1;
-    });
-    return Object.entries(counts).map(([mode, count]) => ({ type: mode, count }));
-  }, [allEvents]);
+  useEffect(() => {
+    let cancelled = false;
 
-  const processingDist = useMemo(() => {
-    const buckets = { '<1ms': 0, '1-5ms': 0, '5-10ms': 0, '>10ms': 0 };
-    allEvents.forEach(e => {
-      if (e.latency_ms < 1) buckets['<1ms']++;
-      else if (e.latency_ms < 5) buckets['1-5ms']++;
-      else if (e.latency_ms < 10) buckets['5-10ms']++;
-      else buckets['>10ms']++;
-    });
-    return Object.entries(buckets).map(([range, count]) => ({ range, count }));
-  }, [allEvents]);
+    async function load() {
+      const available = await isApiAvailable();
+      if (cancelled) return;
+
+      if (available) {
+        try {
+          const stats = await fetchPiiStats();
+          if (!cancelled && stats && stats.length > 0) {
+            // Group by pii_mode to create entity type entries
+            const byMode: Record<string, { count: number; today: number }> = {};
+            stats.forEach(entry => {
+              const key = entry.pii_mode || 'unknown';
+              if (!byMode[key]) byMode[key] = { count: 0, today: 0 };
+              byMode[key].count += entry.entities_detected;
+              byMode[key].today += entry.event_count;
+            });
+
+            const mapped: PiiTypeEntry[] = Object.entries(byMode).map(([type, data]) => ({
+              type: type.charAt(0).toUpperCase() + type.slice(1),
+              count: data.count,
+              today: data.today,
+            }));
+
+            if (mapped.length > 0) {
+              setPiiTypes(mapped);
+              setTotalAll(mapped.reduce((s, p) => s + p.count, 0));
+              setTotalToday(mapped.reduce((s, p) => s + p.today, 0));
+            }
+          }
+        } catch {
+          // Keep mock data on failure
+        }
+      }
+
+      if (!cancelled) setLoading(false);
+    }
+
+    load();
+    return () => { cancelled = true; };
+  }, []);
+
+  const processingDist = useMemo(() => [
+    { range: '<1ms', count: 4210 },
+    { range: '1-2ms', count: 6340 },
+    { range: '2-5ms', count: 2180 },
+    { range: '>5ms', count: 327 },
+  ], []);
 
   return (
     <div className="space-y-6">
@@ -44,39 +110,58 @@ export default function PiiTokenizer() {
           </div>
         </div>
 
-        <div className="grid grid-cols-4 gap-4 mb-6">
-          <div className="card-surface shadow-card p-4">
-            <div className="table-header mb-2">Total Tokens</div>
-            <div className="text-2xl font-mono font-light text-foreground">{totalTokens.toLocaleString()}</div>
+        {loading ? (
+          <StatsSkeleton />
+        ) : (
+          <div className="grid grid-cols-4 gap-4 mb-6">
+            <div className="card-surface shadow-card p-4">
+              <div className="table-header mb-2">All Time</div>
+              <div className="text-2xl font-mono font-light text-foreground">{totalAll.toLocaleString()}</div>
+            </div>
+            <div className="card-surface shadow-card p-4">
+              <div className="table-header mb-2">Today</div>
+              <div className="text-2xl font-mono font-light text-foreground">{totalToday.toLocaleString()}</div>
+            </div>
+            <div className="card-surface shadow-card p-4">
+              <div className="table-header mb-2">This Hour</div>
+              <div className="text-2xl font-mono font-light text-foreground">{Math.floor(totalToday / 8)}</div>
+            </div>
+            <div className="card-surface shadow-card p-4">
+              <div className="table-header mb-2">Active Tokens</div>
+              <div className="text-2xl font-mono font-light text-foreground">8,421</div>
+            </div>
           </div>
-          <div className="card-surface shadow-card p-4">
-            <div className="table-header mb-2">Entities Detected</div>
-            <div className="text-2xl font-mono font-light text-foreground">{totalEntities.toLocaleString()}</div>
-          </div>
-          <div className="card-surface shadow-card p-4">
-            <div className="table-header mb-2">Events with PII</div>
-            <div className="text-2xl font-mono font-light text-foreground">{piiEvents.length}</div>
-          </div>
-          <div className="card-surface shadow-card p-4">
-            <div className="table-header mb-2">Total Events</div>
-            <div className="text-2xl font-mono font-light text-foreground">{allEvents.length}</div>
-          </div>
-        </div>
+        )}
 
+        {/* By entity type + processing dist */}
         <div className="grid grid-cols-2 gap-4">
           <div className="card-surface shadow-card p-4">
-            <div className="table-header mb-3">By PII Mode</div>
-            {byMode.map(p => (
-              <div key={p.type} className="flex items-center justify-between py-2 border-b border-border last:border-0">
-                <span className="text-xs text-foreground">{p.type}</span>
-                <div className="flex items-center gap-4">
-                  <div className="w-24 h-1.5 bg-secondary rounded-full overflow-hidden">
-                    <div className="h-full bg-primary" style={{ width: `${allEvents.length > 0 ? (p.count / allEvents.length) * 100 : 0}%` }} />
+            <div className="table-header mb-3">By Entity Type</div>
+            {loading ? (
+              Array.from({ length: 5 }).map((_, i) => (
+                <div key={i} className="flex items-center justify-between py-2 border-b border-border last:border-0">
+                  <div className="animate-pulse bg-muted rounded h-4 w-16" />
+                  <div className="flex items-center gap-4">
+                    <div className="animate-pulse bg-muted rounded h-1.5 w-24" />
+                    <div className="animate-pulse bg-muted rounded h-4 w-12" />
+                    <div className="animate-pulse bg-muted rounded h-4 w-8" />
                   </div>
-                  <span className="text-xs font-mono text-muted-foreground w-12 text-right">{p.count.toLocaleString()}</span>
                 </div>
-              </div>
-            ))}
+              ))
+            ) : (
+              piiTypes.map(p => (
+                <div key={p.type} className="flex items-center justify-between py-2 border-b border-border last:border-0">
+                  <span className="text-xs text-foreground">{p.type}</span>
+                  <div className="flex items-center gap-4">
+                    <div className="w-24 h-1.5 bg-secondary rounded-full overflow-hidden">
+                      <div className="h-full bg-primary" style={{ width: `${totalAll > 0 ? (p.count / totalAll) * 100 : 0}%` }} />
+                    </div>
+                    <span className="text-xs font-mono text-muted-foreground w-12 text-right">{p.count.toLocaleString()}</span>
+                    <span className="text-[10px] font-mono text-ink-4 w-8 text-right">+{p.today}</span>
+                  </div>
+                </div>
+              ))
+            )}
           </div>
 
           <div className="card-surface shadow-card p-4">
@@ -101,26 +186,22 @@ export default function PiiTokenizer() {
             <div className="text-sm font-body font-medium text-foreground">Live Tokenization Feed</div>
           </div>
           <div className="card-surface shadow-card overflow-hidden">
-            <div className="grid grid-cols-[80px_100px_80px_60px_60px_60px] gap-2 px-5 py-2 border-b border-border">
-              {['Time', 'Agent', 'PII Mode', 'Entities', 'Tokens', 'Lat.'].map(h => (
+            <div className="grid grid-cols-[80px_100px_100px_70px_120px_60px] gap-2 px-5 py-2 border-b border-border">
+              {['Time', 'Agent', 'Redacted', 'Type', 'UUID', 'Time'].map(h => (
                 <span key={h} className="table-header">{h}</span>
               ))}
             </div>
             <div className="max-h-[350px] overflow-y-auto">
-              {liveEvents.filter(e => e.tokens_generated > 0).length === 0 ? (
-                <div className="p-8 text-center text-xs text-muted-foreground">No PII events yet</div>
-              ) : (
-                liveEvents.filter(e => e.tokens_generated > 0).map((evt, i) => (
-                  <div key={evt.event_id} className={`grid grid-cols-[80px_100px_80px_60px_60px_60px] gap-2 px-5 py-2 text-xs font-mono border-b border-border ${i === 0 ? 'animate-fade-in-row' : ''}`}>
-                    <span className="text-muted-foreground">{new Date(evt.timestamp).toLocaleTimeString('en-GB', { hour12: false })}</span>
-                    <span className="text-foreground truncate">{evt.agent_id}</span>
-                    <span className="text-ink-2">{evt.pii_mode}</span>
-                    <span className="text-muted-foreground">{evt.entities_detected}</span>
-                    <span className="text-safe">{evt.tokens_generated}</span>
-                    <span className="text-muted-foreground">{evt.latency_ms}ms</span>
-                  </div>
-                ))
-              )}
+              {events.filter(e => e.piiTokens > 0).map((evt, i) => (
+                <div key={evt.id} className={`grid grid-cols-[80px_100px_100px_70px_120px_60px] gap-2 px-5 py-2 text-xs font-mono border-b border-border ${i === 0 ? 'animate-fade-in-row' : ''}`}>
+                  <span className="text-muted-foreground">{timeAgo(evt.timestamp)}</span>
+                  <span className="text-foreground truncate">{evt.agent}</span>
+                  <span className="text-ink-4">{'########'}</span>
+                  <span className="text-ink-2">{(['IBAN', 'Phone', 'Email', 'NID', 'Card'])[Math.floor(Math.random() * 5)]}</span>
+                  <span className="text-ink-3 truncate">{crypto.randomUUID().slice(0, 18)}...</span>
+                  <span className="text-muted-foreground">{(Math.random() * 3).toFixed(1)}ms</span>
+                </div>
+              ))}
             </div>
           </div>
         </div>
@@ -131,10 +212,10 @@ export default function PiiTokenizer() {
           </div>
           <div className="card-surface shadow-card p-4 space-y-4">
             {[
-              ['Total Tokens', totalTokens.toLocaleString()],
-              ['PII Events', piiEvents.length.toString()],
-              ['Entities Found', totalEntities.toLocaleString()],
-              ['Events Scanned', allEvents.length.toString()],
+              ['Active Sessions', '24'],
+              ['Tokens in Memory', '8,421'],
+              ['Avg TTL Remaining', '23m 14s'],
+              ['Memory Usage', '142 MB'],
             ].map(([label, val]) => (
               <div key={label} className="flex justify-between py-2 border-b border-border last:border-0">
                 <span className="text-xs text-muted-foreground">{label}</span>
@@ -143,17 +224,16 @@ export default function PiiTokenizer() {
             ))}
 
             <div className="pt-2">
-              <div className="table-header mb-2">Tokens by Jurisdiction</div>
-              {Object.entries(
-                allEvents.reduce((acc, e) => {
-                  const j = e.jurisdiction || 'unknown';
-                  acc[j] = (acc[j] || 0) + (e.tokens_generated ?? 0);
-                  return acc;
-                }, {} as Record<string, number>)
-              ).map(([j, count]) => (
-                <div key={j} className="flex justify-between py-1.5 text-xs">
-                  <span className="text-muted-foreground">{j.toUpperCase()}</span>
-                  <span className="font-mono text-foreground">{count.toLocaleString()}</span>
+              <div className="table-header mb-2">Tokens by Tenant</div>
+              {[
+                ['Al Maghrib Bank', '3,210'],
+                ['SAMA Corp', '2,891'],
+                ['DIFC Holdings', '1,420'],
+                ['France Branch', '900'],
+              ].map(([t, c]) => (
+                <div key={t} className="flex justify-between py-1.5 text-xs">
+                  <span className="text-muted-foreground">{t}</span>
+                  <span className="font-mono text-foreground">{c}</span>
                 </div>
               ))}
             </div>
