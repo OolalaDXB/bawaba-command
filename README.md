@@ -1,272 +1,282 @@
-# Bawaba بوابة — Sovereign AI Control Plane
+# BAWABA بوابة
 
-**The security and compliance layer between AI agents and enterprise tools.**
+**Sovereign AI Control Plane for Regulated Industries**
 
-Bawaba is an MCP (Model Context Protocol) reverse proxy that enforces authentication, authorization, PII tokenization, sovereign data routing, and cryptographic audit trails — designed for regulated financial institutions in MENA and EU.
+Bawaba is a security gateway that sits between AI agents (Claude, ChatGPT, Copilot, Gemini) and enterprise systems. Every MCP (Model Context Protocol) call passes through a 6-stage fail-closed pipeline — authentication, policy enforcement, PII tokenization, sovereign routing, rate limiting, and tamper-evident audit — before reaching any backend.
+
+No data passes in cleartext. No agent operates without identity. No action escapes the audit trail.
 
 ---
 
 ## Architecture
 
 ```
-┌─────────────┐     ┌──────────────────────────────────────────────┐     ┌───────────┐
-│  AI Agent   │────▶│              BAWABA GATEWAY                  │────▶│ MCP Server│
-│ (Claude,    │     │                                              │     │ (Tools)   │
-│  Cursor,    │     │  ┌──────┐ ┌──────┐ ┌─────┐ ┌──────┐ ┌────┐ │     └───────────┘
-│  GPT, etc.) │     │  │ Auth │→│Policy│→│ PII │→│Router│→│Exec│ │
-│             │◀────│  │Engine│ │Engine│ │Token│ │Proof │ │    │ │
-└─────────────┘     │  └──────┘ └──────┘ └─────┘ └──────┘ └────┘ │
-                    │       │       │       │       │       │      │
-                    │       ▼       ▼       ▼       ▼       ▼      │
-                    │  ┌──────────────────────────────────────────┐ │
-                    │  │     Sealed Audit Trail (PostgreSQL)      │ │
-                    │  │   SHA-256 hash chain · Ed25519 signed    │ │
-                    │  │   Immutable (UPDATE/DELETE = EXCEPTION)  │ │
-                    │  └──────────────────────────────────────────┘ │
-                    └──────────────────────────────────────────────┘
+AI Agents                          Enterprise Systems
+(Claude, Cursor,                   (Core Banking, CRM,
+ ChatGPT, Gemini)                   Databases, APIs)
+       │                                  ▲
+       ▼                                  │
+┌──────────────────────────────────────────┐
+│             BAWABA GATEWAY               │
+│                                          │
+│  Auth → Policy → PII → Route → Audit    │
+│   │       │       │      │       │       │
+│  mTLS   RBAC    Rust   Geo    SHA-256    │
+│  Bearer YAML    FFI    YAML   Ed25519    │
+│  bcrypt        7 MENA  proof  append     │
+│                patterns       only       │
+└──────────────────────────────────────────┘
+         :8080 (MCP proxy)
+         :8081 (REST API + SSE)
+         :5173 (CISO Dashboard)
 ```
 
-Every request passes through **8 sequential stages**: Parse JSON-RPC → Authenticate → Rate Limit → Policy Evaluate → PII Tokenize → Sovereign Route → Execute → Audit Log.
-
-**Fail-closed by design**: if any stage fails, the request is denied. No data leaves the perimeter.
-
----
-
-## What's in this repo
-
-This is a **monorepo** containing the full Bawaba stack:
-
-### Backend (Go + Rust)
-
-| Component | Path | LOC | Description |
-|---|---|---|---|
-| **MCP Gateway** | `cmd/gateway/main.go` | 201 | HTTP server, graceful shutdown, component wiring |
-| **MCP Reverse Proxy** | `internal/proxy/proxy.go` | 539 | JSON-RPC 2.0 handler, full pipeline orchestration, SSE support |
-| **Auth Engine** | `internal/auth/auth.go` | 205 | API key (bcrypt), Bearer token, mTLS client certificate |
-| **Policy Engine** | `internal/policy/policy.go` | 124 | RBAC with allow/deny lists, wildcard matching, default-deny |
-| **Audit Trail** | `internal/audit/audit.go` | 243 | SHA-256 hash chain, Ed25519 signatures, chain verification |
-| **Rate Limiter** | `internal/ratelimit/ratelimit.go` | 166 | Per-agent sliding window, anomaly detection (bulk read) |
-| **Sovereign Router** | `internal/router/router.go` | 110 | Jurisdiction-based routing with Ed25519 signed proofs |
-| **Go↔Rust FFI** | `internal/tokenizer/tokenizer.go` | 73 | CGO bridge to Rust PII tokenizer |
-| **Config** | `internal/config/config.go` | 141 | YAML parser with validation and defaults |
-| **CLI** | `cmd/cli/main.go` | 134 | Config validation, agent listing, health check |
-| **PII Tokenizer** | `rust/tokenizer/src/` | 355 | Rust library: 7 MENA PII regex patterns, Luhn validation, scoped token vault with TTL |
-
-**Total backend: ~2,650 LOC Go + 355 LOC Rust**
-
-### Frontend (React + TypeScript)
-
-| Page | Path | Description |
-|---|---|---|
-| Dashboard | `src/pages/Index.tsx` | Real-time metrics, sparklines, jurisdiction stats, live event feed |
-| Agents | `src/pages/Agents.tsx` | Agent registry with detail panels |
-| Policy | `src/pages/Policy.tsx` | Policy viewer with YAML display |
-| Audit Trail | `src/pages/AuditTrail.tsx` | Hash chain visualization, Merkle verification, charts |
-| PII Tokenizer | `src/pages/PiiTokenizer.tsx` | Tokenization stats, entity type breakdown |
-| Sovereign Routing | `src/pages/SovereignRouting.tsx` | SVG data plane map (MENA + EU nodes) |
-
-**Total frontend: ~2,282 LOC TypeScript** (excluding shadcn/ui components)
-
-### Infrastructure
-
-| File | Description |
-|---|---|
-| `Dockerfile` | Multi-stage build: Rust → Go → Debian slim runtime |
-| `docker-compose.yml` | PostgreSQL 16 + Gateway, health checks, volume persistence |
-| `migrations/001_audit_schema.sql` | Audit events table, indexes, immutability trigger, agents table |
-| `configs/bawaba.yaml` | Agent definitions, routing rules (MA/SA/AE/EU), rate limits |
-| `Makefile` | Build, test, Docker, keygen targets |
-
-### Tests (614 LOC)
+## What's Inside
 
 ```
-internal/proxy/proxy_test.go      — 8 tests: health, unauth, initialize, tools/call
-                                     allow/deny/unlisted, tools/list, fail-closed
-internal/auth/auth_test.go        — 4 tests: valid key, invalid key, no creds, deny default
-internal/policy/policy_test.go    — 6 tests: allow, deny, default-deny, unknown agent,
-                                     deny precedence, wildcard
-internal/audit/audit_test.go      — 3 tests: in-memory, hash chain, tamper detection
-internal/ratelimit/ratelimit_test.go — 4 tests: parse, sliding window, limiter, anomaly
-internal/config/config_test.go    — 4 tests: load, invalid auth, missing DB, defaults
+bawaba-command/
+├── cmd/
+│   ├── gateway/main.go            # Gateway entrypoint (Go)
+│   └── cli/main.go                # CLI tool (Go)
+├── internal/
+│   ├── proxy/proxy.go             # MCP reverse proxy — JSON-RPC 2.0 interception
+│   ├── auth/auth.go               # Auth engine — Bearer, bcrypt, mTLS
+│   ├── policy/policy.go           # Policy engine — RBAC from YAML
+│   ├── audit/audit.go             # Hash chain — SHA-256 + Ed25519 signatures
+│   ├── ratelimit/ratelimit.go     # Sliding window + anomaly detection
+│   ├── router/router.go           # Sovereign routing + cryptographic proof
+│   ├── tokenizer/tokenizer.go     # Go↔Rust FFI bridge
+│   ├── api/server.go              # REST API — 15 endpoints + SSE
+│   ├── api/middleware.go          # Middleware chain (Kong-inspired)
+│   ├── api/quota.go               # Per-agent quota enforcement
+│   ├── siem/siem.go               # SIEM forwarder (webhook, Splunk stub)
+│   └── config/config.go           # YAML config parser
+├── rust/tokenizer/
+│   ├── src/lib.rs                 # PII tokenizer — FFI export
+│   ├── src/regex.rs               # 7 MENA patterns + Luhn validation
+│   └── src/vault.rs               # Token vault with TTL
+├── src/                           # CISO Dashboard (React + TypeScript + Vite)
+│   ├── pages/Index.tsx            # Home — metrics, live feed, compliance
+│   ├── pages/AuditTrail.tsx       # Hash chain visualization + verify
+│   ├── pages/Agents.tsx           # Agent registry + quotas
+│   ├── pages/Policy.tsx           # Policy rules viewer
+│   ├── pages/PiiTokenizer.tsx     # PII stats + vault status
+│   ├── pages/SovereignRouting.tsx # SVG map + routing proofs
+│   └── pages/Settings.tsx         # Gateway config (read-only)
+├── migrations/
+│   └── 001_audit_schema.sql       # PostgreSQL — append-only + immutability trigger
+├── scripts/
+│   ├── demo.sh                    # Generate 58 demo events (9 scenarios)
+│   ├── deploy-ovh.sh              # Deploy to OVHcloud VPS (European, non-US jurisdiction)
+│   └── bench.sh                   # Latency benchmark (P50/P95/P99)
+├── configs/bawaba.yaml            # Agent keys, policies, routing rules, quotas
+├── .github/workflows/ci.yml       # CI: Go test + vet + Docker build
+├── Dockerfile                     # Multi-stage: Rust → Go → Debian
+├── docker-compose.yml             # PostgreSQL + Gateway
+└── Makefile                       # 12 targets (build, test, demo, verify, bench...)
 ```
 
----
-
-## PII Patterns (Rust tokenizer)
-
-The tokenizer detects and replaces PII with ephemeral UUID tokens before data reaches any LLM:
-
-| Pattern | Example | Regex |
-|---|---|---|
-| IBAN | `MA64 0111 1111 1111 1111 1111 11` | `[A-Z]{2}\d{2}[A-Z0-9]{4,30}` |
-| Phone | `+212 6 12 34 56 78` | `\+\d{1,3}[\s-]?\d{1,4}[\s-]?\d{3,4}[\s-]?\d{3,4}` |
-| Email | `name@bank.ma` | Standard email regex |
-| Morocco CIN | `BK123456` | `[A-Z]{1,2}\d{5,7}` |
-| KSA NID/Iqama | `1234567890` | `[12]\d{9}` |
-| UAE Emirates ID | `784-1990-1234567-1` | `784[-]?\d{4}[-]?\d{7}[-]?\d` |
-| Credit Card | `4111 1111 1111 1111` | 13-19 digits + Luhn validation |
-
-Tokens are scoped per `tenant:session`, stored in memory with configurable TTL, and automatically purged.
-
----
-
-## Quick Start
-
-### Prerequisites
-
-- Docker & Docker Compose
-- (Optional) Go 1.24+, Rust 1.85+, Node.js 20+ for local development
-
-### Run with Docker (recommended)
+## Quickstart
 
 ```bash
-# Clone and start
+# Prerequisites: Docker, Docker Compose, Make
+
+# Clone
 git clone https://github.com/OolalaDXB/bawaba-command.git
 cd bawaba-command
 
-# Start PostgreSQL + Gateway
-docker compose up --build -d
+# Start gateway + PostgreSQL
+make up
 
-# Verify
-curl http://localhost:8080/healthz
-# → {"status":"healthy","version":"0.1.0","time":"..."}
+# Verify health
+curl http://localhost:8081/api/v1/health
+
+# Run the demo — 58 events across 9 scenarios:
+# authorized calls, blocked agents, PII tokenization,
+# sovereign routing, chain verification
+make demo
+
+# Open the CISO dashboard
+open http://localhost:5173
+
+# Verify audit chain integrity (SHA-256 + Ed25519)
+make verify
+
+# Run latency benchmark
+make bench
+
+# Stop everything
+make down
 ```
 
-### Send MCP requests
+## The 6-Stage Pipeline
 
-```bash
-# Authenticate and call a tool (allowed)
-curl -X POST http://localhost:8080/mcp \
-  -H "Content-Type: application/json" \
-  -H "X-Bawaba-Key: test-key-12345" \
-  -d '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"echo","arguments":{"text":"hello"}}}'
+Every MCP request passes through all 6 stages. If any stage fails, the request is **blocked** (fail-closed).
 
-# Call a denied tool (→ 403)
-curl -X POST http://localhost:8080/mcp \
-  -H "Content-Type: application/json" \
-  -H "X-Bawaba-Key: test-key-12345" \
-  -d '{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"database-write","arguments":{}}}'
+| Stage | Module | What it does |
+|-------|--------|-------------|
+| **1. Auth** | `internal/auth` | Identifies the AI agent. Unknown agent → blocked immediately. Bearer token, bcrypt, mTLS. |
+| **2. Policy** | `internal/policy` | Checks if this agent is allowed to call this tool. YAML-defined RBAC. Unauthorized tool → blocked. |
+| **3. PII** | `rust/tokenizer` | Scans request payload for sensitive data. 7 MENA patterns (IBAN MA/FR, CIN, Iqama, Emirates ID, phone, email, credit card with Luhn). Detected PII → replaced with UUID tokens. Rust for memory safety. |
+| **4. Route** | `internal/router` | Routes data to the correct sovereign data plane based on jurisdiction. Moroccan data → European hosting (non-US). Cryptographic routing proof generated. |
+| **5. Rate** | `internal/ratelimit` | Sliding window rate limiter + behavioral anomaly detection. Abnormal patterns → throttled or blocked. |
+| **6. Audit** | `internal/audit` | Every event appended to a SHA-256 hash chain signed with Ed25519. Each event contains the hash of the previous one. Tamper one event → the chain breaks. PostgreSQL append-only with immutability trigger. |
 
-# No auth (→ 401)
-curl -X POST http://localhost:8080/mcp \
-  -H "Content-Type: application/json" \
-  -d '{"jsonrpc":"2.0","id":3,"method":"tools/list"}'
-```
+## PII Patterns Detected
 
-### Run tests
+The Rust tokenizer detects and replaces these patterns before data leaves the perimeter:
 
-```bash
-# Go tests (no Rust dependency)
-make test-go-nocgo
-
-# Full test suite (requires Rust toolchain)
-make test
-```
-
-### Build locally
-
-```bash
-# Build Rust tokenizer
-make build-rust
-
-# Build Go binaries
-make build-go
-
-# Binaries in bin/
-./bin/bawaba-gateway
-./bin/bawaba-cli config validate ./configs/bawaba.yaml
-```
-
----
-
-## Configuration
-
-Agent policies are defined in `configs/bawaba.yaml`:
-
-```yaml
-agents:
-  claude-code:
-    auth: api_key
-    allowed_tools:
-      - database-query
-      - git-read
-      - jira-read
-    denied_tools:
-      - database-write
-      - git-push
-    pii_mode: tokenize      # tokenize | mask | none
-    rate_limit: 1000/hour
-    max_results: 50
-
-routing:
-  rules:
-    - jurisdiction: ma
-      backend: inwi-dc-casa
-      compliance: [loi-09-08, cndp]
-    - jurisdiction: sa
-      backend: stc-cloud-riyadh
-      compliance: [pdpl, sama-scf]
-    - jurisdiction: ae
-      backend: g42-abu-dhabi
-      compliance: [fpdl, difc, adgm]
-    - jurisdiction: eu
-      backend: hetzner-frankfurt
-      compliance: [gdpr, dora]
-```
-
----
+| Pattern | Example | Jurisdiction |
+|---------|---------|-------------|
+| IBAN Morocco | `MA76 1234 5678 9012 3456 7890 1234` | Loi 09-08 |
+| IBAN France | `FR76 1234 5678 9012 3456 7890 123` | RGPD |
+| CIN Morocco | `AB123456` | Loi 09-08 |
+| Iqama (KSA) | `2012345678` | PDPL/SAMA |
+| Emirates ID | `784-1990-1234567-1` | UAE PDPL |
+| Phone (intl) | `+212 6XX XXX XXX` | Multiple |
+| Credit Card | Luhn-validated 16-digit | PCI-DSS |
 
 ## Audit Trail
 
-Every event is hash-chained and signed:
+The audit system provides **mathematical proof** that no event has been altered:
 
 ```
-Event N:
-  event_hash = SHA-256(event_data + prev_hash)
-  signature  = Ed25519.Sign(private_key, event_hash)
-  prev_hash  = Event N-1 event_hash
-
-PostgreSQL trigger: UPDATE or DELETE → EXCEPTION('Audit events are immutable')
+Event #1          Event #2          Event #3
+┌──────────┐     ┌──────────┐     ┌──────────┐
+│ data     │     │ data     │     │ data     │
+│ hash: a3f│────▶│ prev: a3f│────▶│ prev: 7b2│
+│ sig: Ed  │     │ hash: 7b2│     │ hash: e91│
+└──────────┘     │ sig: Ed  │     │ sig: Ed  │
+                 └──────────┘     └──────────┘
 ```
 
-Verify chain integrity programmatically:
+- **SHA-256** hash chain: each event includes the hash of the previous event
+- **Ed25519** signature: each event is cryptographically signed
+- **Append-only PostgreSQL**: immutability trigger prevents UPDATE/DELETE
+- **One-click verification**: `make verify` checks the entire chain in seconds
 
-```go
-err := audit.VerifyChain(events, publicKey)
-// Returns nil if chain is intact
-// Returns error with exact tampered event index if modified
+## Configuration
+
+All configuration lives in `configs/bawaba.yaml`:
+
+```yaml
+gateway:
+  proxy_port: 8080
+  api_port: 8081
+
+agents:
+  - name: claude-code
+    key_hash: "$2a$10$..."    # bcrypt hash
+    allowed_tools: [database-query, git-read, jira-read]
+    jurisdiction: ma
+
+  - name: cursor-ide
+    key_hash: "$2a$10$..."
+    allowed_tools: [git-read, git-write]
+    jurisdiction: eu
+
+routing:
+  jurisdictions:
+    ma:
+      name: Morocco
+      data_plane: eu-west       # European hosting, non-US
+      law: "Loi 09-08"
+    sa:
+      name: Saudi Arabia
+      data_plane: eu-west
+      law: "PDPL / SAMA"
+    ae:
+      name: UAE
+      data_plane: eu-west
+      law: "UAE PDPL / DIFC"
+
+quotas:
+  default_limit: 1000
+  period: 1h
+  overrides:
+    claude-code: 5000
 ```
 
----
+## Tech Stack
 
-## Sovereign Routing
+| Component | Technology | Why |
+|-----------|-----------|-----|
+| Gateway proxy | **Go** | Native concurrency, sub-5ms latency, no runtime |
+| PII tokenizer | **Rust** (FFI → Go) | Memory safety for sensitive data processing. No buffer overflow possible. |
+| Audit storage | **PostgreSQL** | Append-only with immutability trigger. Proven, auditable. |
+| Dashboard | **React + TypeScript + Vite** | CISO console. Cormorant Garamond + DM Sans + JetBrains Mono. |
+| Signatures | **Ed25519** | Fast, compact, quantum-resistant-ready |
+| Deployment | **Docker Compose** | Single `make up`. No Kubernetes needed for first clients. |
+| CI | **GitHub Actions** | Automated Go test + vet + Docker build on every push |
 
-Each routing decision includes a cryptographic proof:
+## Deployment
 
-```json
-{
-  "backend": "inwi-dc-casa",
-  "jurisdiction": "ma",
-  "compliance": ["loi-09-08", "cndp"],
-  "proof": "ed25519:a1b2c3...",    // Signed routing attestation
-  "timestamp": "2026-02-17T14:30:00Z"
-}
+Bawaba deploys inside the client's perimeter (VPC or on-premises). It is **not** a SaaS — data never leaves the institution's infrastructure.
+
+```bash
+# Deploy to OVHcloud VPS (European, non-US jurisdiction)
+./scripts/deploy-ovh.sh <VPS_IP>
+
+# Deploy with HTTPS (Let's Encrypt)
+./scripts/deploy-ovh.sh <VPS_IP> demo.bawaba.io
 ```
 
-Data never leaves the configured jurisdiction. Routing proofs are stored in the audit trail.
+Production deployment: Docker Compose on a single server. No external dependencies. No phone-home. Air-gapped mode planned for P3.
 
----
+## API
 
-## Project Status
+REST API on `:8081` with 15 endpoints:
 
-**Phase 1 (current)**: Core control plane operational. Full pipeline: auth → policy → PII → routing → audit. Docker deployment. 26 tests passing. CISO dashboard with live data.
+| Endpoint | Description |
+|----------|-------------|
+| `GET /api/v1/health` | Gateway status, uptime, module health |
+| `GET /api/v1/events` | Paginated audit events (filter by agent, action, jurisdiction) |
+| `GET /api/v1/events/stream` | SSE — real-time event stream |
+| `GET /api/v1/events/:id` | Single event detail |
+| `POST /api/v1/events/verify` | Verify hash chain integrity |
+| `POST /api/v1/events/export` | Export filtered events (CSV/JSON) |
+| `GET /api/v1/stats` | Aggregated metrics (calls/min, deny rate, latency) |
+| `GET /api/v1/stats/pii` | PII stats by type and day |
+| `GET /api/v1/agents` | Registered agents from config |
+| `GET /api/v1/agents/:id/activity` | Recent activity per agent |
+| `GET /api/v1/agents/:id/quota` | Quota usage and remaining |
+| `GET /api/v1/policies` | Active policy rules |
+| `GET /api/v1/jurisdictions` | Configured jurisdictions + routing stats |
+| `GET /api/v1/siem/status` | SIEM forwarder status |
 
-**Phase 2 (planned)**: SSO/SAML, JWT OAuth2 validation, TEE activation (AMD SEV-SNP), NER-based PII detection, multi-region deployment, Prometheus metrics, SDK.
+## Compliance Coverage
 
-**Phase 3 (planned)**: Proof Pack J90 export (signed JSON + PDF), SLM-based anomaly detection, MCP server registry, compliance automation.
+Bawaba is designed for regulated financial institutions in MENA and EU:
 
----
+| Regulation | Jurisdiction | Coverage |
+|-----------|-------------|----------|
+| **Loi 09-08** | Morocco | PII protection, CNDP notification, transfer controls |
+| **PDPL + SAMA** | Saudi Arabia | Data classification, consent, cross-border transfer |
+| **UAE PDPL + DIFC** | UAE | Data processing, sovereign routing, audit trail |
+| **RGPD + DORA** | EU | Data protection, operational resilience |
+
+## Security Posture
+
+- **Fail-closed**: if any module is unavailable, all requests are blocked
+- **No cleartext default**: PII is tokenized before transmission
+- **No secrets in code**: agent keys are bcrypt hashes, Ed25519 keys generated at deploy time
+- **Append-only audit**: PostgreSQL trigger prevents UPDATE/DELETE on audit table
+- **Memory-safe PII processing**: Rust tokenizer — no buffer overflow possible
+- **Non-US hosting**: deployment scripts target European infrastructure (OVHcloud)
+
+## Roadmap
+
+| Phase | Timeline | Features |
+|-------|----------|----------|
+| **P1** ✅ | Jan–Mar 2026 | Gateway, API, Dashboard, Audit, PII, Routing, DevOps |
+| **P2** | T3–T4 2026 | Advanced quotas, SIEM native, cache, analytics, SSO, NER, Compliance-as-Code |
+| **P3** | T1–T2 2027 | TEE (AMD SEV), MCP Server Registry, WASM plugins, mobile app, air-gapped deploy |
 
 ## License
 
-Proprietary. All rights reserved. © 2026 Oolala Holding.
+Proprietary — Oolala Next FZ-LLC. All rights reserved.
+
+## Contact
+
+**Oolala Next FZ-LLC** — Dubai, UAE
+contact@bawaba.io
