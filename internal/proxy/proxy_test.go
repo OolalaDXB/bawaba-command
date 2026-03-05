@@ -47,9 +47,13 @@ func newTestGateway(t *testing.T) (*Gateway, *auth.Engine) {
 
 	trail, _ := audit.NewTrail(nil, "")
 
-	routerEngine := router.NewEngine(config.RoutingConfig{
+	routingCfg := config.RoutingConfig{
 		DefaultBackend: "localhost",
-	}, trail.PrivateKey())
+		Rules: []config.RoutingRule{
+			{Jurisdiction: "ma", Backend: "inwi-dc-casa", Compliance: []string{"loi-09-08"}},
+		},
+	}
+	routerEngine := router.NewEngine(routingCfg, trail.PrivateKey())
 
 	gw := NewGateway(
 		authEngine,
@@ -61,6 +65,8 @@ func newTestGateway(t *testing.T) (*Gateway, *auth.Engine) {
 		agentConfigs,
 		logger,
 		false, // PII disabled for tests
+		false, // header jurisdiction disabled for tests
+		routingCfg.Rules,
 	)
 
 	return gw, authEngine

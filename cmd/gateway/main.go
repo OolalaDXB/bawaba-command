@@ -155,6 +155,11 @@ func main() {
 	logger.Info("sovereign router initialized")
 
 	// Create gateway
+	allowHeaderJurisdiction := os.Getenv("BAWABA_ALLOW_HEADER_JURISDICTION") == "true"
+	if allowHeaderJurisdiction {
+		logger.Warn("header jurisdiction override enabled (BAWABA_ALLOW_HEADER_JURISDICTION=true)")
+	}
+
 	gateway := proxy.NewGateway(
 		authEngine,
 		policyEngine,
@@ -165,6 +170,8 @@ func main() {
 		cfg.Agents,
 		logger,
 		true, // PII enabled
+		allowHeaderJurisdiction,
+		cfg.Routing.Rules,
 	)
 
 	// Start MCP proxy server

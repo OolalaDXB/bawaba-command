@@ -52,15 +52,17 @@ type ToolCallParams struct {
 
 // Gateway is the main MCP reverse proxy.
 type Gateway struct {
-	authEngine    *auth.Engine
-	policyEngine  *policy.Engine
-	rateLimiter   *ratelimit.Limiter
-	anomaly       *ratelimit.AnomalyDetector
-	auditTrail    *audit.Trail
-	routerEngine  *router.Engine
-	agentConfigs  map[string]config.AgentConfig
-	logger        *slog.Logger
-	piiEnabled    bool
+	authEngine               *auth.Engine
+	policyEngine             *policy.Engine
+	rateLimiter              *ratelimit.Limiter
+	anomaly                  *ratelimit.AnomalyDetector
+	auditTrail               *audit.Trail
+	routerEngine             *router.Engine
+	agentConfigs             map[string]config.AgentConfig
+	logger                   *slog.Logger
+	piiEnabled               bool
+	allowHeaderJurisdiction  bool
+	validJurisdictions       map[string]bool
 }
 
 // NewGateway creates a new MCP gateway proxy.
@@ -74,17 +76,25 @@ func NewGateway(
 	agentConfigs map[string]config.AgentConfig,
 	logger *slog.Logger,
 	piiEnabled bool,
+	allowHeaderJurisdiction bool,
+	routingRules []config.RoutingRule,
 ) *Gateway {
+	valid := make(map[string]bool)
+	for _, rule := range routingRules {
+		valid[rule.Jurisdiction] = true
+	}
 	return &Gateway{
-		authEngine:   authEngine,
-		policyEngine: policyEngine,
-		rateLimiter:  rateLimiter,
-		anomaly:      anomaly,
-		auditTrail:   auditTrail,
-		routerEngine: routerEngine,
-		agentConfigs: agentConfigs,
-		logger:       logger,
-		piiEnabled:   piiEnabled,
+		authEngine:              authEngine,
+		policyEngine:            policyEngine,
+		rateLimiter:             rateLimiter,
+		anomaly:                 anomaly,
+		auditTrail:              auditTrail,
+		routerEngine:            routerEngine,
+		agentConfigs:            agentConfigs,
+		logger:                  logger,
+		piiEnabled:              piiEnabled,
+		allowHeaderJurisdiction: allowHeaderJurisdiction,
+		validJurisdictions:      valid,
 	}
 }
 
@@ -298,8 +308,13 @@ func (g *Gateway) handleToolsCall(w http.ResponseWriter, r *http.Request, req *J
 		tokenizedArgs = string(params.Arguments)
 	}
 
-	// Step 5: Sovereign routing — resolve jurisdiction
-	jurisdiction := g.resolveJurisdiction(r, identity, agentCfg)
+	// Step 5: Sovereign routing — resolve jurisdiction (fail-closed on unknown)
+	jurisdiction, err := g.resolveJurisdiction(r, identity, agentCfg)
+	if err != nil {
+		g.logger.Warn("jurisdiction rejected (fail-closed)", "agent", identity.AgentID, "error", err)
+		g.writeError(w, req.ID, -32005, fmt.Sprintf("Jurisdiction error: %s", err))
+		return
+	}
 	requestID := fmt.Sprintf("%v", req.ID)
 	routingDecision, err := g.routerEngine.Route(identity.TenantID, jurisdiction, requestID)
 	if err != nil {
@@ -403,21 +418,46 @@ func (g *Gateway) handlePrompts(w http.ResponseWriter, _ *http.Request, req *JSO
 }
 
 // resolveJurisdiction determines the jurisdiction for a request.
-// Priority: (1) token claim, (2) X-Bawaba-Jurisdiction header, (3) agent config.
-func (g *Gateway) resolveJurisdiction(r *http.Request, identity *auth.AgentIdentity, agentCfg config.AgentConfig) string {
-	// 1. Token claim (identity metadata)
-	if j, ok := identity.Metadata["jurisdiction"]; ok && j != "" {
-		return j
+// Priority: (1) token claim, (2) X-Bawaba-Jurisdiction header (gated), (3) agent config.
+// Returns ("", error) if the resolved jurisdiction is unknown (fail-closed).
+func (g *Gateway) resolveJurisdiction(r *http.Request, identity *auth.AgentIdentity, agentCfg config.AgentConfig) (string, error) {
+	var j string
+
+	// 1. Token claim (identity metadata) — always trusted
+	if claim, ok := identity.Metadata["jurisdiction"]; ok && claim != "" {
+		j = claim
 	}
-	// 2. Request header
-	if j := r.Header.Get("X-Bawaba-Jurisdiction"); j != "" {
-		return j
+
+	// 2. Request header — only if BAWABA_ALLOW_HEADER_JURISDICTION=true
+	if j == "" {
+		if hdr := r.Header.Get("X-Bawaba-Jurisdiction"); hdr != "" {
+			if !g.allowHeaderJurisdiction {
+				g.logger.Warn("X-Bawaba-Jurisdiction header ignored (BAWABA_ALLOW_HEADER_JURISDICTION is not true)",
+					"agent", identity.AgentID, "header_value", hdr)
+			} else {
+				g.logger.Warn("jurisdiction resolved from header (pilot mode)",
+					"agent", identity.AgentID, "jurisdiction", hdr)
+				j = hdr
+			}
+		}
 	}
+
 	// 3. Agent config from bawaba.yaml
-	if agentCfg.Jurisdiction != "" {
-		return agentCfg.Jurisdiction
+	if j == "" && agentCfg.Jurisdiction != "" {
+		j = agentCfg.Jurisdiction
 	}
-	return "default"
+
+	// 4. Fallback — no jurisdiction resolved
+	if j == "" {
+		j = "default"
+	}
+
+	// Fail-closed: reject unknown jurisdictions (no silent fallback)
+	if j != "default" && len(g.validJurisdictions) > 0 && !g.validJurisdictions[j] {
+		return "", fmt.Errorf("unknown jurisdiction %q", j)
+	}
+
+	return j, nil
 }
 
 func (g *Gateway) executeToolCall(tool, args string) string {
