@@ -1,5 +1,5 @@
 import { Outlet, NavLink, useLocation } from 'react-router-dom';
-import { BarChart3, Shield, Scale, ScrollText, Fingerprint, Globe, Settings, Sun, Moon } from 'lucide-react';
+import { BarChart3, Shield, Scale, ScrollText, Fingerprint, Globe, Layers, Settings, Sun, Moon } from 'lucide-react';
 import { useTheme } from '@/hooks/use-theme';
 
 const navItems = [
@@ -9,6 +9,7 @@ const navItems = [
   { path: '/audit', label: 'Audit Trail', icon: ScrollText },
   { path: '/pii', label: 'PII', icon: Fingerprint },
   { path: '/routing', label: 'Routing', icon: Globe },
+  { path: '/architecture', label: 'Architecture', icon: Layers },
 ];
 
 export default function AppLayout() {
