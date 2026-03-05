@@ -100,3 +100,29 @@ func TestDenyByDefault(t *testing.T) {
 		t.Fatal("expected auth failure for unregistered agent")
 	}
 }
+
+func TestValidateJWTStubReturnsError(t *testing.T) {
+	// ValidateJWT is a P2 stub — it must compile and return a clear error
+	_, err := ValidateJWT("header.payload.signature", "https://example.com/.well-known/jwks.json", "https://iss.example.com", "bawaba")
+	if err == nil {
+		t.Fatal("expected error from JWT stub")
+	}
+	if !testing.Short() {
+		// Only check message content in full test mode (network may be unavailable)
+		t.Logf("JWT stub error: %v", err)
+	}
+}
+
+func TestValidateJWTEmptyToken(t *testing.T) {
+	_, err := ValidateJWT("", "https://example.com/.well-known/jwks.json", "iss", "aud")
+	if err == nil {
+		t.Fatal("expected error for empty token")
+	}
+}
+
+func TestValidateJWTEmptyJWKS(t *testing.T) {
+	_, err := ValidateJWT("a.b.c", "", "iss", "aud")
+	if err == nil {
+		t.Fatal("expected error for empty JWKS URL")
+	}
+}

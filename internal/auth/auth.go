@@ -205,3 +205,49 @@ func (e *Engine) GetAgent(agentID string) (*AgentRecord, bool) {
 	rec, ok := e.agents[agentID]
 	return rec, ok
 }
+
+// --- Production auth path — P2 ---
+// ValidateJWT validates a JWT bearer token against a JWKS endpoint.
+// Activated when BAWABA_AUTH_MODE=jwt (default: "shared_secret").
+// This is a stub adapter for the upcoming OIDC/JWT auth path.
+// It is NOT wired into any existing agent flow — see roadmap for P2 integration.
+func ValidateJWT(token, jwksURL, expectedIss, expectedAud string) (*AgentIdentity, error) {
+	if token == "" {
+		return nil, fmt.Errorf("auth/jwt: empty token")
+	}
+	if jwksURL == "" {
+		return nil, fmt.Errorf("auth/jwt: jwksURL is required")
+	}
+
+	// Step 1: Fetch JWKS from the identity provider
+	resp, err := http.Get(jwksURL) //nolint:noctx // stub — context will be added in P2
+	if err != nil {
+		return nil, fmt.Errorf("auth/jwt: fetch JWKS: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("auth/jwt: JWKS endpoint returned %d", resp.StatusCode)
+	}
+
+	// Step 2: Parse JWKS response (stub — full jose library integration in P2)
+	// In production this will use a proper JOSE library (e.g. go-jose/v4)
+	// to parse the key set and verify the JWT signature.
+	_ = resp.Body // JWKS body read — actual key parsing is P2
+
+	// Step 3: Decode JWT claims (stub)
+	// Production: decode header → find kid → match key → verify sig → decode claims
+	parts := strings.SplitN(token, ".", 3)
+	if len(parts) != 3 {
+		return nil, fmt.Errorf("auth/jwt: malformed token (expected 3 parts, got %d)", len(parts))
+	}
+
+	// Step 4: Validate standard claims (stub)
+	// Production: validate exp, iss, aud, nbf, iat
+	_ = expectedIss
+	_ = expectedAud
+
+	// P2: Return identity extracted from validated JWT claims
+	// For now, return a placeholder to prove the adapter compiles and is callable.
+	return nil, fmt.Errorf("auth/jwt: not yet implemented — enable in P2 (OIDC/JWT validation)")
+}
