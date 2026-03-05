@@ -14,9 +14,9 @@ interface RoutingRule {
 
 /** Default metadata per jurisdiction code. */
 const JURISDICTION_META: Record<string, { label: string; backend: string }> = {
-  ma: { label: 'Morocco (ma)', backend: 'Inwi DC -- Casablanca' },
-  sa: { label: 'KSA (sa)', backend: 'stc cloud -- Riyadh' },
-  ae: { label: 'UAE (ae)', backend: 'G42 -- Abu Dhabi' },
+  ma: { label: 'Maroc (ma)', backend: 'Inwi DC -- Casablanca' },
+  sa: { label: 'Arabie Saoudite (sa)', backend: 'stc cloud -- Riyadh' },
+  ae: { label: 'Émirats arabes unis (ae)', backend: 'G42 -- Abu Dhabi' },
   fr: { label: 'France (fr)', backend: 'OVHcloud -- Paris' },
 };
 
@@ -29,17 +29,17 @@ const JURISDICTION_DETAIL: Record<string, {
   cloudActStatus: string;
   dataType: string;
 }> = {
-  ma: { country: 'Maroc', law: 'Loi 09-08', city: 'Casablanca', dataPlane: 'Inwi DC', cloudActStatus: 'Hors Cloud Act', dataType: 'CIN (Carte d\'Identite Nationale)' },
-  sa: { country: 'KSA', law: 'PDPL / SAMA', city: 'Riyadh', dataPlane: 'stc cloud', cloudActStatus: 'Hors Cloud Act', dataType: 'National ID (Iqama)' },
-  ae: { country: 'UAE', law: 'DIFC / ADGM', city: 'Abu Dhabi', dataPlane: 'G42', cloudActStatus: 'Hors Cloud Act', dataType: 'Emirates ID' },
+  ma: { country: 'Maroc', law: 'Loi 09-08', city: 'Casablanca', dataPlane: 'Inwi DC', cloudActStatus: 'Hors Cloud Act', dataType: 'CIN (Carte d\'Identité Nationale)' },
+  sa: { country: 'KSA', law: 'PDPL / SAMA', city: 'Riyadh', dataPlane: 'stc cloud', cloudActStatus: 'Hors Cloud Act', dataType: 'Identité nationale (Iqama)' },
+  ae: { country: 'UAE', law: 'DIFC / ADGM', city: 'Abu Dhabi', dataPlane: 'G42', cloudActStatus: 'Hors Cloud Act', dataType: 'Emirates ID — pièce d\'identité EAU' },
   fr: { country: 'France', law: 'CNIL / RGPD', city: 'Paris', dataPlane: 'OVHcloud', cloudActStatus: 'Hors Cloud Act (UE)', dataType: 'CNI / Carte Vitale' },
 };
 
 /** Mock routing rules as fallback. */
 const MOCK_ROUTING_RULES: RoutingRule[] = [
-  { jurisdiction: 'Morocco (ma)', backend: 'Inwi DC -- Casablanca', compliance: 'Loi 09-08, CNDP', eventCount: 892 },
-  { jurisdiction: 'KSA (sa)', backend: 'stc cloud -- Riyadh', compliance: 'PDPL, SAMA circular', eventCount: 1134 },
-  { jurisdiction: 'UAE (ae)', backend: 'G42 -- Abu Dhabi', compliance: 'DIFC DP Law, ADGM', eventCount: 678 },
+  { jurisdiction: 'Maroc (ma)', backend: 'Inwi DC -- Casablanca', compliance: 'Loi 09-08, CNDP', eventCount: 892 },
+  { jurisdiction: 'Arabie Saoudite (sa)', backend: 'stc cloud -- Riyadh', compliance: 'PDPL, SAMA circular', eventCount: 1134 },
+  { jurisdiction: 'Émirats arabes unis (ae)', backend: 'G42 -- Abu Dhabi', compliance: 'DIFC DP Law, ADGM', eventCount: 678 },
   { jurisdiction: 'France (fr)', backend: 'OVHcloud -- Paris', compliance: 'CNIL / RGPD', eventCount: 445 },
 ];
 
@@ -179,9 +179,13 @@ function RouteExplainerPanel({
           </div>
 
           {/* Footer */}
-          <div className="px-5 py-3 border-t border-border">
+          <div className="px-5 py-3 border-t border-border space-y-2">
             <div className="text-[10px] text-muted-foreground font-body">
               Cette décision de routage est journalisée et signée cryptographiquement dans le journal d'audit.
+            </div>
+            <div className="text-[10px] text-muted-foreground font-body bg-muted/40 rounded p-2">
+              La preuve complète (payload JSON canonique + signature Ed25519) peut être exportée
+              et vérifiée indépendamment par un auditeur externe sans accès aux serveurs Bawaba.
             </div>
           </div>
         </div>
@@ -245,7 +249,7 @@ export default function SovereignRouting() {
       Array.from({ length: 4 }, (_, i) => ({
         id: `${node.id}-${i}`,
         time: new Date(Date.now() - i * 60000 - Math.floor(Math.random() * 60000))
-          .toLocaleTimeString('en-GB', { hour12: false }),
+          .toLocaleTimeString('fr-FR', { hour12: false }),
         request: `${node.jurisdiction}/${toolNames[i]}`,
         decision: `-> ${node.name}`,
         hash: Math.random().toString(36).substring(2, 14) + Math.random().toString(36).substring(2, 14),
@@ -311,7 +315,7 @@ export default function SovereignRouting() {
         <div className="col-span-7">
           <div className="flex items-center gap-3 mb-4">
             <div className="text-sm font-body font-medium text-foreground">Preuves de routage <InfoTooltip text="Payload JSON canonique + signature Ed25519 stockés pour chaque décision. Vérifiable indépendamment sans accès aux serveurs." /></div>
-            <div className="text-[10px] text-muted-foreground font-body">Cliquez sur une ligne pour voir le détail</div>
+            <div className="text-[10px] text-muted-foreground font-body">👆 Cliquez une ligne pour voir la décision complète et la preuve cryptographique</div>
           </div>
           <div className="card-surface shadow-card overflow-hidden">
             <div className="grid grid-cols-[80px_120px_100px_1fr_60px] gap-2 px-5 py-2 border-b border-border">

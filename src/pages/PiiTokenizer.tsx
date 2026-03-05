@@ -161,6 +161,15 @@ export default function PiiTokenizer() {
 
   return (
     <div className="space-y-6">
+      {/* Explainer banner */}
+      <div className="card-surface shadow-card px-5 py-3">
+        <p className="text-xs font-body text-muted-foreground leading-relaxed">
+          Chaque donnée personnelle (email, IBAN, CIN...) est détectée par la bibliothèque Rust
+          et remplacée par un UUID v4 <em>avant</em> d'atteindre le LLM. Le coffre-fort en mémoire
+          conserve la correspondance token ↔ valeur réelle pendant le TTL configuré.
+        </p>
+      </div>
+
       {/* Stats */}
       <div>
         <div className="flex items-center gap-3 mb-4">
@@ -262,6 +271,7 @@ export default function PiiTokenizer() {
               Flux de tokenisation en direct
               <InfoTooltip text="Chaque ligne représente une donnée sensible détectée et remplacée par un token UUID. La donnée réelle n'est jamais transmise au LLM." />
             </div>
+            <div className="text-[10px] text-muted-foreground font-body">👆 Cliquez une ligne pour voir le détail du token et le pattern de détection</div>
           </div>
           <div className="card-surface shadow-card overflow-hidden">
             <div className="grid grid-cols-[80px_100px_100px_70px_120px_60px] gap-2 px-5 py-2 border-b border-border">
@@ -269,6 +279,9 @@ export default function PiiTokenizer() {
                 <span key={h + idx} className="table-header">
                   {h}
                   {h === 'Masqué' && <InfoTooltip text="La valeur réelle est masquée. Seul le type (IBAN, Email…) et l'UUID sont conservés dans les logs." />}
+                  {h === 'Type' && <InfoTooltip text="Catégorie PII détectée (IBAN, Phone, Email, NID, Card)." />}
+                  {h === 'UUID' && <InfoTooltip text="Identifiant unique v4 remplaçant la donnée sensible dans le flux LLM." />}
+                  {h === 'Durée' && <InfoTooltip text="Temps de détection + remplacement par la lib Rust." />}
                 </span>
               ))}
             </div>
@@ -364,12 +377,18 @@ export default function PiiTokenizer() {
               <div>
                 <div className="text-[10px] uppercase tracking-wider text-muted-foreground mb-1">Type détecté</div>
                 <div className="text-sm font-mono text-foreground">{selectedToken.type}</div>
+                <div className="text-[10px] text-muted-foreground bg-muted/40 rounded p-2 mt-1.5">
+                  Catégorie PII identifiée par le moteur de détection Rust. Le pattern regex correspondant est affiché ci-dessous.
+                </div>
               </div>
 
               {/* Agent source */}
               <div>
                 <div className="text-[10px] uppercase tracking-wider text-muted-foreground mb-1">Agent source</div>
                 <div className="text-sm font-mono text-foreground">{selectedToken.agent}</div>
+                <div className="text-[10px] text-muted-foreground bg-muted/40 rounded p-2 mt-1.5">
+                  L'agent IA qui a envoyé la requête contenant cette donnée sensible.
+                </div>
               </div>
 
               {/* Pattern de détection */}
@@ -378,18 +397,27 @@ export default function PiiTokenizer() {
                 <div className="text-sm font-mono text-foreground bg-muted/50 rounded px-2 py-1.5 break-all">
                   {PII_PATTERNS[selectedToken.type] || '.*'}
                 </div>
+                <div className="text-[10px] text-muted-foreground bg-muted/40 rounded p-2 mt-1.5">
+                  Expression régulière utilisée pour détecter ce type de PII dans le flux de données.
+                </div>
               </div>
 
               {/* UUID du token */}
               <div>
                 <div className="text-[10px] uppercase tracking-wider text-muted-foreground mb-1">UUID du token</div>
                 <div className="text-sm font-mono text-foreground break-all">{selectedToken.uuid}</div>
+                <div className="text-[10px] text-muted-foreground bg-muted/40 rounded p-2 mt-1.5">
+                  Cet UUID v4 remplace la donnée réelle dans le flux transmis au LLM. La correspondance inverse est conservée dans le coffre-fort en mémoire.
+                </div>
               </div>
 
               {/* TTL configuré */}
               <div>
                 <div className="text-[10px] uppercase tracking-wider text-muted-foreground mb-1">TTL configuré</div>
                 <div className="text-sm font-mono text-foreground">30 minutes</div>
+                <div className="text-[10px] text-muted-foreground bg-muted/40 rounded p-2 mt-1.5">
+                  Après expiration du TTL, la détokenisation devient impossible — la donnée réelle est définitivement purgée de la mémoire.
+                </div>
               </div>
 
               {/* Temps de traitement */}

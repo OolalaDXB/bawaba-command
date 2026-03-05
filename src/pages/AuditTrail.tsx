@@ -576,6 +576,9 @@ export default function AuditTrail() {
             ))}
           </div>
 
+          {/* Hint */}
+          <div className="text-[10px] text-muted-foreground font-body mb-2">👆 Cliquez une ligne pour voir la preuve cryptographique complète et le payload JSON</div>
+
           {/* Table */}
           <div className="card-surface shadow-card overflow-hidden">
             <div className="grid grid-cols-[80px_100px_110px_70px_50px_50px_80px] gap-2 px-5 py-2 border-b border-border">
@@ -647,22 +650,37 @@ export default function AuditTrail() {
               </button>
             </div>
             <div className="p-5 space-y-5">
+              {/* Intro explainer */}
+              <div className="text-[10px] text-muted-foreground bg-muted/40 rounded p-2">
+                Chaque événement est chaîné au précédent par son hash SHA-256 et signé individuellement (Ed25519).
+                Toute modification d'un seul champ invalide la chaîne entière — rendant l'audit infalsifiable.
+              </div>
+
               {/* Hash de l'événement */}
               <div>
                 <div className="table-header mb-1">Hash de l'événement</div>
                 <div className="font-mono text-xs text-foreground break-all bg-secondary/20 rounded-sm p-2">{selectedEvent.hash}</div>
+                <div className="text-[10px] text-muted-foreground bg-muted/40 rounded p-2 mt-1.5">
+                  SHA-256 du payload canonique de cet événement. Sert d'ancre pour le chaînage.
+                </div>
               </div>
 
               {/* Hash précédent */}
               <div>
                 <div className="table-header mb-1">Hash précédent</div>
                 <div className="font-mono text-xs text-foreground break-all bg-secondary/20 rounded-sm p-2">{selectedEvent.prevHash}</div>
+                <div className="text-[10px] text-muted-foreground bg-muted/40 rounded p-2 mt-1.5">
+                  Empreinte de l'événement N-1. Garantit l'ordre et l'intégrité de la séquence.
+                </div>
               </div>
 
               {/* Signature Ed25519 */}
               <div>
                 <div className="table-header mb-1">Signature Ed25519 <InfoTooltip text="Signature cryptographique par événement. Prouve qu'aucune altération n'a eu lieu depuis la création." /></div>
                 <div className="text-xs text-safe font-mono">Signature vérifiée ✓</div>
+                <div className="text-[10px] text-muted-foreground bg-muted/40 rounded p-2 mt-1.5">
+                  La clé privée de signature est isolée dans le module gateway. Un auditeur peut vérifier avec la clé publique seule.
+                </div>
               </div>
 
               {/* Agent */}
@@ -683,7 +701,7 @@ export default function AuditTrail() {
                 <div className={`text-xs font-mono ${
                   selectedEvent.decision === 'allow' ? 'text-safe' : selectedEvent.decision === 'deny' ? 'text-danger' : 'text-warn'
                 }`}>
-                  {selectedEvent.decision}
+                  {selectedEvent.decision === 'allow' ? '✓ Autorisé' : selectedEvent.decision === 'deny' ? '✗ Refusé' : '⚠ Rate-limited'} ({selectedEvent.decision})
                 </div>
               </div>
 
@@ -703,6 +721,9 @@ export default function AuditTrail() {
               <div>
                 <div className="table-header mb-1">Payload complet</div>
                 <pre className="text-xs font-mono text-ink-2 whitespace-pre-wrap bg-secondary/20 rounded-sm p-2 overflow-x-auto">{JSON.stringify(selectedEvent.details, null, 2)}</pre>
+                <div className="text-[10px] text-muted-foreground bg-muted/40 rounded p-2 mt-1.5">
+                  Ce JSON constitue le fichier evidence.json exportable — vérifiable indépendamment sans accès aux serveurs.
+                </div>
               </div>
             </div>
           </div>

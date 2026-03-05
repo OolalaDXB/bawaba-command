@@ -101,6 +101,10 @@ function AgentDetailPanel({ agent, onClose, apiAvailable }: { agent: Agent; onCl
         {/* Identity */}
         <div>
           <div className="table-header mb-3">Identité<InfoTooltip text="Informations d’identité et de configuration de l’agent." /></div>
+          <div className="text-[10px] text-muted-foreground bg-muted/40 rounded p-2 mb-3">
+            Chaque agent possède une identité unique vérifiée à chaque requête. La méthode d’auth,
+            le mode PII et la limite de débit sont configurés dans bawaba.yaml.
+          </div>
           <div className="space-y-2">
             {[
               ['Méthode d’auth', agent.auth],
@@ -128,7 +132,10 @@ function AgentDetailPanel({ agent, onClose, apiAvailable }: { agent: Agent; onCl
               <span key={t} className="text-[10px] font-mono px-2 py-1 bg-safe-bg text-safe border border-safe/10 rounded-sm">{t}</span>
             ))}
           </div>
-          <div className="table-header mb-3 mt-4">Outils refusés</div>
+          <div className="text-[10px] text-muted-foreground bg-muted/40 rounded p-2 mt-2">
+            Tout appel à un outil hors de cette liste sera refusé avec un code 403 et journalisé dans l'audit trail.
+          </div>
+          <div className="table-header mb-3 mt-4">Outils refusés<InfoTooltip text="Tools explicitement interdits pour cet agent. Toute tentative est bloquée et journalisée." /></div>
           <div className="flex flex-wrap gap-1.5">
             {agent.deniedTools.map(t => (
               <span key={t} className="text-[10px] font-mono px-2 py-1 bg-danger-bg text-danger border border-danger/10 rounded-sm">{t}</span>
@@ -258,6 +265,8 @@ export default function Agents() {
           Ajouter un agent
         </button>
       </div>
+
+      <div className="text-[10px] text-muted-foreground font-body mb-2">👆 Cliquez un agent pour voir sa configuration complète, ses outils autorisés et son historique d'activité</div>
 
       <div className="card-surface shadow-card overflow-hidden">
         {/* Table header */}

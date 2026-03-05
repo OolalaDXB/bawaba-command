@@ -49,7 +49,7 @@ const DATA_PLANES: DataPlane[] = [
   { id: 'casa', code: 'ma', label: 'Casablanca', lat: 33.57, lng: -7.59, color: 'hsl(var(--safe))', pulseDelay: '0s' },
   { id: 'riyadh', code: 'sa', label: 'Riyadh', lat: 24.71, lng: 46.67, color: '#1D4ED8', pulseDelay: '0.75s' },
   { id: 'abudhabi', code: 'ae', label: 'Abu Dhabi', lat: 24.45, lng: 54.65, color: 'hsl(var(--accent))', pulseDelay: '1.5s' },
-  { id: 'frankfurt', code: 'fr', label: 'Frankfurt', lat: 50.11, lng: 8.68, color: 'hsl(var(--muted-foreground))', pulseDelay: '2.25s' },
+  { id: 'frankfurt', code: 'fr', label: 'Francfort', lat: 50.11, lng: 8.68, color: 'hsl(var(--muted-foreground))', pulseDelay: '2.25s' },
 ];
 
 // ---------------------------------------------------------------------------

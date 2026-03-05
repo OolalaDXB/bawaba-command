@@ -213,6 +213,7 @@ export default function Policy() {
               Règles actives
               <InfoTooltip text="Liste des règles de politique actuellement en vigueur. Chaque règle lie un agent à un outil avec une action." />
             </div>
+            <div className="text-[10px] text-muted-foreground font-body mb-3">👆 Cliquez une règle pour voir les conditions, agents impactés et statut shadow</div>
             {loading ? (
               <RulesSkeleton />
             ) : (
@@ -278,6 +279,7 @@ export default function Policy() {
             Journal d'évaluation de politique
             <InfoTooltip text="Historique en temps réel des évaluations de politique. Chaque ligne = une décision du moteur OPA." />
           </div>
+          <div className="text-[10px] text-muted-foreground font-body">👆 Cliquez une évaluation pour voir la règle Rego qui a produit cette décision</div>
         </div>
         <div className="card-surface shadow-card overflow-hidden">
           <div className="grid grid-cols-[80px_100px_110px_70px_1fr_60px] gap-2 px-5 py-2 border-b border-border">
