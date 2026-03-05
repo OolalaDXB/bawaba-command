@@ -90,6 +90,7 @@ func (e *Engine) RegisterAPIKey(agentID, tenantID, plainKey string, expiresAt *t
 		AgentID:   agentID,
 		TenantID:  tenantID,
 		KeyHash:   hash,
+		PlainKey:  plainKey,
 		CreatedAt: time.Now(),
 		ExpiresAt: expiresAt,
 		Active:    true,

@@ -52,6 +52,42 @@ func TestNoCredentials(t *testing.T) {
 	}
 }
 
+func TestBearerTokenAuth(t *testing.T) {
+	engine := NewEngine()
+
+	engine.RegisterAgent("oauth-agent", "default", "oauth2")
+	engine.RegisterAPIKey("oauth-agent", "default", "bearer-token-abc", nil)
+
+	r, _ := http.NewRequest("POST", "/mcp", nil)
+	r.Header.Set("Authorization", "Bearer bearer-token-abc")
+
+	identity, err := engine.Authenticate(r.Context(), r)
+	if err != nil {
+		t.Fatalf("expected bearer auth success, got: %v", err)
+	}
+	if identity.AgentID != "oauth-agent" {
+		t.Errorf("expected agent oauth-agent, got %s", identity.AgentID)
+	}
+	if identity.AuthMethod != "oauth2" {
+		t.Errorf("expected auth method oauth2, got %s", identity.AuthMethod)
+	}
+}
+
+func TestBearerTokenAuthInvalid(t *testing.T) {
+	engine := NewEngine()
+
+	engine.RegisterAgent("oauth-agent", "default", "oauth2")
+	engine.RegisterAPIKey("oauth-agent", "default", "bearer-token-abc", nil)
+
+	r, _ := http.NewRequest("POST", "/mcp", nil)
+	r.Header.Set("Authorization", "Bearer wrong-token")
+
+	_, err := engine.Authenticate(r.Context(), r)
+	if err == nil {
+		t.Fatal("expected auth failure for wrong bearer token")
+	}
+}
+
 func TestDenyByDefault(t *testing.T) {
 	engine := NewEngine()
 	// Don't register any agents
