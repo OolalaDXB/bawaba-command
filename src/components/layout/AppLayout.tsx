@@ -3,22 +3,22 @@ import { BarChart3, Shield, Scale, ScrollText, Fingerprint, Globe, Layers, Setti
 import { useTheme } from '@/hooks/use-theme';
 
 const navItems = [
-  { path: '/', label: 'Dashboard', icon: BarChart3 },
+  { path: '/', label: 'Tableau de bord', icon: BarChart3 },
   { path: '/agents', label: 'Agents', icon: Shield },
-  { path: '/policy', label: 'Policy', icon: Scale },
-  { path: '/audit', label: 'Audit Trail', icon: ScrollText },
+  { path: '/policy', label: 'Politique', icon: Scale },
+  { path: '/audit', label: 'Journal d\'audit', icon: ScrollText },
   { path: '/pii', label: 'PII', icon: Fingerprint },
-  { path: '/routing', label: 'Routing', icon: Globe },
+  { path: '/routing', label: 'Routage souverain', icon: Globe },
   { path: '/architecture', label: 'Architecture', icon: Layers },
 ];
 
 export default function AppLayout() {
   const location = useLocation();
   const { theme, toggle } = useTheme();
-  const currentPage = location.pathname === '/settings' ? 'Settings' : (
+  const currentPage = location.pathname === '/settings' ? 'Paramètres' : (
     navItems.find(item =>
       item.path === '/' ? location.pathname === '/' : location.pathname.startsWith(item.path)
-    )?.label || 'Dashboard'
+    )?.label || 'Tableau de bord'
   );
 
   return (
@@ -69,7 +69,7 @@ export default function AppLayout() {
           >
             <Settings className="h-4 w-4 shrink-0" strokeWidth={1.5} />
             <span className="opacity-0 group-hover/sidebar:opacity-100 transition-opacity duration-300 text-xs tracking-wide whitespace-nowrap">
-              Settings
+              Paramètres
             </span>
           </NavLink>
         </div>

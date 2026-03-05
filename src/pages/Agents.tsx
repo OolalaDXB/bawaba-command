@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { AGENTS as MOCK_AGENTS, type Agent } from '@/lib/mock-data';
 import { X } from 'lucide-react';
 import { Area, AreaChart, ResponsiveContainer } from 'recharts';
+import InfoTooltip from '@/components/InfoTooltip';
 import {
   isApiAvailable, fetchAgents, fetchAgentActivity,
   type AgentInfo, type AgentActivityEntry,
@@ -10,10 +11,10 @@ import {
 /* ── Time-ago helper ────────────────────────────── */
 function timeAgo(date: Date): string {
   const seconds = Math.floor((Date.now() - date.getTime()) / 1000);
-  if (seconds < 60) return `${seconds}s ago`;
-  if (seconds < 3600) return `${Math.floor(seconds / 60)}m ago`;
-  if (seconds < 86400) return `${Math.floor(seconds / 3600)}h ago`;
-  return `${Math.floor(seconds / 86400)}d ago`;
+  if (seconds < 60) return `il y a ${seconds}s`;
+  if (seconds < 3600) return `il y a ${Math.floor(seconds / 60)}m`;
+  if (seconds < 86400) return `il y a ${Math.floor(seconds / 3600)}h`;
+  return `il y a ${Math.floor(seconds / 86400)}j`;
 }
 
 /** Map an API agent to the UI Agent shape. */
@@ -99,18 +100,21 @@ function AgentDetailPanel({ agent, onClose, apiAvailable }: { agent: Agent; onCl
       <div className="p-5 space-y-6">
         {/* Identity */}
         <div>
-          <div className="table-header mb-3">Identity</div>
+          <div className="table-header mb-3">Identité<InfoTooltip text="Informations d’identité et de configuration de l’agent." /></div>
           <div className="space-y-2">
             {[
-              ['Auth Method', agent.auth],
-              ['PII Mode', agent.piiMode],
-              ['Rate Limit', `${agent.rateLimit} req/hr`],
-              ['Status', agent.status],
-              ['Created', agent.created.toLocaleDateString()],
+              ['Méthode d’auth', agent.auth],
+              ['Mode PII', agent.piiMode],
+              ['Limite de débit', `${agent.rateLimit} req/hr`],
+              ['Statut', agent.status],
+              ['Créé le', agent.created.toLocaleDateString()],
             ].map(([k, v]) => (
               <div key={k} className="flex justify-between text-xs">
-                <span className="text-muted-foreground">{k}</span>
-                <span className={`font-mono ${k === 'Status' ? `status-${v}` : 'text-foreground'}`}>{v}</span>
+                <span className="text-muted-foreground">
+                  {k}
+                  {k === 'Méthode d’auth' && <InfoTooltip text="API key (bcrypt), Bearer (secret partagé, mode pilote) ou mTLS. OIDC/JWT prévu P2." />}
+                </span>
+                <span className={`font-mono ${k === 'Statut' ? `status-${v}` : 'text-foreground'}`}>{v}</span>
               </div>
             ))}
           </div>
@@ -118,13 +122,13 @@ function AgentDetailPanel({ agent, onClose, apiAvailable }: { agent: Agent; onCl
 
         {/* Capabilities */}
         <div>
-          <div className="table-header mb-3">Allowed Tools</div>
+          <div className="table-header mb-3">Outils autorisés<InfoTooltip text="Tools MCP que cet agent est autorisé à appeler via la gateway." /></div>
           <div className="flex flex-wrap gap-1.5">
             {agent.allowedTools.map(t => (
               <span key={t} className="text-[10px] font-mono px-2 py-1 bg-safe-bg text-safe border border-safe/10 rounded-sm">{t}</span>
             ))}
           </div>
-          <div className="table-header mb-3 mt-4">Denied Tools</div>
+          <div className="table-header mb-3 mt-4">Outils refusés</div>
           <div className="flex flex-wrap gap-1.5">
             {agent.deniedTools.map(t => (
               <span key={t} className="text-[10px] font-mono px-2 py-1 bg-danger-bg text-danger border border-danger/10 rounded-sm">{t}</span>
@@ -134,7 +138,7 @@ function AgentDetailPanel({ agent, onClose, apiAvailable }: { agent: Agent; onCl
 
         {/* Activity Graph */}
         <div>
-          <div className="table-header mb-3">Activity (30 Days)</div>
+          <div className="table-header mb-3">Activité (30 jours)<InfoTooltip text="Volume d’appels quotidiens sur les 30 derniers jours." /></div>
           <div className="h-24">
             <ResponsiveContainer width="100%" height="100%">
               <AreaChart data={activityData} margin={{ top: 0, right: 0, left: 0, bottom: 0 }}>
@@ -147,7 +151,7 @@ function AgentDetailPanel({ agent, onClose, apiAvailable }: { agent: Agent; onCl
         {/* Recent Activity from API */}
         {apiAvailable && activity.length > 0 && (
           <div>
-            <div className="table-header mb-3">Recent Activity</div>
+            <div className="table-header mb-3">Activité récente</div>
             <div className="space-y-0 border border-border rounded-sm overflow-hidden">
               {activity.slice(0, 10).map(entry => (
                 <div key={entry.event_id} className="flex items-center justify-between px-3 py-2 text-xs font-mono border-b border-border last:border-0">
@@ -163,10 +167,10 @@ function AgentDetailPanel({ agent, onClose, apiAvailable }: { agent: Agent; onCl
 
         {/* Stats */}
         <div>
-          <div className="table-header mb-3">Statistics</div>
+          <div className="table-header mb-3">Statistiques<InfoTooltip text="Compteurs d’utilisation : appels aujourd’hui, total cumulé et violations de politique." /></div>
           <div className="grid grid-cols-3 gap-3">
             {[
-              ['Today', agent.callsToday.toLocaleString()],
+              ['Aujourd’hui', agent.callsToday.toLocaleString()],
               ['Total', agent.callsTotal.toLocaleString()],
               ['Violations', agent.violations.toString()],
             ].map(([label, val]) => (
@@ -246,21 +250,26 @@ export default function Agents() {
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
           <div>
-            <div className="text-sm font-body font-medium text-foreground">Agent Registry</div>
-            <div className="text-xs text-muted-foreground">{agents.length} agents connected</div>
+            <div className="text-sm font-body font-medium text-foreground">Registre des agents<InfoTooltip text="Liste des agents IA enregistrés auprès de la gateway. Chaque agent possède ses propres permissions et limites." /></div>
+            <div className="text-xs text-muted-foreground">{agents.length} agents connectés</div>
           </div>
         </div>
         <button className="text-xs font-body font-medium px-4 py-2 bg-primary text-primary-foreground rounded-sm hover:opacity-90 transition-opacity">
-          Add Agent
+          Ajouter un agent
         </button>
       </div>
 
       <div className="card-surface shadow-card overflow-hidden">
         {/* Table header */}
         <div className="grid grid-cols-[160px_100px_1fr_1fr_80px_80px_80px_120px] gap-2 px-5 py-3 border-b border-border">
-          {['Agent', 'Auth', 'Allowed Tools', 'Denied Tools', 'PII Mode', 'Rate Limit', 'Status', 'Last Active'].map(h => (
-            <span key={h} className="table-header">{h}</span>
-          ))}
+          <span className="table-header">Agent</span>
+          <span className="table-header">Auth<InfoTooltip text="Méthode d’authentification : API key (bcrypt), Bearer (secret partagé, mode pilote) ou mTLS. OIDC/JWT prévu P2." /></span>
+          <span className="table-header">Outils autorisés<InfoTooltip text="Liste blanche des tools MCP que cet agent peut appeler. Tout appel hors liste → 403." /></span>
+          <span className="table-header">Outils refusés<InfoTooltip text="Tools explicitement interdits pour cet agent. Toute tentative est bloquée et journalisée." /></span>
+          <span className="table-header">Mode PII<InfoTooltip text="Stratégie de traitement des données personnelles : tokenize (remplacer par UUID) ou redact (supprimer)." /></span>
+          <span className="table-header">Limite</span>
+          <span className="table-header">Statut<InfoTooltip text="Actif = autorisé à envoyer des requêtes. Inactif = bloqué immédiatement au niveau auth." /></span>
+          <span className="table-header">Dernière activité</span>
         </div>
 
         {/* Rows */}

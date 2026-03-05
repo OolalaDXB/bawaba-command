@@ -240,7 +240,7 @@ export default function SovereignMap({ jurisdictions }: SovereignMapProps) {
       className="w-full"
       style={{ height: 350 }}
       role="img"
-      aria-label="Sovereign routing data-plane map"
+      aria-label="Carte des data planes souverains"
     >
       {/* ── Inline CSS for animations ─────────────────── */}
       <defs>
@@ -356,7 +356,7 @@ export default function SovereignMap({ jurisdictions }: SovereignMapProps) {
                 fontSize={9}
                 fontFamily="'JetBrains Mono', monospace"
               >
-                {node.eventCount.toLocaleString()} events
+                {node.eventCount.toLocaleString()} évén.
                 {node.avgLatency != null ? ` / ${node.avgLatency}ms` : ''}
               </text>
             </g>

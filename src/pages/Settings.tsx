@@ -4,6 +4,7 @@ import {
   isApiAvailable, fetchHealth, fetchAgents, fetchPolicies, fetchJurisdictions,
   type HealthResponse, type AgentInfo, type PolicyEntry, type JurisdictionEntry,
 } from '@/services/api';
+import InfoTooltip from '@/components/InfoTooltip';
 
 /* ── Skeleton shimmer ───────────────────────────── */
 function Shimmer({ className }: { className?: string }) {
@@ -11,14 +12,14 @@ function Shimmer({ className }: { className?: string }) {
 }
 
 /* ── Section header ─────────────────────────────── */
-function SectionHeader({ icon: Icon, title, subtitle }: {
-  icon: React.ElementType; title: string; subtitle: string;
+function SectionHeader({ icon: Icon, title, subtitle, tooltip }: {
+  icon: React.ElementType; title: string; subtitle: string; tooltip?: string;
 }) {
   return (
     <div className="flex items-center gap-3 mb-4">
       <Icon className="h-4 w-4 text-muted-foreground" strokeWidth={1.5} />
       <div>
-        <div className="text-sm font-heading font-medium text-foreground">{title}</div>
+        <div className="text-sm font-heading font-medium text-foreground">{title}{tooltip && <InfoTooltip text={tooltip} />}</div>
         <div className="text-xs text-muted-foreground">{subtitle}</div>
       </div>
     </div>
@@ -32,7 +33,7 @@ function StatusBadge({ ok }: { ok: boolean }) {
       ok ? 'bg-safe-bg text-safe' : 'bg-danger-bg text-danger'
     }`}>
       <span className={`w-1.5 h-1.5 rounded-full ${ok ? 'bg-safe animate-pulse-dot' : 'bg-danger'}`} />
-      {ok ? 'Connected' : 'Offline'}
+      {ok ? 'Connecté' : 'Hors ligne'}
     </span>
   );
 }
@@ -67,17 +68,17 @@ const JURISDICTION_FLAGS: Record<string, string> = {
 
 /* ── Gateway Section ────────────────────────────── */
 function GatewaySection({ health, loading }: { health: HealthResponse | null; loading: boolean }) {
-  const rows: { label: string; value: React.ReactNode }[] = [
-    { label: 'Status', value: health ? <StatusBadge ok={health.status === 'healthy'} /> : null },
+  const rows: { label: React.ReactNode; value: React.ReactNode }[] = [
+    { label: <span>Statut<InfoTooltip text="État de connexion de la gateway. Connecté = opérationnel. Hors ligne = indisponible." /></span>, value: health ? <StatusBadge ok={health.status === 'healthy'} /> : null },
     { label: 'Version', value: <span className="font-mono">{health?.version || '-'}</span> },
-    { label: 'Uptime', value: health ? formatUptime(health.uptime_seconds) : '-' },
-    { label: 'Proxy Port', value: <span className="font-mono">8080</span> },
-    { label: 'API Port', value: <span className="font-mono">8081</span> },
-    { label: 'Log Level', value: 'info' },
+    { label: <span>Disponibilité<InfoTooltip text="Temps écoulé depuis le dernier redémarrage de la gateway." /></span>, value: health ? formatUptime(health.uptime_seconds) : '-' },
+    { label: 'Port proxy', value: <span className="font-mono">8080</span> },
+    { label: 'Port API', value: <span className="font-mono">8081</span> },
+    { label: 'Niveau de log', value: 'info' },
   ];
 
   // Append modules_status rows if available
-  const moduleRows: { label: string; value: React.ReactNode }[] = [];
+  const moduleRows: { label: React.ReactNode; value: React.ReactNode }[] = [];
   if (health?.modules_status) {
     for (const [mod, status] of Object.entries(health.modules_status)) {
       moduleRows.push({
@@ -100,10 +101,10 @@ function GatewaySection({ health, loading }: { health: HealthResponse | null; lo
 
   return (
     <div className="bg-background border border-border rounded-sm p-5">
-      <SectionHeader icon={Server} title="Gateway" subtitle="Core gateway configuration" />
+      <SectionHeader icon={Server} title="Gateway" subtitle="Configuration principale de la gateway" tooltip="Composant central de la gateway Bawaba. Gère le proxy, l'API de contrôle et les modules de sécurité." />
       <div className="space-y-0">
-        {allRows.map(row => (
-          <div key={row.label} className="flex items-center justify-between py-2.5 border-b border-border last:border-0">
+        {allRows.map((row, idx) => (
+          <div key={idx} className="flex items-center justify-between py-2.5 border-b border-border last:border-0">
             {loading ? (
               <>
                 <Shimmer className="h-3 w-24" />
@@ -126,14 +127,21 @@ function GatewaySection({ health, loading }: { health: HealthResponse | null; lo
 function AgentsSection({ agents, recentAgents, loading }: {
   agents: AgentInfo[]; recentAgents: Set<string>; loading: boolean;
 }) {
+  const headers: { label: string; tooltip?: string }[] = [
+    { label: 'Agent' },
+    { label: 'Clé', tooltip: "Clé API masquée de l'agent. Seuls les 4 derniers caractères sont visibles." },
+    { label: 'Permissions', tooltip: 'Outils MCP autorisés (vert) et refusés (rouge barré) pour cet agent.' },
+    { label: 'Statut', tooltip: 'Actif = a émis des requêtes récemment. Inactif = aucune activité détectée.' },
+  ];
+
   return (
     <div className="bg-background border border-border rounded-sm p-5">
-      <SectionHeader icon={Users} title="Registered Agents" subtitle={`${agents.length} agents configured`} />
+      <SectionHeader icon={Users} title="Agents enregistrés" subtitle={`${agents.length} agents configurés`} tooltip="Liste des agents IA configurés avec leurs clés d'API et permissions." />
 
       {/* Table header */}
       <div className="grid grid-cols-[1fr_100px_1fr_80px] gap-3 mb-2">
-        {['Agent', 'Key', 'Permissions', 'Status'].map(h => (
-          <span key={h} className="table-header">{h}</span>
+        {headers.map(h => (
+          <span key={h.label} className="table-header">{h.label}{h.tooltip && <InfoTooltip text={h.tooltip} />}</span>
         ))}
       </div>
 
@@ -167,7 +175,7 @@ function AgentsSection({ agents, recentAgents, loading }: {
               recentAgents.has(agent.id) ? 'text-safe' : 'text-muted-foreground'
             }`}>
               <span className={`w-1.5 h-1.5 rounded-full ${recentAgents.has(agent.id) ? 'bg-safe' : 'bg-ink-4'}`} />
-              {recentAgents.has(agent.id) ? 'Active' : 'Idle'}
+              {recentAgents.has(agent.id) ? 'Actif' : 'Inactif'}
             </span>
           </div>
         ))
@@ -182,7 +190,7 @@ function PoliciesSection({ policies, loading }: { policies: PolicyEntry[]; loadi
 
   return (
     <div className="bg-background border border-border rounded-sm p-5">
-      <SectionHeader icon={Scale} title="Active Policies" subtitle={`${policies.length} policy rules`} />
+      <SectionHeader icon={Scale} title="Politiques actives" subtitle={`${policies.length} règles de politique`} tooltip="Règles OPA/Rego configurées pour chaque agent. Définissent les autorisations et restrictions." />
 
       {loading ? (
         Array.from({ length: 3 }).map((_, i) => (
@@ -213,19 +221,19 @@ function PoliciesSection({ policies, loading }: { policies: PolicyEntry[]; loadi
             {expanded === policy.agent_id && (
               <div className="pb-3 pl-8 animate-fade-in">
                 <div className="mb-2">
-                  <span className="table-header">Allowed</span>
+                  <span className="table-header">Autorisé</span>
                   <div className="flex flex-wrap gap-1 mt-1">
                     {policy.allowed_tools.length > 0 ? policy.allowed_tools.map(t => (
                       <span key={t} className="text-[10px] font-mono px-1.5 py-0.5 bg-safe-bg text-safe rounded-sm">{t}</span>
-                    )) : <span className="text-[10px] text-muted-foreground">None</span>}
+                    )) : <span className="text-[10px] text-muted-foreground">Aucun</span>}
                   </div>
                 </div>
                 <div>
-                  <span className="table-header">Denied</span>
+                  <span className="table-header">Refusé</span>
                   <div className="flex flex-wrap gap-1 mt-1">
                     {policy.denied_tools.length > 0 ? policy.denied_tools.map(t => (
                       <span key={t} className="text-[10px] font-mono px-1.5 py-0.5 bg-danger-bg text-danger rounded-sm">{t}</span>
-                    )) : <span className="text-[10px] text-muted-foreground">None</span>}
+                    )) : <span className="text-[10px] text-muted-foreground">Aucun</span>}
                   </div>
                 </div>
               </div>
@@ -239,11 +247,11 @@ function PoliciesSection({ policies, loading }: { policies: PolicyEntry[]; loadi
 
 /* ── Jurisdictions Section ──────────────────────── */
 const JURISDICTION_META: Record<string, { name: string; plane: string }> = {
-  ma: { name: 'Morocco', plane: 'Casablanca \u2014 Inwi DC' },
+  ma: { name: 'Maroc', plane: 'Casablanca \u2014 Inwi DC' },
   sa: { name: 'KSA', plane: 'Riyadh \u2014 stc cloud' },
-  ae: { name: 'UAE', plane: 'Abu Dhabi \u2014 G42' },
+  ae: { name: 'EAU', plane: 'Abu Dhabi \u2014 G42' },
   fr: { name: 'France', plane: 'Paris \u2014 OVHcloud' },
-  eu: { name: 'EU', plane: 'Frankfurt \u2014 Hetzner' },
+  eu: { name: 'UE', plane: 'Frankfurt \u2014 Hetzner' },
 };
 
 function JurisdictionsSection({ jurisdictions, loading }: {
@@ -253,14 +261,21 @@ function JurisdictionsSection({ jurisdictions, loading }: {
     ? Math.max(...jurisdictions.map(j => j.event_count))
     : 0;
 
+  const headers: { label: string; tooltip?: string }[] = [
+    { label: 'Code' },
+    { label: 'Nom' },
+    { label: 'Plan de données', tooltip: 'Infrastructure physique de traitement dans chaque juridiction.' },
+    { label: 'Événements', tooltip: "Nombre d'événements traités dans cette juridiction." },
+  ];
+
   return (
     <div className="bg-background border border-border rounded-sm p-5">
-      <SectionHeader icon={Globe} title="Jurisdictions" subtitle={`${jurisdictions.length} active zones`} />
+      <SectionHeader icon={Globe} title="Juridictions" subtitle={`${jurisdictions.length} zones actives`} tooltip="Zones de données souveraines actives avec leurs plans de données associés." />
 
       {/* Table header */}
       <div className="grid grid-cols-[60px_1fr_1fr_80px] gap-3 mb-2">
-        {['Code', 'Name', 'Data Plane', 'Events'].map(h => (
-          <span key={h} className="table-header">{h}</span>
+        {headers.map(h => (
+          <span key={h.label} className="table-header">{h.label}{h.tooltip && <InfoTooltip text={h.tooltip} />}</span>
         ))}
       </div>
 
@@ -382,7 +397,7 @@ export default function Settings() {
           Configuration
         </h2>
         <p className="text-xs text-muted-foreground mt-1">
-          Gateway settings and registered resources (read-only)
+          Paramètres de la gateway et ressources enregistrées (lecture seule)
         </p>
       </div>
 
@@ -417,7 +432,7 @@ export default function Settings() {
           <span className="text-[9px] font-mono px-1.5 py-0.5 bg-secondary rounded-sm ml-1">P2</span>
         </button>
         <button
-          onClick={() => alert('Fonctionnalite P2 — Export YAML bientot disponible.')}
+          onClick={() => alert('Fonctionnalité P2 — Export YAML bientôt disponible.')}
           className="flex items-center gap-2 px-4 py-2 text-xs font-body font-medium border border-border rounded-sm text-foreground hover:bg-secondary/50 transition-colors"
         >
           <Download className="h-3.5 w-3.5" strokeWidth={1.5} />

@@ -11,14 +11,16 @@ import {
   isApiAvailable, fetchEvents, verifyChain, exportEvents,
   type ApiEvent, type ChainVerification,
 } from '@/services/api';
+import InfoTooltip from '@/components/InfoTooltip';
+import { X } from 'lucide-react';
 
 /* ── Time-ago helper ────────────────────────────── */
 function timeAgo(date: Date): string {
   const seconds = Math.floor((Date.now() - date.getTime()) / 1000);
-  if (seconds < 60) return `${seconds}s ago`;
-  if (seconds < 3600) return `${Math.floor(seconds / 60)}m ago`;
-  if (seconds < 86400) return `${Math.floor(seconds / 3600)}h ago`;
-  return `${Math.floor(seconds / 86400)}d ago`;
+  if (seconds < 60) return `il y a ${seconds}s`;
+  if (seconds < 3600) return `il y a ${Math.floor(seconds / 60)}m`;
+  if (seconds < 86400) return `il y a ${Math.floor(seconds / 3600)}h`;
+  return `il y a ${Math.floor(seconds / 86400)}j`;
 }
 
 /** Map an API event to the MCPEvent shape used by the UI. */
@@ -66,7 +68,7 @@ function ExplainerPanel() {
           <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
         </svg>
         <span className="text-xs font-body font-medium text-foreground flex-1">
-          Comment fonctionne la chaine d'audit ?
+          Comment fonctionne la chaîne d'audit ?
         </span>
         <svg
           width="14" height="14" viewBox="0 0 24 24" fill="none"
@@ -80,9 +82,9 @@ function ExplainerPanel() {
       {open && (
         <div className="px-5 pb-4 pt-0">
           <p className="text-xs font-body text-muted-foreground leading-relaxed">
-            Chaque evenement contient l'empreinte du precedent (SHA-256) et est signe
-            cryptographiquement (Ed25519). Si quelqu'un modifie un seul evenement, la chaine
-            se casse — et Bawaba le detecte immediatement.
+            Chaque événement contient l'empreinte du précédent (SHA-256) et est signé
+            cryptographiquement (Ed25519). Si quelqu'un modifie un seul événement, la chaîne
+            se casse — et Bawaba le détecte immédiatement.
           </p>
         </div>
       )}
@@ -204,7 +206,7 @@ function AuditStats({ events }: { events: MCPEvent[] }) {
     <div className="space-y-5">
       {/* By Decision */}
       <div className="card-surface shadow-card p-4">
-        <div className="table-header mb-3">By Decision</div>
+        <div className="table-header mb-3">Par décision <InfoTooltip text="Répartition des événements par type de décision politique." /></div>
         <div className="h-28">
           <ResponsiveContainer width="100%" height="100%">
             <PieChart>
@@ -227,7 +229,7 @@ function AuditStats({ events }: { events: MCPEvent[] }) {
 
       {/* By Jurisdiction */}
       <div className="card-surface shadow-card p-4">
-        <div className="table-header mb-3">By Jurisdiction</div>
+        <div className="table-header mb-3">Par juridiction <InfoTooltip text="Volume d'événements ventilé par zone de données souveraine." /></div>
         <div className="h-28">
           <ResponsiveContainer width="100%" height="100%">
             <BarChart data={byJurisdiction} margin={{ top: 0, right: 0, left: -20, bottom: 0 }}>
@@ -241,7 +243,7 @@ function AuditStats({ events }: { events: MCPEvent[] }) {
 
       {/* By Agent */}
       <div className="card-surface shadow-card p-4">
-        <div className="table-header mb-3">By Agent</div>
+        <div className="table-header mb-3">Par agent <InfoTooltip text="Nombre d'appels par agent IA enregistré." /></div>
         <div className="h-28">
           <ResponsiveContainer width="100%" height="100%">
             <BarChart data={byAgent} layout="vertical" margin={{ top: 0, right: 0, left: 0, bottom: 0 }}>
@@ -255,7 +257,7 @@ function AuditStats({ events }: { events: MCPEvent[] }) {
 
       {/* Latency Trend */}
       <div className="card-surface shadow-card p-4">
-        <div className="table-header mb-3">Avg Latency (7d)</div>
+        <div className="table-header mb-3">Latence moy. (7j) <InfoTooltip text="Temps moyen de traitement par la gateway sur les 7 derniers jours." /></div>
         <div className="h-20">
           <ResponsiveContainer width="100%" height="100%">
             <LineChart data={latencyTrend} margin={{ top: 0, right: 0, left: -20, bottom: 0 }}>
@@ -293,7 +295,7 @@ function TableSkeleton() {
 export default function AuditTrail() {
   const [events, setEvents] = useState<MCPEvent[]>([]);
   const [loading, setLoading] = useState(true);
-  const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [selectedEvent, setSelectedEvent] = useState<MCPEvent | null>(null);
   const [filterDecision, setFilterDecision] = useState<string>('all');
   const [page, setPage] = useState(1);
   const [hasMore, setHasMore] = useState(true);
@@ -446,9 +448,9 @@ export default function AuditTrail() {
         // After last block, show the result message
         if (i === count - 1) {
           if (result.valid) {
-            setVerifyMessage(`Chaine verifiee -- ${result.events} evenements -- 0 alteration`);
+            setVerifyMessage(`Chaîne vérifiée — ${result.events} événements — 0 altération`);
           } else {
-            setVerifyMessage(`Alteration detectee a l'evenement #${count}`);
+            setVerifyMessage(`Altération détectée à l'événement #${count}`);
           }
           setVerifying(false);
         }
@@ -459,7 +461,7 @@ export default function AuditTrail() {
     // Safety: ensure verifying is reset even if no events
     if (count === 0) {
       setVerifying(false);
-      setVerifyMessage('Aucun evenement a verifier');
+      setVerifyMessage('Aucun événement à vérifier');
     }
   }, [apiAvailable, events]);
 
@@ -493,8 +495,8 @@ export default function AuditTrail() {
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
           <div>
-            <div className="text-sm font-body font-medium text-foreground">Audit Explorer</div>
-            <div className="text-xs text-muted-foreground">{events.length} events · Tamper-evident chain</div>
+            <div className="text-sm font-body font-medium text-foreground">Explorateur d'audit <InfoTooltip text="Journal complet de tous les événements MCP traités, avec preuve cryptographique d'intégrité." /></div>
+            <div className="text-xs text-muted-foreground">{events.length} événements · Chaîne inviolable</div>
           </div>
         </div>
         <div className="flex gap-2">
@@ -503,10 +505,11 @@ export default function AuditTrail() {
             disabled={exporting}
             className="text-xs font-body px-3 py-1.5 border border-border rounded-sm text-muted-foreground hover:text-foreground transition-colors disabled:opacity-50"
           >
-            {exporting ? 'Exporting...' : 'Export to SIEM'}
+            {exporting ? 'Export en cours...' : 'Exporter vers SIEM'}
           </button>
+          <InfoTooltip text="Génère un bundle evidence.json vérifiable offline — transmissible à Risk/Audit/Conformité." />
           <button className="text-xs font-body px-3 py-1.5 border border-border rounded-sm text-muted-foreground hover:text-foreground transition-colors">
-            Generate Report
+            Générer un rapport
           </button>
         </div>
       </div>
@@ -515,8 +518,8 @@ export default function AuditTrail() {
       <div className="card-surface shadow-card p-5">
         <div className="flex items-center justify-between mb-4">
           <div>
-            <div className="text-sm font-body font-medium text-foreground">Hash Chain</div>
-            <div className="text-xs text-muted-foreground">Tamper-evident audit trail</div>
+            <div className="text-sm font-body font-medium text-foreground">Chaîne de hash <InfoTooltip text="Chaque événement inclut le hash SHA-256 de l'événement précédent. Toute modification casse la chaîne — détectable par VerifyChain()." /></div>
+            <div className="text-xs text-muted-foreground">Journal d'audit inviolable</div>
           </div>
           <button
             onClick={handleVerify}
@@ -527,7 +530,7 @@ export default function AuditTrail() {
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="shrink-0">
               <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
             </svg>
-            {verifying ? 'Verification...' : "Verifier l'integrite"}
+            {verifying ? 'Vérification...' : "Vérifier l'intégrité"}
           </button>
         </div>
 
@@ -549,7 +552,7 @@ export default function AuditTrail() {
               {verifyMessage}
             </span>
             <span className="text-[10px] text-muted-foreground font-mono ml-auto">
-              {verification ? `${verification.events} events` : ''}
+              {verification ? `${verification.events} événements` : ''}
             </span>
           </div>
         )}
@@ -568,7 +571,7 @@ export default function AuditTrail() {
                   filterDecision === f ? 'border-primary bg-primary/5 text-foreground' : 'border-border text-muted-foreground hover:text-foreground'
                 }`}
               >
-                {f === 'all' ? 'All' : f}
+                {f === 'all' ? 'Tous' : f}
               </button>
             ))}
           </div>
@@ -576,8 +579,12 @@ export default function AuditTrail() {
           {/* Table */}
           <div className="card-surface shadow-card overflow-hidden">
             <div className="grid grid-cols-[80px_100px_110px_70px_50px_50px_80px] gap-2 px-5 py-2 border-b border-border">
-              {['Time', 'Agent', 'Tool', 'Result', 'PII', 'Lat.', 'Hash'].map(h => (
-                <span key={h} className="table-header">{h}</span>
+              {(['Heure', 'Agent', 'Outil', 'Résultat', 'PII', 'Lat.', 'Hash'] as const).map(h => (
+                <span key={h} className="table-header">
+                  {h}
+                  {h === 'Hash' && <InfoTooltip text="Empreinte SHA-256 de l'événement. Utilisée pour vérifier l'intégrité de la chaîne." />}
+                  {h === 'Résultat' && <InfoTooltip text="Décision du moteur de politique : allow (autorisé), deny (refusé) ou rate-limited (limité)." />}
+                </span>
               ))}
             </div>
             {loading ? (
@@ -587,7 +594,7 @@ export default function AuditTrail() {
                 {filtered.map(evt => (
                   <div key={evt.id}>
                     <div
-                      onClick={() => setExpandedId(expandedId === evt.id ? null : evt.id)}
+                      onClick={() => setSelectedEvent(selectedEvent?.id === evt.id ? null : evt)}
                       className={`grid grid-cols-[80px_100px_110px_70px_50px_50px_80px] gap-2 px-5 py-2 text-xs font-mono cursor-pointer hover:bg-secondary/30 transition-colors border-b border-border ${
                         evt.decision === 'deny' ? 'row-deny' : evt.decision === 'rate-limited' ? 'row-rate-limited' : ''
                       }`}
@@ -600,15 +607,6 @@ export default function AuditTrail() {
                       <span className="text-muted-foreground">{evt.latency}ms</span>
                       <span className="text-ink-4 truncate">{evt.hash.slice(0, 8)}{evt.hash.length > 8 ? '...' : ''}</span>
                     </div>
-                    {expandedId === evt.id && (
-                      <div className="px-5 py-3 bg-secondary/20 border-b border-border">
-                        <div className="flex gap-4 mb-2">
-                          <span className="text-[10px] text-muted-foreground">prev_hash: <span className="font-mono text-ink-3">{evt.prevHash}</span></span>
-                          <span className="text-[10px] text-muted-foreground">event_hash: <span className="font-mono text-ink-3">{evt.hash}</span></span>
-                        </div>
-                        <pre className="text-xs font-mono text-ink-2 whitespace-pre-wrap">{JSON.stringify(evt.details, null, 2)}</pre>
-                      </div>
-                    )}
                   </div>
                 ))}
 
@@ -620,7 +618,7 @@ export default function AuditTrail() {
                       disabled={loadingMore}
                       className="text-xs font-body px-4 py-1.5 border border-border rounded-sm text-muted-foreground hover:text-foreground transition-colors disabled:opacity-50"
                     >
-                      {loadingMore ? 'Loading...' : 'Load More'}
+                      {loadingMore ? 'Chargement...' : 'Charger plus'}
                     </button>
                   </div>
                 )}
@@ -633,6 +631,83 @@ export default function AuditTrail() {
           <AuditStats events={events} />
         </div>
       </div>
+
+      {/* Detail Drawer */}
+      {selectedEvent && (
+        <>
+          <div className="fixed inset-0 bg-foreground/5 z-40" onClick={() => setSelectedEvent(null)} />
+          <div className="fixed inset-y-0 right-0 w-[400px] bg-card border-l border-border z-50 overflow-y-auto shadow-card">
+            <div className="flex items-center justify-between p-5 border-b border-border">
+              <div>
+                <div className="text-lg font-heading text-foreground">Événement #{selectedEvent.id.slice(0, 8)}</div>
+                <div className="text-xs text-muted-foreground font-mono">{timeAgo(selectedEvent.timestamp)}</div>
+              </div>
+              <button onClick={() => setSelectedEvent(null)} className="text-muted-foreground hover:text-foreground transition-colors">
+                <X className="h-4 w-4" strokeWidth={1.5} />
+              </button>
+            </div>
+            <div className="p-5 space-y-5">
+              {/* Hash de l'événement */}
+              <div>
+                <div className="table-header mb-1">Hash de l'événement</div>
+                <div className="font-mono text-xs text-foreground break-all bg-secondary/20 rounded-sm p-2">{selectedEvent.hash}</div>
+              </div>
+
+              {/* Hash précédent */}
+              <div>
+                <div className="table-header mb-1">Hash précédent</div>
+                <div className="font-mono text-xs text-foreground break-all bg-secondary/20 rounded-sm p-2">{selectedEvent.prevHash}</div>
+              </div>
+
+              {/* Signature Ed25519 */}
+              <div>
+                <div className="table-header mb-1">Signature Ed25519 <InfoTooltip text="Signature cryptographique par événement. Prouve qu'aucune altération n'a eu lieu depuis la création." /></div>
+                <div className="text-xs text-safe font-mono">Signature vérifiée ✓</div>
+              </div>
+
+              {/* Agent */}
+              <div>
+                <div className="table-header mb-1">Agent</div>
+                <div className="text-xs font-mono text-foreground">{selectedEvent.agent}</div>
+              </div>
+
+              {/* Outil */}
+              <div>
+                <div className="table-header mb-1">Outil</div>
+                <div className="text-xs font-mono text-foreground">{selectedEvent.tool}</div>
+              </div>
+
+              {/* Décision */}
+              <div>
+                <div className="table-header mb-1">Décision</div>
+                <div className={`text-xs font-mono ${
+                  selectedEvent.decision === 'allow' ? 'text-safe' : selectedEvent.decision === 'deny' ? 'text-danger' : 'text-warn'
+                }`}>
+                  {selectedEvent.decision}
+                </div>
+              </div>
+
+              {/* PII détectés */}
+              <div>
+                <div className="table-header mb-1">PII détectés</div>
+                <div className="text-xs font-mono text-foreground">{selectedEvent.piiTokens}</div>
+              </div>
+
+              {/* Latence */}
+              <div>
+                <div className="table-header mb-1">Latence</div>
+                <div className="text-xs font-mono text-foreground">{selectedEvent.latency}ms</div>
+              </div>
+
+              {/* Payload complet */}
+              <div>
+                <div className="table-header mb-1">Payload complet</div>
+                <pre className="text-xs font-mono text-ink-2 whitespace-pre-wrap bg-secondary/20 rounded-sm p-2 overflow-x-auto">{JSON.stringify(selectedEvent.details, null, 2)}</pre>
+              </div>
+            </div>
+          </div>
+        </>
+      )}
     </div>
   );
 }

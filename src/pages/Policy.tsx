@@ -1,15 +1,17 @@
 import { useState, useEffect } from 'react';
+import { X } from 'lucide-react';
 import { POLICY_RULES as MOCK_POLICY_RULES } from '@/lib/mock-data';
 import { useLiveFeed } from '@/hooks/use-live-feed';
 import { isApiAvailable, fetchPolicies, type PolicyEntry } from '@/services/api';
+import InfoTooltip from '@/components/InfoTooltip';
 
 /* ── Time-ago helper ────────────────────────────── */
 function timeAgo(date: Date): string {
   const seconds = Math.floor((Date.now() - date.getTime()) / 1000);
-  if (seconds < 60) return `${seconds}s ago`;
-  if (seconds < 3600) return `${Math.floor(seconds / 60)}m ago`;
-  if (seconds < 86400) return `${Math.floor(seconds / 3600)}h ago`;
-  return `${Math.floor(seconds / 86400)}d ago`;
+  if (seconds < 60) return `il y a ${seconds}s`;
+  if (seconds < 3600) return `il y a ${Math.floor(seconds / 60)}m`;
+  if (seconds < 86400) return `il y a ${Math.floor(seconds / 3600)}h`;
+  return `il y a ${Math.floor(seconds / 86400)}j`;
 }
 
 /** Shape used for the rule list in the sidebar */
@@ -155,6 +157,7 @@ export default function Policy() {
   const [rules, setRules] = useState<PolicyRule[]>(MOCK_POLICY_RULES);
   const [loading, setLoading] = useState(true);
   const [, setTick] = useState(0);
+  const [selectedRule, setSelectedRule] = useState<{type: 'rule', rule: PolicyRule, index: number} | {type: 'eval', evt: any} | null>(null);
 
   // Live timestamp updates
   useEffect(() => {
@@ -194,8 +197,11 @@ export default function Policy() {
     <div className="space-y-6">
       <div className="flex items-center gap-3">
         <div>
-          <div className="text-sm font-body font-medium text-foreground">Policy Configuration</div>
-          <div className="text-xs text-muted-foreground">{rules.length} active rules</div>
+          <div className="text-sm font-body font-medium text-foreground">
+            Configuration de politique
+            <InfoTooltip text="Règles OPA/Rego évaluées pour chaque requête MCP. Définit qui peut appeler quoi et sous quelles conditions." />
+          </div>
+          <div className="text-xs text-muted-foreground">{rules.length} règles actives</div>
         </div>
       </div>
 
@@ -203,13 +209,20 @@ export default function Policy() {
         {/* Policy tree */}
         <div className="col-span-3">
           <div className="card-surface shadow-card p-4">
-            <div className="table-header mb-3">Active Rules</div>
+            <div className="table-header mb-3">
+              Règles actives
+              <InfoTooltip text="Liste des règles de politique actuellement en vigueur. Chaque règle lie un agent à un outil avec une action." />
+            </div>
             {loading ? (
               <RulesSkeleton />
             ) : (
               <div className="space-y-1">
                 {rules.map((rule, i) => (
-                  <div key={i} className="flex items-center justify-between py-2 px-2 border-b border-border last:border-0 text-xs">
+                  <div
+                    key={i}
+                    className="flex items-center justify-between py-2 px-2 border-b border-border last:border-0 text-xs cursor-pointer hover:bg-muted/50 transition-colors"
+                    onClick={() => setSelectedRule({ type: 'rule', rule, index: i })}
+                  >
                     <div>
                       <span className="font-mono text-foreground">{rule.agent}</span>
                       <span className="text-ink-4 mx-1">{'->'}</span>
@@ -219,6 +232,13 @@ export default function Policy() {
                       <span className={`font-mono text-[10px] ${rule.action === 'allow' ? 'text-safe' : 'text-danger'}`}>
                         {rule.action}
                       </span>
+                      <InfoTooltip
+                        text={
+                          rule.action === 'allow'
+                            ? 'Requête autorisée si les conditions sont remplies.'
+                            : 'Requête systématiquement refusée pour cet agent/outil.'
+                        }
+                      />
                       <span className="text-[9px] text-ink-4 font-mono">{rule.matched}</span>
                     </div>
                   </div>
@@ -254,17 +274,36 @@ export default function Policy() {
       {/* Evaluation log */}
       <div>
         <div className="flex items-center gap-3 mb-4">
-          <div className="text-sm font-body font-medium text-foreground">Policy Evaluation Log</div>
+          <div className="text-sm font-body font-medium text-foreground">
+            Journal d'évaluation de politique
+            <InfoTooltip text="Historique en temps réel des évaluations de politique. Chaque ligne = une décision du moteur OPA." />
+          </div>
         </div>
         <div className="card-surface shadow-card overflow-hidden">
           <div className="grid grid-cols-[80px_100px_110px_70px_1fr_60px] gap-2 px-5 py-2 border-b border-border">
-            {['Time', 'Agent', 'Tool', 'Result', 'Matched Rule', 'Eval'].map(h => (
-              <span key={h} className="table-header">{h}</span>
-            ))}
+            <span className="table-header">Heure</span>
+            <span className="table-header">Agent</span>
+            <span className="table-header">Outil</span>
+            <span className="table-header">
+              Résultat
+              <InfoTooltip text="Décision du moteur OPA : allow (autorisé) ou deny (refusé)." />
+            </span>
+            <span className="table-header">
+              Règle matchée
+              <InfoTooltip text="Identifiant de la règle Rego qui a produit cette décision." />
+            </span>
+            <span className="table-header">
+              Éval.
+              <InfoTooltip text="Temps d'évaluation de la politique en millisecondes." />
+            </span>
           </div>
           <div className="max-h-[300px] overflow-y-auto">
             {events.slice(0, 15).map(evt => (
-              <div key={evt.id} className="grid grid-cols-[80px_100px_110px_70px_1fr_60px] gap-2 px-5 py-2 text-xs font-mono border-b border-border">
+              <div
+                key={evt.id}
+                className="grid grid-cols-[80px_100px_110px_70px_1fr_60px] gap-2 px-5 py-2 text-xs font-mono border-b border-border cursor-pointer hover:bg-muted/50 transition-colors"
+                onClick={() => setSelectedRule({ type: 'eval', evt })}
+              >
                 <span className="text-muted-foreground">{timeAgo(evt.timestamp)}</span>
                 <span className="text-foreground truncate">{evt.agent}</span>
                 <span className="text-ink-2 truncate">{evt.tool}</span>
@@ -278,6 +317,89 @@ export default function Policy() {
           </div>
         </div>
       </div>
+
+      {/* Detail Drawer */}
+      {selectedRule && (
+        <>
+          <div className="fixed inset-0 bg-foreground/5 z-40" onClick={() => setSelectedRule(null)} />
+          <div className="fixed inset-y-0 right-0 w-[400px] bg-card border-l border-border z-50 overflow-y-auto shadow-card">
+            <div className="flex items-center justify-between p-5 border-b border-border">
+              <div>
+                <div className="text-lg font-heading text-foreground">
+                  {selectedRule.type === 'rule' ? 'Détail de la règle' : 'Détail de l\'évaluation'}
+                </div>
+              </div>
+              <button onClick={() => setSelectedRule(null)} className="text-muted-foreground hover:text-foreground transition-colors">
+                <X className="h-4 w-4" strokeWidth={1.5} />
+              </button>
+            </div>
+            <div className="p-5 space-y-5">
+              {selectedRule.type === 'rule' ? (
+                <>
+                  <div>
+                    <div className="text-[10px] uppercase tracking-wider text-muted-foreground mb-1">Agent</div>
+                    <div className="text-sm font-mono text-foreground">{selectedRule.rule.agent}</div>
+                  </div>
+                  <div>
+                    <div className="text-[10px] uppercase tracking-wider text-muted-foreground mb-1">Outil</div>
+                    <div className="text-sm font-mono text-foreground">{selectedRule.rule.tool}</div>
+                  </div>
+                  <div>
+                    <div className="text-[10px] uppercase tracking-wider text-muted-foreground mb-1">Action</div>
+                    <div className={`text-sm font-mono ${selectedRule.rule.action === 'allow' ? 'text-safe' : 'text-danger'}`}>
+                      {selectedRule.rule.action === 'allow' ? 'Autorisé' : 'Refusé'} ({selectedRule.rule.action})
+                    </div>
+                  </div>
+                  <div>
+                    <div className="text-[10px] uppercase tracking-wider text-muted-foreground mb-1">Conditions</div>
+                    <div className="text-sm font-mono text-ink-2">{selectedRule.rule.conditions === 'always' ? 'Aucun' : selectedRule.rule.conditions}</div>
+                  </div>
+                  <div>
+                    <div className="text-[10px] uppercase tracking-wider text-muted-foreground mb-1">Correspondances</div>
+                    <div className="text-sm font-mono text-foreground">{selectedRule.rule.matched}</div>
+                  </div>
+                  <div>
+                    <div className="text-[10px] uppercase tracking-wider text-muted-foreground mb-1">
+                      Mode shadow
+                      <InfoTooltip text="En mode shadow, la règle est évaluée mais le refus n'est pas appliqué. Permet de valider une règle avant mise en production." />
+                    </div>
+                    <div className="text-sm font-mono text-ink-3">Non activé</div>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <div>
+                    <div className="text-[10px] uppercase tracking-wider text-muted-foreground mb-1">Agent</div>
+                    <div className="text-sm font-mono text-foreground">{selectedRule.evt.agent}</div>
+                  </div>
+                  <div>
+                    <div className="text-[10px] uppercase tracking-wider text-muted-foreground mb-1">Outil</div>
+                    <div className="text-sm font-mono text-foreground">{selectedRule.evt.tool}</div>
+                  </div>
+                  <div>
+                    <div className="text-[10px] uppercase tracking-wider text-muted-foreground mb-1">Décision</div>
+                    <div className={`text-sm font-mono ${selectedRule.evt.decision === 'allow' ? 'text-safe' : selectedRule.evt.decision === 'deny' ? 'text-danger' : 'text-warn'}`}>
+                      {selectedRule.evt.decision === 'allow' ? 'Autorisé' : selectedRule.evt.decision === 'deny' ? 'Refusé' : selectedRule.evt.decision} ({selectedRule.evt.decision})
+                    </div>
+                  </div>
+                  <div>
+                    <div className="text-[10px] uppercase tracking-wider text-muted-foreground mb-1">Règle matchée</div>
+                    <div className="text-sm font-mono text-ink-2">{String(selectedRule.evt.details.policy_matched)}</div>
+                  </div>
+                  <div>
+                    <div className="text-[10px] uppercase tracking-wider text-muted-foreground mb-1">Temps d'évaluation</div>
+                    <div className="text-sm font-mono text-foreground">{String(selectedRule.evt.details.evaluation_time_ms)}ms</div>
+                  </div>
+                  <div>
+                    <div className="text-[10px] uppercase tracking-wider text-muted-foreground mb-1">Horodatage</div>
+                    <div className="text-sm font-mono text-foreground">{selectedRule.evt.timestamp.toLocaleString('fr-FR')}</div>
+                  </div>
+                </>
+              )}
+            </div>
+          </div>
+        </>
+      )}
     </div>
   );
 }
