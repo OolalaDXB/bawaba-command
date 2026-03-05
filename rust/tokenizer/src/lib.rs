@@ -141,8 +141,8 @@ pub extern "C" fn bawaba_detokenize(
     let vault = global_vault();
     let mut output = input_str.to_string();
 
-    // Find all {PII:uuid} tokens and replace with originals
-    let token_re = ::regex::Regex::new(r"\{PII:([0-9a-f\-]{36})\}").unwrap();
+    // Find all {{PII:uuid}} tokens and replace with originals
+    let token_re = ::regex::Regex::new(r"\{\{PII:([0-9a-f\-]{36})\}\}").unwrap();
 
     let result = token_re.replace_all(&output, |caps: &::regex::Captures| {
         let uuid_str = caps.get(1).unwrap().as_str();
@@ -183,5 +183,42 @@ fn empty_result() -> CTokenizationResult {
         entities_count: 0,
         tokens_generated: 0,
         processing_us: 0,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::ffi::CString;
+
+    #[test]
+    fn test_tokenize_detokenize_round_trip() {
+        // Init vault (safe for single test)
+        bawaba_vault_init(3600);
+
+        let original = "Contact test@example.com or call +212 661 234567";
+        let input = CString::new(original).unwrap();
+        let scope = CString::new("test:session1").unwrap();
+
+        // Tokenize
+        let result = bawaba_tokenize(input.as_ptr(), scope.as_ptr());
+        let tokenized = unsafe { CStr::from_ptr(result.output).to_str().unwrap().to_string() };
+
+        assert!(result.entities_count > 0, "should detect PII entities");
+        assert!(!tokenized.contains("test@example.com"), "email should be tokenized");
+        assert!(tokenized.contains("{{PII:"), "should contain {{PII: tokens");
+
+        // Detokenize
+        let tokenized_c = CString::new(tokenized.clone()).unwrap();
+        let detokenized_ptr = bawaba_detokenize(tokenized_c.as_ptr(), scope.as_ptr());
+        let detokenized = unsafe { CStr::from_ptr(detokenized_ptr).to_str().unwrap().to_string() };
+
+        assert_eq!(detokenized, original, "round-trip should restore original text");
+
+        // Cleanup
+        unsafe {
+            bawaba_free_string(result.output);
+            bawaba_free_string(detokenized_ptr);
+        }
     }
 }
