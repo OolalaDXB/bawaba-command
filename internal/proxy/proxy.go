@@ -299,7 +299,8 @@ func (g *Gateway) handleToolsCall(w http.ResponseWriter, _ *http.Request, req *J
 	}
 
 	// Step 5: Sovereign routing
-	routingDecision, err := g.routerEngine.Route(identity.TenantID, "default")
+	requestID := fmt.Sprintf("%v", req.ID)
+	routingDecision, err := g.routerEngine.Route(identity.TenantID, "default", requestID)
 	if err != nil {
 		g.writeError(w, req.ID, -32004, "Routing error")
 		return
@@ -337,6 +338,7 @@ func (g *Gateway) handleToolsCall(w http.ResponseWriter, _ *http.Request, req *J
 		ResponseStatus:   "200",
 		LatencyMS:        float64(overhead.Milliseconds()),
 		OverheadMS:       float64(overhead.Milliseconds()),
+		RoutingProof:     routingDecision.Proof,
 	})
 
 	// Anomaly detection

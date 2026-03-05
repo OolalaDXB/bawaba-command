@@ -2,7 +2,7 @@ package router
 
 import (
 	"crypto/ed25519"
-	"crypto/rand"
+	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
@@ -43,7 +43,8 @@ func NewEngine(cfg config.RoutingConfig, privKey ed25519.PrivateKey) *Engine {
 }
 
 // Route determines the backend for a request based on tenant jurisdiction.
-func (e *Engine) Route(tenantID, jurisdiction string) (*RoutingDecision, error) {
+// requestID is used to derive a deterministic nonce for verifiable proofs.
+func (e *Engine) Route(tenantID, jurisdiction, requestID string) (*RoutingDecision, error) {
 	e.mu.RLock()
 	defer e.mu.RUnlock()
 
@@ -57,7 +58,7 @@ func (e *Engine) Route(tenantID, jurisdiction string) (*RoutingDecision, error) 
 			}
 
 			// Generate cryptographic proof
-			proof, err := e.generateProof(tenantID, decision)
+			proof, err := e.generateProof(tenantID, decision, requestID)
 			if err != nil {
 				return nil, fmt.Errorf("router: proof generation: %w", err)
 			}
@@ -75,7 +76,7 @@ func (e *Engine) Route(tenantID, jurisdiction string) (*RoutingDecision, error) 
 		Timestamp:    time.Now().UTC().Format(time.RFC3339),
 	}
 
-	proof, err := e.generateProof(tenantID, decision)
+	proof, err := e.generateProof(tenantID, decision, requestID)
 	if err != nil {
 		return nil, fmt.Errorf("router: proof generation: %w", err)
 	}
@@ -84,27 +85,52 @@ func (e *Engine) Route(tenantID, jurisdiction string) (*RoutingDecision, error) 
 	return decision, nil
 }
 
-func (e *Engine) generateProof(tenantID string, decision *RoutingDecision) (string, error) {
-	proofData := map[string]interface{}{
-		"tenant_id":    tenantID,
-		"backend":      decision.Backend,
-		"jurisdiction": decision.Jurisdiction,
-		"compliance":   decision.Compliance,
-		"timestamp":    decision.Timestamp,
-		"nonce":        generateNonce(),
+// RoutingProof is the verifiable proof structure stored in audit events.
+type RoutingProof struct {
+	Payload   RoutingProofPayload `json:"payload"`
+	Signature string              `json:"signature"`
+}
+
+// RoutingProofPayload contains the signed data for a routing decision.
+type RoutingProofPayload struct {
+	RequestID    string `json:"request_id"`
+	Jurisdiction string `json:"jurisdiction"`
+	NodeID       string `json:"node_id"`
+	Timestamp    string `json:"timestamp"`
+	Nonce        string `json:"nonce"`
+}
+
+func (e *Engine) generateProof(tenantID string, decision *RoutingDecision, requestID string) (string, error) {
+	payload := RoutingProofPayload{
+		RequestID:    requestID,
+		Jurisdiction: decision.Jurisdiction,
+		NodeID:       decision.Backend,
+		Timestamp:    decision.Timestamp,
+		Nonce:        deriveNonce(requestID),
 	}
 
-	data, err := json.Marshal(proofData)
+	payloadBytes, err := json.Marshal(payload)
 	if err != nil {
 		return "", err
 	}
 
-	sig := ed25519.Sign(e.privateKey, data)
-	return hex.EncodeToString(sig), nil
+	sig := ed25519.Sign(e.privateKey, payloadBytes)
+
+	proof := RoutingProof{
+		Payload:   payload,
+		Signature: hex.EncodeToString(sig),
+	}
+
+	proofJSON, err := json.Marshal(proof)
+	if err != nil {
+		return "", err
+	}
+	return string(proofJSON), nil
 }
 
-func generateNonce() string {
-	b := make([]byte, 16)
-	_, _ = rand.Read(b)
-	return hex.EncodeToString(b)
+// deriveNonce produces a deterministic nonce from the request ID,
+// allowing third-party verification of the routing proof.
+func deriveNonce(requestID string) string {
+	h := sha256.Sum256([]byte("bawaba-nonce:" + requestID))
+	return hex.EncodeToString(h[:16])
 }

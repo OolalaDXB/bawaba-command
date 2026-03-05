@@ -34,6 +34,7 @@ type Event struct {
 	ResultCount      int       `json:"result_count"`
 	LatencyMS        float64   `json:"latency_ms"`
 	OverheadMS       float64   `json:"overhead_ms"`
+	RoutingProof     string    `json:"routing_proof,omitempty"`
 	EventHash        string    `json:"event_hash"`
 	PrevHash         string    `json:"prev_hash"`
 	MerkleRoot       string    `json:"merkle_root"`
