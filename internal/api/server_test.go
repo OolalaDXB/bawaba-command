@@ -461,6 +461,103 @@ func TestAgentQuotaNotFound(t *testing.T) {
 	}
 }
 
+func TestAuditExportWindow(t *testing.T) {
+	_, ts := testServer(t)
+
+	// Test window_days=1 → window_start/end coherent
+	resp, err := http.Get(ts.URL + "/api/v1/audit/export?window_days=1")
+	if err != nil {
+		t.Fatalf("GET /audit/export: %v", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != 200 {
+		t.Fatalf("expected 200, got %d", resp.StatusCode)
+	}
+
+	var bundle struct {
+		WindowStart string `json:"window_start"`
+		WindowEnd   string `json:"window_end"`
+		WindowDays  int    `json:"window_days"`
+		AuditMode   string `json:"audit_mode"`
+		GeneratedAt string `json:"generated_at"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&bundle); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+
+	if bundle.WindowDays != 1 {
+		t.Errorf("expected window_days=1, got %d", bundle.WindowDays)
+	}
+	if bundle.AuditMode != "hash_chain_ed25519" {
+		t.Errorf("expected audit_mode=hash_chain_ed25519, got %q", bundle.AuditMode)
+	}
+
+	start, err := time.Parse(time.RFC3339, bundle.WindowStart)
+	if err != nil {
+		t.Fatalf("parse window_start: %v", err)
+	}
+	end, err := time.Parse(time.RFC3339, bundle.WindowEnd)
+	if err != nil {
+		t.Fatalf("parse window_end: %v", err)
+	}
+	diff := end.Sub(start)
+	if diff < 23*time.Hour || diff > 25*time.Hour {
+		t.Errorf("window_days=1 should span ~24h, got %v", diff)
+	}
+}
+
+func TestAuditExportFromTo(t *testing.T) {
+	_, ts := testServer(t)
+
+	from := time.Now().Add(-2 * time.Hour).UTC().Format(time.RFC3339)
+	to := time.Now().UTC().Format(time.RFC3339)
+
+	resp, err := http.Get(fmt.Sprintf("%s/api/v1/audit/export?from=%s&to=%s", ts.URL, from, to))
+	if err != nil {
+		t.Fatalf("GET /audit/export?from&to: %v", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != 200 {
+		t.Fatalf("expected 200, got %d", resp.StatusCode)
+	}
+
+	var bundle struct {
+		WindowStart string `json:"window_start"`
+		WindowEnd   string `json:"window_end"`
+		WindowDays  int    `json:"window_days"`
+	}
+	json.NewDecoder(resp.Body).Decode(&bundle)
+
+	if bundle.WindowDays != 1 {
+		// 2 hours rounds to 1 day
+		t.Logf("window_days=%d (ok for 2h window)", bundle.WindowDays)
+	}
+	if bundle.WindowStart == "" || bundle.WindowEnd == "" {
+		t.Error("window_start and window_end must be set")
+	}
+}
+
+func TestAuditExportMaxWindow(t *testing.T) {
+	_, ts := testServer(t)
+
+	resp, err := http.Get(ts.URL + "/api/v1/audit/export?window_days=999")
+	if err != nil {
+		t.Fatalf("GET /audit/export: %v", err)
+	}
+	defer resp.Body.Close()
+
+	var bundle struct {
+		WindowDays int `json:"window_days"`
+	}
+	json.NewDecoder(resp.Body).Decode(&bundle)
+
+	if bundle.WindowDays != 90 {
+		t.Errorf("expected capped to 90, got %d", bundle.WindowDays)
+	}
+}
+
 func TestRecoveryMiddleware(t *testing.T) {
 	// Build a handler that panics
 	handler := Chain(

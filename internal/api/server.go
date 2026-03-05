@@ -771,14 +771,45 @@ func (s *Server) handleJurisdictions(w http.ResponseWriter, r *http.Request) {
 }
 
 // handleAuditExport generates an evidence bundle for compliance audits.
-// GET /api/v1/audit/export?window=90
+// GET /api/v1/audit/export?window_days=7  (default 7, max 90)
+// GET /api/v1/audit/export?from=2026-01-01T00:00:00Z&to=2026-03-01T00:00:00Z
 func (s *Server) handleAuditExport(w http.ResponseWriter, r *http.Request) {
-	windowDays, _ := strconv.Atoi(r.URL.Query().Get("window"))
-	if windowDays <= 0 {
-		windowDays = 90
-	}
+	q := r.URL.Query()
 
-	since := time.Now().AddDate(0, 0, -windowDays)
+	var windowStart, windowEnd time.Time
+	var windowDays int
+
+	if fromStr, toStr := q.Get("from"), q.Get("to"); fromStr != "" && toStr != "" {
+		var err error
+		windowStart, err = time.Parse(time.RFC3339, fromStr)
+		if err != nil {
+			writeError(w, http.StatusBadRequest, "invalid 'from' parameter (expected RFC3339)")
+			return
+		}
+		windowEnd, err = time.Parse(time.RFC3339, toStr)
+		if err != nil {
+			writeError(w, http.StatusBadRequest, "invalid 'to' parameter (expected RFC3339)")
+			return
+		}
+		if windowEnd.Before(windowStart) {
+			writeError(w, http.StatusBadRequest, "'to' must be after 'from'")
+			return
+		}
+		windowDays = int(windowEnd.Sub(windowStart).Hours()/24 + 0.5)
+		if windowDays < 1 {
+			windowDays = 1
+		}
+	} else {
+		windowDays, _ = strconv.Atoi(q.Get("window_days"))
+		if windowDays <= 0 {
+			windowDays = 7
+		}
+		if windowDays > 90 {
+			windowDays = 90
+		}
+		windowEnd = time.Now().UTC()
+		windowStart = windowEnd.AddDate(0, 0, -windowDays)
+	}
 
 	// Fetch events within the window
 	rows, err := s.db.Query(`SELECT event_id, timestamp, event_type, agent_id, tenant_id, jurisdiction,
@@ -787,8 +818,8 @@ func (s *Server) handleAuditExport(w http.ResponseWriter, r *http.Request) {
 		pii_mode, entities_detected, tokens_generated,
 		response_status, result_count, latency_ms, overhead_ms,
 		event_hash, prev_hash, merkle_root, signature
-		FROM audit_events WHERE timestamp >= $1
-		ORDER BY timestamp ASC`, since)
+		FROM audit_events WHERE timestamp >= $1 AND timestamp <= $2
+		ORDER BY timestamp ASC`, windowStart, windowEnd)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "database error")
 		return
@@ -855,6 +886,8 @@ func (s *Server) handleAuditExport(w http.ResponseWriter, r *http.Request) {
 
 	bundle := map[string]interface{}{
 		"generated_at":         time.Now().UTC().Format(time.RFC3339),
+		"window_start":         windowStart.UTC().Format(time.RFC3339),
+		"window_end":           windowEnd.UTC().Format(time.RFC3339),
 		"window_days":          windowDays,
 		"audit_mode":           "hash_chain_ed25519",
 		"merkle_status":        "planned_p2",
