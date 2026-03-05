@@ -144,6 +144,9 @@ func (h *SSEHub) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if origin := r.Header.Get("Origin"); origin != "" {
 		w.Header().Set("Access-Control-Allow-Origin", origin)
 	}
+	// Flush headers immediately so the client receives the response.
+	w.WriteHeader(http.StatusOK)
+	flusher.Flush()
 
 	ch := make(chan SSEEvent, 64)
 	h.addClient(ch)
