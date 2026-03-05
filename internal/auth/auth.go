@@ -145,15 +145,16 @@ func (e *Engine) authenticateAPIKey(key string) (*AgentIdentity, error) {
 }
 
 func (e *Engine) authenticateBearerToken(token string) (*AgentIdentity, error) {
-	// P1: Simple token validation — matches against registered agent tokens
-	// Full OAuth 2.1 + PKCE validation is implemented separately
+	// Bearer token (shared secret, pilot mode)
+	// Matches against a pre-shared token registered per agent.
+	// OIDC/JWT validation: planned P2 (see roadmap)
 	e.mu.RLock()
 	defer e.mu.RUnlock()
 
 	for agentID, agent := range e.agents {
 		if agent.AuthMethod == "oauth2" && agent.Active {
-			// For P1, accept bearer token if it matches a registered token
-			// In production, this validates JWT signature, exp, iss, aud
+			// Shared-secret comparison (constant-time)
+			// P2: replace with JWT signature + exp + iss + aud validation
 			if apiKey, ok := e.apiKeys[agentID]; ok {
 				if subtle.ConstantTimeCompare([]byte(token), []byte(apiKey.PlainKey)) == 1 {
 					return &AgentIdentity{

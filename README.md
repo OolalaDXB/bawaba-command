@@ -23,8 +23,8 @@ AI Agents                          Enterprise Systems
 │   │       │       │      │       │       │
 │  mTLS   RBAC    Rust   Geo    SHA-256    │
 │  Bearer YAML    FFI    YAML   Ed25519    │
-│  bcrypt        7 MENA  proof  append     │
-│                patterns       only       │
+│  (P1*)         7 MENA  proof  append     │
+│  bcrypt        patterns       only       │
 └──────────────────────────────────────────┘
          :8080 (MCP proxy)
          :8081 (REST API + SSE)
@@ -40,7 +40,7 @@ bawaba-command/
 │   └── cli/main.go                # CLI tool (Go)
 ├── internal/
 │   ├── proxy/proxy.go             # MCP reverse proxy — JSON-RPC 2.0 interception
-│   ├── auth/auth.go               # Auth engine — Bearer, bcrypt, mTLS
+│   ├── auth/auth.go               # Auth engine — Bearer (shared secret, pilot), bcrypt, mTLS
 │   ├── policy/policy.go           # Policy engine — RBAC from YAML
 │   ├── audit/audit.go             # Hash chain — SHA-256 + Ed25519 signatures
 │   ├── ratelimit/ratelimit.go     # Sliding window + anomaly detection
@@ -115,7 +115,7 @@ Every MCP request passes through all 6 stages. If any stage fails, the request i
 
 | Stage | Module | What it does |
 |-------|--------|-------------|
-| **1. Auth** | `internal/auth` | Identifies the AI agent. Unknown agent → blocked immediately. Bearer token, bcrypt, mTLS. |
+| **1. Auth** | `internal/auth` | Identifies the AI agent. Unknown agent → blocked immediately. Bearer token (shared secret, pilot mode — OIDC/JWT planned P2), bcrypt, mTLS. |
 | **2. Policy** | `internal/policy` | Checks if this agent is allowed to call this tool. YAML-defined RBAC. Unauthorized tool → blocked. |
 | **3. PII** | `rust/tokenizer` | Scans request payload for sensitive data. 7 MENA patterns (IBAN MA/FR, CIN, Iqama, Emirates ID, phone, email, credit card with Luhn). Detected PII → replaced with UUID tokens. Rust for memory safety. |
 | **4. Route** | `internal/router` | Routes data to the correct sovereign data plane based on jurisdiction. Moroccan data → European hosting (non-US). Cryptographic routing proof generated. |
@@ -269,7 +269,7 @@ Bawaba is designed for regulated financial institutions in MENA and EU:
 | Phase | Timeline | Features |
 |-------|----------|----------|
 | **P1** ✅ | Jan–Mar 2026 | Gateway, API, Dashboard, Audit, PII, Routing, DevOps |
-| **P2** | T3–T4 2026 | Advanced quotas, SIEM native, cache, analytics, SSO, NER, Compliance-as-Code |
+| **P2** | T3–T4 2026 | OIDC/JWT Bearer auth, Advanced quotas, SIEM native, cache, analytics, SSO, NER, Compliance-as-Code |
 | **P3** | T1–T2 2027 | TEE (AMD SEV), MCP Server Registry, WASM plugins, mobile app, air-gapped deploy |
 
 ## License
