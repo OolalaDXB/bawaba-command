@@ -244,6 +244,7 @@ func TestCORSHeaders(t *testing.T) {
 
 	// Test preflight OPTIONS
 	req, _ := http.NewRequest("OPTIONS", ts.URL+"/api/v1/health", nil)
+	req.Header.Set("Origin", "http://localhost:5173")
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
 		t.Fatalf("OPTIONS /health: %v", err)

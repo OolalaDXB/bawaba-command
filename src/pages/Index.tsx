@@ -11,10 +11,10 @@ import InfoTooltip from '@/components/InfoTooltip';
 /* ── Time-ago helper ────────────────────────────── */
 function timeAgo(date: Date): string {
   const seconds = Math.floor((Date.now() - date.getTime()) / 1000);
-  if (seconds < 60) return `il y a ${seconds}s`;
-  if (seconds < 3600) return `il y a ${Math.floor(seconds / 60)}m`;
-  if (seconds < 86400) return `il y a ${Math.floor(seconds / 3600)}h`;
-  return `il y a ${Math.floor(seconds / 86400)}j`;
+  if (seconds < 60) return `${seconds}s ago`;
+  if (seconds < 3600) return `${Math.floor(seconds / 60)}m ago`;
+  if (seconds < 86400) return `${Math.floor(seconds / 3600)}h ago`;
+  return `${Math.floor(seconds / 86400)}d ago`;
 }
 
 /* ── Skeleton shimmer ───────────────────────────── */
@@ -217,8 +217,8 @@ function LiveFeed() {
       <div className="flex items-center justify-between px-5 py-3 border-b border-border">
         <div className="flex items-center gap-3">
           <div>
-            <div className="text-sm font-body font-medium text-foreground">Flux d'activité en direct <InfoTooltip text="Chaque ligne représente un appel MCP traité en temps réel par la gateway Bawaba." /></div>
-            <div className="text-xs text-muted-foreground">{events.length} événements capturés</div>
+            <div className="text-sm font-body font-medium text-foreground">Live activity feed <InfoTooltip text="Each row represents an MCP call processed in real time by the Bawaba gateway." /></div>
+            <div className="text-xs text-muted-foreground">{events.length} events captured</div>
           </div>
         </div>
         <button
@@ -228,13 +228,13 @@ function LiveFeed() {
           }`}
         >
           <span className={`w-1.5 h-1.5 rounded-full ${isLive ? 'bg-safe animate-pulse-dot' : 'bg-ink-4'}`} />
-          {isLive ? 'EN DIRECT' : 'PAUSE'}
+          {isLive ? 'LIVE' : 'PAUSED'}
         </button>
       </div>
 
       {/* Table header */}
       <div className="grid grid-cols-[90px_100px_120px_70px_50px_50px_40px] gap-2 px-5 py-2 border-b border-border">
-        {['Heure', 'Agent', 'Outil', 'Décision', 'PII', 'Lat.', 'Jur.'].map(h => (
+        {['Time', 'Agent', 'Tool', 'Decision', 'PII', 'Lat.', 'Jur.'].map(h => (
           <span key={h} className="table-header">{h}</span>
         ))}
       </div>
@@ -283,8 +283,8 @@ function JurisdictionPanel({ jurisdictions, loading }: { jurisdictions: Jurisdic
     <div className="bg-background border border-border rounded-sm p-5">
       <div className="flex items-center gap-3 mb-5">
         <div>
-          <div className="text-sm font-body font-medium text-foreground">Plans de données <InfoTooltip text="Infrastructure souveraine dans chaque juridiction. Les données ne quittent jamais la zone configurée." /></div>
-          <div className="text-xs text-muted-foreground">Juridictions actives</div>
+          <div className="text-sm font-body font-medium text-foreground">Data planes <InfoTooltip text="Sovereign infrastructure in each jurisdiction. Data never leaves the configured zone." /></div>
+          <div className="text-xs text-muted-foreground">Active jurisdictions</div>
         </div>
       </div>
 
@@ -322,7 +322,7 @@ function JurisdictionPanel({ jurisdictions, loading }: { jurisdictions: Jurisdic
 
       {/* Per-jurisdiction stats */}
       <div className="border-t border-border pt-4">
-        <div className="table-header mb-3">Statistiques par juridiction <InfoTooltip text="Volume d'appels, tokens PII et refus ventilés par juridiction active." /></div>
+        <div className="table-header mb-3">Statistics by jurisdiction <InfoTooltip text="Call volume, PII tokens, and denials broken down by active jurisdiction." /></div>
         {loading ? (
           Array.from({ length: 4 }).map((_, i) => (
             <div key={i} className="flex items-center justify-between py-2 border-b border-border last:border-0">
@@ -351,9 +351,9 @@ function JurisdictionPanel({ jurisdictions, loading }: { jurisdictions: Jurisdic
         )}
         <div className="flex gap-6 mt-2">
           {[
-            { label: 'Appels', cls: 'text-muted-foreground' },
+            { label: 'Calls', cls: 'text-muted-foreground' },
             { label: 'PII', cls: 'text-safe' },
-            { label: 'Refus', cls: 'text-danger' },
+            { label: 'Denials', cls: 'text-danger' },
           ].map(l => (
             <span key={l.label} className={`text-[9px] ${l.cls}`}>{l.label}</span>
           ))}
@@ -396,7 +396,7 @@ function ComplianceBar({ jurisdictions, loading }: { jurisdictions: Jurisdiction
             <span className={`text-[10px] font-mono px-2 py-0.5 rounded-sm ${
               j.status === 'compliant' ? 'bg-safe-bg text-safe' : 'bg-warn-bg text-warn'
             }`}>
-              {j.status === 'compliant' ? 'CONFORME' : 'À VÉRIFIER'}
+              {j.status === 'compliant' ? 'COMPLIANT' : 'REVIEW'}
             </span>
           </div>
           <div className="text-xs text-muted-foreground mb-2">{j.regulation}</div>
@@ -411,8 +411,8 @@ function ComplianceBar({ jurisdictions, loading }: { jurisdictions: Jurisdiction
             />
           </div>
           <div className="flex justify-between text-[10px] text-muted-foreground">
-            <span>Audit : {j.lastAudit}</span>
-            <span>Prochain : {j.nextReview}</span>
+            <span>Audit: {j.lastAudit}</span>
+            <span>Next: {j.nextReview}</span>
           </div>
         </div>
       ))}
@@ -422,9 +422,9 @@ function ComplianceBar({ jurisdictions, loading }: { jurisdictions: Jurisdiction
 
 /* ── Map API jurisdiction to UI JurisdictionData ── */
 const JURISDICTION_META: Record<string, { name: string; regulation: string; lastAudit: string; nextReview: string }> = {
-  ma: { name: 'Maroc', regulation: 'Loi 09-08', lastAudit: '2025-02-10', nextReview: '2025-03-10' },
+  ma: { name: 'Morocco', regulation: 'Loi 09-08', lastAudit: '2025-02-10', nextReview: '2025-03-10' },
   sa: { name: 'KSA', regulation: 'PDPL / SAMA', lastAudit: '2025-02-08', nextReview: '2025-03-08' },
-  ae: { name: 'EAU', regulation: 'DIFC / ADGM', lastAudit: '2025-02-12', nextReview: '2025-03-12' },
+  ae: { name: 'UAE', regulation: 'DIFC / ADGM', lastAudit: '2025-02-12', nextReview: '2025-03-12' },
   fr: { name: 'France', regulation: 'CNIL / RGPD', lastAudit: '2025-02-05', nextReview: '2025-03-05' },
 };
 
@@ -513,7 +513,7 @@ export default function Dashboard() {
       {/* Section 01: Metrics */}
       <div>
         <div className="flex items-center gap-3 mb-4">
-          <div className="text-sm font-body font-medium text-foreground">Vue d'ensemble</div>
+          <div className="text-sm font-body font-medium text-foreground">Overview</div>
         </div>
         <div className="grid grid-cols-4 gap-4">
           {loading ? (
@@ -526,28 +526,28 @@ export default function Dashboard() {
           ) : (
             <>
               <MetricCard
-                label={<>Appels MCP aujourd'hui <InfoTooltip text="Nombre total d'appels MCP traités par la gateway aujourd'hui. Inclut allow, deny et rate-limited." /></>}
+                label={<>MCP calls today <InfoTooltip text="Total number of MCP calls processed by the gateway today. Includes allow, deny, and rate-limited." /></>}
                 value={callsToday}
                 sparkData={sparkCalls}
                 sparkColor="hsl(30, 24%, 44%)"
-                subtitle={<span className="text-safe">+12,4 % vs hier</span>}
+                subtitle={<span className="text-safe">+12.4% vs yesterday</span>}
               />
               <MetricCard
-                label={<>Entités PII tokenisées <InfoTooltip text="Données personnelles détectées et remplacées par des tokens UUID avant transmission au LLM." /></>}
+                label={<>PII entities tokenized <InfoTooltip text="Personal data detected and replaced with UUID tokens before transmission to the LLM." /></>}
                 value={piiTokenized}
                 sparkData={sparkPii}
                 sparkColor="hsl(148, 59%, 24%)"
-                subtitle="Sur 4 juridictions"
+                subtitle="Across 4 jurisdictions"
               />
               <MetricCard
-                label={<>Refus de politique <InfoTooltip text="Requêtes refusées par le moteur de politique OPA. Un refus protège contre un usage non autorisé." /></>}
+                label={<>Policy denials <InfoTooltip text="Requests denied by the OPA policy engine. A denial protects against unauthorized usage." /></>}
                 value={denials}
                 sparkData={sparkDenials}
                 sparkColor="hsl(343, 78%, 35%)"
-                subtitle={<span className="text-danger">-6,7 % vs hier</span>}
+                subtitle={<span className="text-danger">-6.7% vs yesterday</span>}
               />
               <MetricCard
-                label={<>Agents actifs <InfoTooltip text="Nombre d'agents IA enregistrés et autorisés à envoyer des requêtes via la gateway." /></>}
+                label={<>Active agents <InfoTooltip text="Number of AI agents registered and authorized to send requests through the gateway." /></>}
                 value={agentCount.toString()}
                 sparkData={sparkAgents}
                 sparkColor="hsl(30, 24%, 44%)"
@@ -577,7 +577,7 @@ export default function Dashboard() {
       {/* Section 04: Compliance */}
       <div>
         <div className="flex items-center gap-3 mb-4">
-          <div className="text-sm font-body font-medium text-foreground">État de conformité <InfoTooltip text="Score de conformité par juridiction basé sur les règles locales (RGPD, Loi 09-08, PDPL, etc.)." /></div>
+          <div className="text-sm font-body font-medium text-foreground">Compliance status <InfoTooltip text="Compliance score per jurisdiction based on local regulations (GDPR, Loi 09-08, PDPL, etc.)." /></div>
         </div>
         <ComplianceBar jurisdictions={jurisdictions} loading={loading} />
       </div>

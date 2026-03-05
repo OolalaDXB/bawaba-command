@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -70,6 +71,7 @@ func TestNewForwarderWebhookNoEndpoint(t *testing.T) {
 
 func TestWebhookForwarderSendsPOST(t *testing.T) {
 	var received atomic.Int32
+	var mu sync.Mutex
 	var lastBody AuditEvent
 
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -85,7 +87,9 @@ func TestWebhookForwarderSendsPOST(t *testing.T) {
 			t.Errorf("expected Authorization Bearer test-token, got %s", r.Header.Get("Authorization"))
 		}
 
+		mu.Lock()
 		json.NewDecoder(r.Body).Decode(&lastBody)
+		mu.Unlock()
 		w.WriteHeader(http.StatusOK)
 	}))
 	defer ts.Close()
@@ -102,8 +106,11 @@ func TestWebhookForwarderSendsPOST(t *testing.T) {
 		t.Fatalf("expected 1 request, got %d", received.Load())
 	}
 
-	if lastBody.EventID != evt.EventID {
-		t.Errorf("expected event_id=%s, got %s", evt.EventID, lastBody.EventID)
+	mu.Lock()
+	eventID := lastBody.EventID
+	mu.Unlock()
+	if eventID != evt.EventID {
+		t.Errorf("expected event_id=%s, got %s", evt.EventID, eventID)
 	}
 
 	if err := wf.Health(); err != nil {

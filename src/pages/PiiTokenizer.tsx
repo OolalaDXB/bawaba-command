@@ -37,10 +37,10 @@ function stableUUID(id: string): string {
 /* ── Time-ago helper ────────────────────────────── */
 function timeAgo(date: Date): string {
   const seconds = Math.floor((Date.now() - date.getTime()) / 1000);
-  if (seconds < 60) return `il y a ${seconds}s`;
-  if (seconds < 3600) return `il y a ${Math.floor(seconds / 60)}m`;
-  if (seconds < 86400) return `il y a ${Math.floor(seconds / 3600)}h`;
-  return `il y a ${Math.floor(seconds / 86400)}j`;
+  if (seconds < 60) return `${seconds}s ago`;
+  if (seconds < 3600) return `${Math.floor(seconds / 60)}m ago`;
+  if (seconds < 86400) return `${Math.floor(seconds / 3600)}h ago`;
+  return `${Math.floor(seconds / 86400)}d ago`;
 }
 
 /** PII entity type shape for the UI. */
@@ -76,10 +76,10 @@ function StatsSkeleton() {
 
 /* ── Vault status tooltips ───────────────────────── */
 const VAULT_TOOLTIPS: Record<string, string> = {
-  'Sessions actives': 'Nombre de sessions de tokenisation actuellement ouvertes.',
-  'Tokens en mémoire': '',
-  'TTL moyen restant': 'Durée de vie moyenne des tokens en mémoire. À l\u2019expiration, la détokenisation devient impossible.',
-  'Utilisation mémoire': 'Mémoire RAM utilisée par le coffre-fort de tokens.',
+  'Active sessions': 'Number of active tokenization sessions currently open.',
+  'Tokens in memory': '',
+  'Avg TTL remaining': 'Average token time-to-live remaining in memory. After expiration, detokenization becomes impossible.',
+  'Memory usage': 'RAM usage by the token vault.',
 };
 
 export default function PiiTokenizer() {
@@ -161,24 +161,15 @@ export default function PiiTokenizer() {
 
   return (
     <div className="space-y-6">
-      {/* Explainer banner */}
-      <div className="card-surface shadow-card px-5 py-3">
-        <p className="text-xs font-body text-muted-foreground leading-relaxed">
-          Chaque donnée personnelle (email, IBAN, CIN...) est détectée par la bibliothèque Rust
-          et remplacée par un UUID v4 <em>avant</em> d'atteindre le LLM. Le coffre-fort en mémoire
-          conserve la correspondance token ↔ valeur réelle pendant le TTL configuré.
-        </p>
-      </div>
-
       {/* Stats */}
       <div>
         <div className="flex items-center gap-3 mb-4">
           <div>
             <div className="text-sm font-body font-medium text-foreground">
-              Statistiques de tokenisation
-              <InfoTooltip text="Vue d'ensemble de l'activité de détection et tokenisation PII par la bibliothèque Rust." />
+              Tokenization Statistics
+              <InfoTooltip text="Overview of PII detection and tokenization activity by the Rust library." />
             </div>
-            <div className="text-xs text-muted-foreground">Détection PII et coffre-fort de tokens</div>
+            <div className="text-xs text-muted-foreground">PII detection and token vault</div>
           </div>
         </div>
 
@@ -188,23 +179,23 @@ export default function PiiTokenizer() {
           <div className="grid grid-cols-4 gap-4 mb-6">
             <div className="card-surface shadow-card p-4">
               <div className="table-header mb-2">
-                Depuis le début
-                <InfoTooltip text="Nombre total d'entités PII détectées depuis le démarrage du système." />
+                All time
+                <InfoTooltip text="Total PII entities detected since system start." />
               </div>
               <div className="text-2xl font-mono font-light text-foreground">{totalAll.toLocaleString()}</div>
             </div>
             <div className="card-surface shadow-card p-4">
-              <div className="table-header mb-2">Aujourd&apos;hui</div>
+              <div className="table-header mb-2">Today</div>
               <div className="text-2xl font-mono font-light text-foreground">{totalToday.toLocaleString()}</div>
             </div>
             <div className="card-surface shadow-card p-4">
-              <div className="table-header mb-2">Cette heure</div>
+              <div className="table-header mb-2">This hour</div>
               <div className="text-2xl font-mono font-light text-foreground">{Math.floor(totalToday / 8)}</div>
             </div>
             <div className="card-surface shadow-card p-4">
               <div className="table-header mb-2">
-                Tokens actifs
-                <InfoTooltip text="Nombre de tokens PII actuellement en mémoire dans le coffre-fort. Expire après TTL." />
+                Active tokens
+                <InfoTooltip text="Number of PII tokens currently in the vault. Expires after TTL." />
               </div>
               <div className="text-2xl font-mono font-light text-foreground">8,421</div>
             </div>
@@ -215,8 +206,8 @@ export default function PiiTokenizer() {
         <div className="grid grid-cols-2 gap-4">
           <div className="card-surface shadow-card p-4">
             <div className="table-header mb-3">
-              Par type d&apos;entité
-              <InfoTooltip text="Répartition des entités PII détectées par catégorie (IBAN, Email, Téléphone, etc.)." />
+              By entity type
+              <InfoTooltip text="Distribution of detected PII entities by category (IBAN, Email, Phone, etc.)." />
             </div>
             {loading ? (
               Array.from({ length: 5 }).map((_, i) => (
@@ -247,8 +238,8 @@ export default function PiiTokenizer() {
 
           <div className="card-surface shadow-card p-4">
             <div className="table-header mb-3">
-              Distribution des temps de traitement
-              <InfoTooltip text="Temps de détection et tokenisation par la bibliothèque Rust. <1ms = nominal. >5ms = charge élevée." />
+              Processing time distribution
+              <InfoTooltip text="Detection and tokenization time by the Rust library. <1ms = nominal. >5ms = high load." />
             </div>
             <div className="h-40">
               <ResponsiveContainer width="100%" height="100%">
@@ -268,20 +259,20 @@ export default function PiiTokenizer() {
         <div className="col-span-8">
           <div className="flex items-center gap-3 mb-4">
             <div className="text-sm font-body font-medium text-foreground">
-              Flux de tokenisation en direct
-              <InfoTooltip text="Chaque ligne représente une donnée sensible détectée et remplacée par un token UUID. La donnée réelle n'est jamais transmise au LLM." />
+              Live tokenization feed
+              <InfoTooltip text="Each row represents a sensitive data item detected and replaced by a UUID token. The actual data is never sent to the LLM." />
             </div>
-            <div className="text-[10px] text-muted-foreground font-body">👆 Cliquez une ligne pour voir le détail du token et le pattern de détection</div>
+            <div className="text-[10px] text-muted-foreground font-body">Click a row to see token details and the detection pattern</div>
           </div>
           <div className="card-surface shadow-card overflow-hidden">
             <div className="grid grid-cols-[80px_100px_100px_70px_120px_60px] gap-2 px-5 py-2 border-b border-border">
-              {['Heure', 'Agent', 'Masqué', 'Type', 'UUID', 'Durée'].map((h, idx) => (
+              {['Time', 'Agent', 'Redacted', 'Type', 'UUID', 'Duration'].map((h, idx) => (
                 <span key={h + idx} className="table-header">
                   {h}
-                  {h === 'Masqué' && <InfoTooltip text="La valeur réelle est masquée. Seul le type (IBAN, Email…) et l'UUID sont conservés dans les logs." />}
-                  {h === 'Type' && <InfoTooltip text="Catégorie PII détectée (IBAN, Phone, Email, NID, Card)." />}
-                  {h === 'UUID' && <InfoTooltip text="Identifiant unique v4 remplaçant la donnée sensible dans le flux LLM." />}
-                  {h === 'Durée' && <InfoTooltip text="Temps de détection + remplacement par la lib Rust." />}
+                  {h === 'Redacted' && <InfoTooltip text="The actual value is redacted. Only the type (IBAN, Email...) and UUID are kept in logs." />}
+                  {h === 'Type' && <InfoTooltip text="Detected PII category (IBAN, Phone, Email, NID, Card)." />}
+                  {h === 'UUID' && <InfoTooltip text="Unique v4 identifier replacing the sensitive data in the LLM stream." />}
+                  {h === 'Duration' && <InfoTooltip text="Detection + replacement time by the Rust lib." />}
                 </span>
               ))}
             </div>
@@ -314,16 +305,16 @@ export default function PiiTokenizer() {
         <div className="col-span-4">
           <div className="flex items-center gap-3 mb-4">
             <div className="text-sm font-body font-medium text-foreground">
-              État du coffre-fort
-              <InfoTooltip text="État du coffre-fort en mémoire qui stocke les associations token ↔ donnée réelle." />
+              Vault status
+              <InfoTooltip text="In-memory vault state storing token ↔ real data associations." />
             </div>
           </div>
           <div className="card-surface shadow-card p-4 space-y-4">
             {([
-              ['Sessions actives', '24'],
-              ['Tokens en mémoire', '8,421'],
-              ['TTL moyen restant', '23m 14s'],
-              ['Utilisation mémoire', '142 MB'],
+              ['Active sessions', '24'],
+              ['Tokens in memory', '8,421'],
+              ['Avg TTL remaining', '23m 14s'],
+              ['Memory usage', '142 MB'],
             ] as const).map(([label, val]) => (
               <div key={label} className="flex justify-between py-2 border-b border-border last:border-0">
                 <span className="text-xs text-muted-foreground">
@@ -336,8 +327,8 @@ export default function PiiTokenizer() {
 
             <div className="pt-2">
               <div className="table-header mb-2">
-                Tokens par client
-                <InfoTooltip text="Répartition des tokens actifs par organisation cliente." />
+                Tokens by tenant
+                <InfoTooltip text="Distribution of active tokens by tenant organization." />
               </div>
               {[
                 ['Al Maghrib Bank', '3,210'],
@@ -362,7 +353,7 @@ export default function PiiTokenizer() {
           <div className="fixed inset-y-0 right-0 w-[400px] bg-card border-l border-border z-50 overflow-y-auto shadow-card">
             <div className="flex items-center justify-between p-5 border-b border-border">
               <div>
-                <div className="text-lg font-heading text-foreground">Détail du token</div>
+                <div className="text-lg font-heading text-foreground">PII Token Detail</div>
                 <div className="text-xs text-muted-foreground font-mono">{selectedToken.uuid}</div>
               </div>
               <button
@@ -373,65 +364,65 @@ export default function PiiTokenizer() {
               </button>
             </div>
             <div className="p-5 space-y-5">
-              {/* Type détecté */}
+              {/* Detected type */}
               <div>
-                <div className="text-[10px] uppercase tracking-wider text-muted-foreground mb-1">Type détecté</div>
+                <div className="text-[10px] uppercase tracking-wider text-muted-foreground mb-1">Detected type</div>
                 <div className="text-sm font-mono text-foreground">{selectedToken.type}</div>
                 <div className="text-[10px] text-muted-foreground bg-muted/40 rounded p-2 mt-1.5">
-                  Catégorie PII identifiée par le moteur de détection Rust. Le pattern regex correspondant est affiché ci-dessous.
+                  PII category identified by the Rust detection engine. The corresponding regex pattern is shown below.
                 </div>
               </div>
 
-              {/* Agent source */}
+              {/* Source agent */}
               <div>
-                <div className="text-[10px] uppercase tracking-wider text-muted-foreground mb-1">Agent source</div>
+                <div className="text-[10px] uppercase tracking-wider text-muted-foreground mb-1">Source agent</div>
                 <div className="text-sm font-mono text-foreground">{selectedToken.agent}</div>
                 <div className="text-[10px] text-muted-foreground bg-muted/40 rounded p-2 mt-1.5">
-                  L'agent IA qui a envoyé la requête contenant cette donnée sensible.
+                  The AI agent that sent the request containing this sensitive data.
                 </div>
               </div>
 
-              {/* Pattern de détection */}
+              {/* Detection pattern */}
               <div>
-                <div className="text-[10px] uppercase tracking-wider text-muted-foreground mb-1">Pattern de détection</div>
+                <div className="text-[10px] uppercase tracking-wider text-muted-foreground mb-1">Detection pattern</div>
                 <div className="text-sm font-mono text-foreground bg-muted/50 rounded px-2 py-1.5 break-all">
                   {PII_PATTERNS[selectedToken.type] || '.*'}
                 </div>
                 <div className="text-[10px] text-muted-foreground bg-muted/40 rounded p-2 mt-1.5">
-                  Expression régulière utilisée pour détecter ce type de PII dans le flux de données.
+                  Regular expression used to detect this PII type in the data stream.
                 </div>
               </div>
 
-              {/* UUID du token */}
+              {/* Token UUID */}
               <div>
-                <div className="text-[10px] uppercase tracking-wider text-muted-foreground mb-1">UUID du token</div>
+                <div className="text-[10px] uppercase tracking-wider text-muted-foreground mb-1">Token UUID</div>
                 <div className="text-sm font-mono text-foreground break-all">{selectedToken.uuid}</div>
                 <div className="text-[10px] text-muted-foreground bg-muted/40 rounded p-2 mt-1.5">
-                  Cet UUID v4 remplace la donnée réelle dans le flux transmis au LLM. La correspondance inverse est conservée dans le coffre-fort en mémoire.
+                  This UUID v4 replaces the actual data in the stream sent to the LLM. The reverse mapping is held in the in-memory vault.
                 </div>
               </div>
 
-              {/* TTL configuré */}
+              {/* Configured TTL */}
               <div>
-                <div className="text-[10px] uppercase tracking-wider text-muted-foreground mb-1">TTL configuré</div>
+                <div className="text-[10px] uppercase tracking-wider text-muted-foreground mb-1">Configured TTL</div>
                 <div className="text-sm font-mono text-foreground">30 minutes</div>
                 <div className="text-[10px] text-muted-foreground bg-muted/40 rounded p-2 mt-1.5">
-                  Après expiration du TTL, la détokenisation devient impossible — la donnée réelle est définitivement purgée de la mémoire.
+                  After TTL expiration, detokenization becomes impossible — the real data is permanently purged from memory.
                 </div>
               </div>
 
-              {/* Temps de traitement */}
+              {/* Processing time */}
               <div>
-                <div className="text-[10px] uppercase tracking-wider text-muted-foreground mb-1">Temps de traitement</div>
+                <div className="text-[10px] uppercase tracking-wider text-muted-foreground mb-1">Processing time</div>
                 <div className="text-sm font-mono text-foreground">{selectedToken.time}</div>
               </div>
 
-              {/* Statut */}
+              {/* Status */}
               <div>
-                <div className="text-[10px] uppercase tracking-wider text-muted-foreground mb-1">Statut</div>
+                <div className="text-[10px] uppercase tracking-wider text-muted-foreground mb-1">Status</div>
                 <span className="inline-flex items-center gap-1.5 text-xs font-mono px-2 py-1 rounded-full bg-emerald-500/10 text-emerald-600">
                   <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
-                  Actif en mémoire
+                  Active in memory
                 </span>
               </div>
             </div>

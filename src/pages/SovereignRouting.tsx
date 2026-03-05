@@ -14,13 +14,13 @@ interface RoutingRule {
 
 /** Default metadata per jurisdiction code. */
 const JURISDICTION_META: Record<string, { label: string; backend: string }> = {
-  ma: { label: 'Maroc (ma)', backend: 'Inwi DC -- Casablanca' },
-  sa: { label: 'Arabie Saoudite (sa)', backend: 'stc cloud -- Riyadh' },
-  ae: { label: 'Émirats arabes unis (ae)', backend: 'G42 -- Abu Dhabi' },
+  ma: { label: 'Morocco (ma)', backend: 'Inwi DC -- Casablanca' },
+  sa: { label: 'Saudi Arabia (sa)', backend: 'stc cloud -- Riyadh' },
+  ae: { label: 'UAE (ae)', backend: 'G42 -- Abu Dhabi' },
   fr: { label: 'France (fr)', backend: 'OVHcloud -- Paris' },
 };
 
-/** Extended jurisdiction info for the "Pourquoi cette route ?" panel. */
+/** Extended jurisdiction info for the "Why this route?" panel. */
 const JURISDICTION_DETAIL: Record<string, {
   country: string;
   law: string;
@@ -29,17 +29,17 @@ const JURISDICTION_DETAIL: Record<string, {
   cloudActStatus: string;
   dataType: string;
 }> = {
-  ma: { country: 'Maroc', law: 'Loi 09-08', city: 'Casablanca', dataPlane: 'Inwi DC', cloudActStatus: 'Hors Cloud Act', dataType: 'CIN (Carte d\'Identité Nationale)' },
-  sa: { country: 'KSA', law: 'PDPL / SAMA', city: 'Riyadh', dataPlane: 'stc cloud', cloudActStatus: 'Hors Cloud Act', dataType: 'Identité nationale (Iqama)' },
-  ae: { country: 'UAE', law: 'DIFC / ADGM', city: 'Abu Dhabi', dataPlane: 'G42', cloudActStatus: 'Hors Cloud Act', dataType: 'Emirates ID — pièce d\'identité EAU' },
-  fr: { country: 'France', law: 'CNIL / RGPD', city: 'Paris', dataPlane: 'OVHcloud', cloudActStatus: 'Hors Cloud Act (UE)', dataType: 'CNI / Carte Vitale' },
+  ma: { country: 'Morocco', law: 'Loi 09-08', city: 'Casablanca', dataPlane: 'Inwi DC', cloudActStatus: 'Outside Cloud Act', dataType: 'National ID Card (CIN)' },
+  sa: { country: 'KSA', law: 'PDPL / SAMA', city: 'Riyadh', dataPlane: 'stc cloud', cloudActStatus: 'Outside Cloud Act', dataType: 'National ID (Iqama)' },
+  ae: { country: 'UAE', law: 'DIFC / ADGM', city: 'Abu Dhabi', dataPlane: 'G42', cloudActStatus: 'Outside Cloud Act', dataType: 'Emirates ID' },
+  fr: { country: 'France', law: 'CNIL / GDPR', city: 'Paris', dataPlane: 'OVHcloud', cloudActStatus: 'Outside Cloud Act (EU)', dataType: 'National ID / Health Card' },
 };
 
 /** Mock routing rules as fallback. */
 const MOCK_ROUTING_RULES: RoutingRule[] = [
-  { jurisdiction: 'Maroc (ma)', backend: 'Inwi DC -- Casablanca', compliance: 'Loi 09-08, CNDP', eventCount: 892 },
-  { jurisdiction: 'Arabie Saoudite (sa)', backend: 'stc cloud -- Riyadh', compliance: 'PDPL, SAMA circular', eventCount: 1134 },
-  { jurisdiction: 'Émirats arabes unis (ae)', backend: 'G42 -- Abu Dhabi', compliance: 'DIFC DP Law, ADGM', eventCount: 678 },
+  { jurisdiction: 'Morocco (ma)', backend: 'Inwi DC -- Casablanca', compliance: 'Loi 09-08, CNDP', eventCount: 892 },
+  { jurisdiction: 'Saudi Arabia (sa)', backend: 'stc cloud -- Riyadh', compliance: 'PDPL, SAMA circular', eventCount: 1134 },
+  { jurisdiction: 'UAE (ae)', backend: 'G42 -- Abu Dhabi', compliance: 'DIFC DP Law, ADGM', eventCount: 678 },
   { jurisdiction: 'France (fr)', backend: 'OVHcloud -- Paris', compliance: 'CNIL / RGPD', eventCount: 445 },
 ];
 
@@ -80,7 +80,7 @@ function RulesSkeleton() {
   );
 }
 
-/* ── "Pourquoi cette route ?" Side Panel ─────────── */
+/* ── "Why this route?" Side Panel ─────────── */
 function RouteExplainerPanel({
   proof,
   onClose,
@@ -105,7 +105,7 @@ function RouteExplainerPanel({
           {/* Header */}
           <div className="flex items-center justify-between px-5 py-4 border-b border-border">
             <div>
-              <div className="text-sm font-body font-medium text-foreground">Pourquoi cette route ?</div>
+              <div className="text-sm font-body font-medium text-foreground">Why this route?</div>
               <div className="text-[10px] text-muted-foreground font-mono mt-0.5">{proof.request}</div>
             </div>
             <button
@@ -123,7 +123,7 @@ function RouteExplainerPanel({
           <div className="flex-1 overflow-y-auto px-5 py-5 space-y-5">
             {/* Detected data */}
             <div>
-              <div className="table-header mb-2">Donnée détectée <InfoTooltip text="Type de donnée personnelle détecté qui détermine la juridiction applicable." /></div>
+              <div className="table-header mb-2">Detected data <InfoTooltip text="Detected personal data type that determines the applicable jurisdiction." /></div>
               <div className="card-surface p-3">
                 <div className="flex items-center gap-2">
                   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="text-warn shrink-0">
@@ -137,7 +137,7 @@ function RouteExplainerPanel({
 
             {/* Jurisdiction */}
             <div>
-              <div className="table-header mb-2">Juridiction <InfoTooltip text="Résolue depuis le claim du token agent. Le header X-Bawaba-Jurisdiction n'est accepté qu'en mode démo." /></div>
+              <div className="table-header mb-2">Jurisdiction <InfoTooltip text="Resolved from the agent token claim. The X-Bawaba-Jurisdiction header is only accepted in demo mode." /></div>
               <div className="card-surface p-3">
                 <div className="flex items-center gap-2">
                   <span className="text-xs font-mono text-foreground uppercase">{proof.jurisdictionCode}</span>
@@ -149,7 +149,7 @@ function RouteExplainerPanel({
 
             {/* Data plane */}
             <div>
-              <div className="table-header mb-2">Plan de données <InfoTooltip text="Infrastructure physique qui traite la requête. Hors périmètre Cloud Act." /></div>
+              <div className="table-header mb-2">Data plane <InfoTooltip text="Physical infrastructure processing the request. Outside Cloud Act scope." /></div>
               <div className="card-surface p-3">
                 <div className="text-xs font-body text-foreground">{detail.city} -- {detail.dataPlane}</div>
               </div>
@@ -157,7 +157,7 @@ function RouteExplainerPanel({
 
             {/* Cloud Act guarantee */}
             <div>
-              <div className="table-header mb-2">Garantie</div>
+              <div className="table-header mb-2">Guarantee</div>
               <div className="card-surface p-3">
                 <div className="flex items-center gap-2">
                   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="text-safe shrink-0">
@@ -170,7 +170,7 @@ function RouteExplainerPanel({
 
             {/* Proof hash */}
             <div>
-              <div className="table-header mb-2">Preuve <InfoTooltip text="Hash cryptographique de la décision, vérifiable indépendamment." /></div>
+              <div className="table-header mb-2">Proof <InfoTooltip text="Cryptographic hash of the decision, independently verifiable." /></div>
               <div className="card-surface p-3">
                 <div className="font-mono text-xs text-foreground">{proof.hash.slice(0, 8)}</div>
                 <div className="font-mono text-[10px] text-muted-foreground mt-1 break-all">{proof.hash}</div>
@@ -181,11 +181,10 @@ function RouteExplainerPanel({
           {/* Footer */}
           <div className="px-5 py-3 border-t border-border space-y-2">
             <div className="text-[10px] text-muted-foreground font-body">
-              Cette décision de routage est journalisée et signée cryptographiquement dans le journal d'audit.
+              This routing decision is logged and cryptographically signed in the audit trail.
             </div>
             <div className="text-[10px] text-muted-foreground font-body bg-muted/40 rounded p-2">
-              La preuve complète (payload JSON canonique + signature Ed25519) peut être exportée
-              et vérifiée indépendamment par un auditeur externe sans accès aux serveurs Bawaba.
+              The complete proof (canonical JSON payload + Ed25519 signature) can be exported and independently verified by an external auditor without access to Bawaba servers.
             </div>
           </div>
         </div>
@@ -249,7 +248,7 @@ export default function SovereignRouting() {
       Array.from({ length: 4 }, (_, i) => ({
         id: `${node.id}-${i}`,
         time: new Date(Date.now() - i * 60000 - Math.floor(Math.random() * 60000))
-          .toLocaleTimeString('fr-FR', { hour12: false }),
+          .toLocaleTimeString('en-GB', { hour12: false }),
         request: `${node.jurisdiction}/${toolNames[i]}`,
         decision: `-> ${node.name}`,
         hash: Math.random().toString(36).substring(2, 14) + Math.random().toString(36).substring(2, 14),
@@ -265,18 +264,32 @@ export default function SovereignRouting() {
       <div className="card-surface shadow-card p-6">
         <div className="flex items-center gap-3 mb-4">
           <div>
-            <div className="text-sm font-body font-medium text-foreground">Carte des plans de données <InfoTooltip text="Visualisation géographique des data planes souverains. Les données restent dans la juridiction configurée." /></div>
-            <div className="text-xs text-muted-foreground">Infrastructure souveraine MENA + Europe</div>
+            <div className="text-sm font-body font-medium text-foreground">Data plane map <InfoTooltip text="Geographic visualization of sovereign data planes. Data stays within the configured jurisdiction." /></div>
+            <div className="text-xs text-muted-foreground">Sovereign infrastructure MENA + Europe</div>
           </div>
         </div>
-        <SovereignMap jurisdictions={jurisdictionEntries} />
+        <SovereignMap
+          jurisdictions={jurisdictionEntries}
+          onNodeClick={(code) => {
+            const toolNames = ['database-query', 'git-read', 'slack-send', 'jira-read'];
+            setSelectedProof({
+              id: `map-${code}`,
+              time: new Date().toLocaleTimeString('en-GB', { hour12: false }),
+              request: `${code}/${toolNames[0]}`,
+              decision: `-> ${JURISDICTION_META[code]?.backend || code}`,
+              hash: Math.random().toString(36).substring(2, 14) + Math.random().toString(36).substring(2, 14),
+              jurisdictionCode: code,
+              tool: toolNames[0],
+            });
+          }}
+        />
       </div>
 
       <div className="grid grid-cols-12 gap-6">
         {/* Routing rules */}
         <div className="col-span-5">
           <div className="flex items-center gap-3 mb-4">
-            <div className="text-sm font-body font-medium text-foreground">Règles de routage <InfoTooltip text="Configuration des routes par juridiction. Chaque requête est dirigée vers le backend souverain approprié." /></div>
+            <div className="text-base font-body font-medium text-foreground">Routing rules <InfoTooltip text="Routing configuration by jurisdiction. Each request is directed to the appropriate sovereign backend." /></div>
           </div>
           <div className="card-surface shadow-card p-4 space-y-0">
             {loading ? (
@@ -286,7 +299,7 @@ export default function SovereignRouting() {
                 <div key={rule.jurisdiction} className="py-3 border-b border-border last:border-0">
                   <div className="flex items-center justify-between">
                     <div className="text-xs font-body font-medium text-foreground mb-1">{rule.jurisdiction}</div>
-                    <span className="text-[10px] font-mono text-muted-foreground">{rule.eventCount.toLocaleString()} événements</span>
+                    <span className="text-[10px] font-mono text-muted-foreground">{rule.eventCount.toLocaleString()} events</span>
                   </div>
                   <div className="text-[10px] font-mono text-ink-2">{rule.backend}</div>
                   <div className="text-[10px] text-muted-foreground mt-0.5">{rule.compliance}</div>
@@ -295,16 +308,16 @@ export default function SovereignRouting() {
             )}
 
             <div className="pt-3">
-              <div className="table-header mb-2">Tester le routage <InfoTooltip text="Simuler une décision de routage pour vérifier la configuration." /></div>
+              <div className="table-header mb-2">Test routing <InfoTooltip text="Simulate a routing decision to verify the configuration." /></div>
               <div className="flex gap-2">
                 <input
                   value={testInput}
                   onChange={e => setTestInput(e.target.value)}
-                  placeholder="ex. juridiction=ma, outil=database-query"
+                  placeholder="e.g. jurisdiction=ma, tool=database-query"
                   className="flex-1 text-xs font-mono px-3 py-2 border border-border rounded-sm bg-background text-foreground placeholder:text-ink-4 focus:outline-none focus:border-primary"
                 />
                 <button className="text-xs font-body px-3 py-2 bg-primary text-primary-foreground rounded-sm hover:opacity-90 transition-opacity whitespace-nowrap">
-                  Tester
+                  Test
                 </button>
               </div>
             </div>
@@ -314,16 +327,16 @@ export default function SovereignRouting() {
         {/* Routing proofs */}
         <div className="col-span-7">
           <div className="flex items-center gap-3 mb-4">
-            <div className="text-sm font-body font-medium text-foreground">Preuves de routage <InfoTooltip text="Payload JSON canonique + signature Ed25519 stockés pour chaque décision. Vérifiable indépendamment sans accès aux serveurs." /></div>
-            <div className="text-[10px] text-muted-foreground font-body">👆 Cliquez une ligne pour voir la décision complète et la preuve cryptographique</div>
+            <div className="text-base font-body font-medium text-foreground">Routing proofs <InfoTooltip text="Canonical JSON payload + Ed25519 signature stored for each decision. Independently verifiable without server access." /></div>
+            <div className="text-[10px] text-muted-foreground font-body">Click a row to see the full routing decision and cryptographic proof</div>
           </div>
           <div className="card-surface shadow-card overflow-hidden">
             <div className="grid grid-cols-[80px_120px_100px_1fr_60px] gap-2 px-5 py-2 border-b border-border">
-              <span className="table-header">Heure</span>
-              <span className="table-header">Requête <InfoTooltip text="Juridiction et outil demandés par l'agent." /></span>
-              <span className="table-header">Décision <InfoTooltip text="Backend souverain sélectionné pour cette requête." /></span>
-              <span className="table-header">Hash preuve <InfoTooltip text="Empreinte cryptographique de la décision de routage. Vérifiable offline." /></span>
-              <span className="table-header">Vérifier</span>
+              <span className="table-header">Time</span>
+              <span className="table-header">Request <InfoTooltip text="Jurisdiction and tool requested by the agent." /></span>
+              <span className="table-header">Decision <InfoTooltip text="Sovereign backend selected for this request." /></span>
+              <span className="table-header">Proof hash <InfoTooltip text="Cryptographic fingerprint of the routing decision. Verifiable offline." /></span>
+              <span className="table-header">Verify</span>
             </div>
             <div className="max-h-[350px] overflow-y-auto">
               {routingProofs.map(proof => (
@@ -335,8 +348,8 @@ export default function SovereignRouting() {
                   }`}
                 >
                   <span className="text-muted-foreground">{proof.time}</span>
-                  <span className="text-foreground truncate">{proof.request}</span>
-                  <span className="text-safe truncate">{proof.decision}</span>
+                  <span className="text-sm text-foreground truncate">{proof.request}</span>
+                  <span className="text-sm text-safe truncate">{proof.decision}</span>
                   <span className="text-ink-4 truncate">{proof.hash.slice(0, 8)}...</span>
                   <button
                     onClick={(e) => {
@@ -345,7 +358,7 @@ export default function SovereignRouting() {
                     }}
                     className="text-[10px] text-primary hover:underline text-left"
                   >
-                    vérifier
+                    verify
                   </button>
                 </div>
               ))}

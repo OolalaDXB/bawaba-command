@@ -17,10 +17,10 @@ import { X } from 'lucide-react';
 /* ── Time-ago helper ────────────────────────────── */
 function timeAgo(date: Date): string {
   const seconds = Math.floor((Date.now() - date.getTime()) / 1000);
-  if (seconds < 60) return `il y a ${seconds}s`;
-  if (seconds < 3600) return `il y a ${Math.floor(seconds / 60)}m`;
-  if (seconds < 86400) return `il y a ${Math.floor(seconds / 3600)}h`;
-  return `il y a ${Math.floor(seconds / 86400)}j`;
+  if (seconds < 60) return `${seconds}s ago`;
+  if (seconds < 3600) return `${Math.floor(seconds / 60)}m ago`;
+  if (seconds < 86400) return `${Math.floor(seconds / 3600)}h ago`;
+  return `${Math.floor(seconds / 86400)}d ago`;
 }
 
 /** Map an API event to the MCPEvent shape used by the UI. */
@@ -68,7 +68,7 @@ function ExplainerPanel() {
           <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
         </svg>
         <span className="text-xs font-body font-medium text-foreground flex-1">
-          Comment fonctionne la chaîne d'audit ?
+          How does the audit chain work?
         </span>
         <svg
           width="14" height="14" viewBox="0 0 24 24" fill="none"
@@ -82,9 +82,7 @@ function ExplainerPanel() {
       {open && (
         <div className="px-5 pb-4 pt-0">
           <p className="text-xs font-body text-muted-foreground leading-relaxed">
-            Chaque événement contient l'empreinte du précédent (SHA-256) et est signé
-            cryptographiquement (Ed25519). Si quelqu'un modifie un seul événement, la chaîne
-            se casse — et Bawaba le détecte immédiatement.
+            Each event contains the previous event's hash (SHA-256) and is cryptographically signed (Ed25519). If anyone modifies a single event, the chain breaks — and Bawaba detects it immediately.
           </p>
         </div>
       )}
@@ -206,7 +204,7 @@ function AuditStats({ events }: { events: MCPEvent[] }) {
     <div className="space-y-5">
       {/* By Decision */}
       <div className="card-surface shadow-card p-4">
-        <div className="table-header mb-3">Par décision <InfoTooltip text="Répartition des événements par type de décision politique." /></div>
+        <div className="table-header mb-3">By decision <InfoTooltip text="Event distribution by policy decision type." /></div>
         <div className="h-28">
           <ResponsiveContainer width="100%" height="100%">
             <PieChart>
@@ -229,7 +227,7 @@ function AuditStats({ events }: { events: MCPEvent[] }) {
 
       {/* By Jurisdiction */}
       <div className="card-surface shadow-card p-4">
-        <div className="table-header mb-3">Par juridiction <InfoTooltip text="Volume d'événements ventilé par zone de données souveraine." /></div>
+        <div className="table-header mb-3">By jurisdiction <InfoTooltip text="Event volume broken down by sovereign data zone." /></div>
         <div className="h-28">
           <ResponsiveContainer width="100%" height="100%">
             <BarChart data={byJurisdiction} margin={{ top: 0, right: 0, left: -20, bottom: 0 }}>
@@ -243,7 +241,7 @@ function AuditStats({ events }: { events: MCPEvent[] }) {
 
       {/* By Agent */}
       <div className="card-surface shadow-card p-4">
-        <div className="table-header mb-3">Par agent <InfoTooltip text="Nombre d'appels par agent IA enregistré." /></div>
+        <div className="table-header mb-3">By agent <InfoTooltip text="Number of calls per registered AI agent." /></div>
         <div className="h-28">
           <ResponsiveContainer width="100%" height="100%">
             <BarChart data={byAgent} layout="vertical" margin={{ top: 0, right: 0, left: 0, bottom: 0 }}>
@@ -257,7 +255,7 @@ function AuditStats({ events }: { events: MCPEvent[] }) {
 
       {/* Latency Trend */}
       <div className="card-surface shadow-card p-4">
-        <div className="table-header mb-3">Latence moy. (7j) <InfoTooltip text="Temps moyen de traitement par la gateway sur les 7 derniers jours." /></div>
+        <div className="table-header mb-3">Avg latency (7d) <InfoTooltip text="Average processing time by the gateway over the last 7 days." /></div>
         <div className="h-20">
           <ResponsiveContainer width="100%" height="100%">
             <LineChart data={latencyTrend} margin={{ top: 0, right: 0, left: -20, bottom: 0 }}>
@@ -448,9 +446,9 @@ export default function AuditTrail() {
         // After last block, show the result message
         if (i === count - 1) {
           if (result.valid) {
-            setVerifyMessage(`Chaîne vérifiée — ${result.events} événements — 0 altération`);
+            setVerifyMessage(`Chain verified — ${result.events} events — 0 tampering`);
           } else {
-            setVerifyMessage(`Altération détectée à l'événement #${count}`);
+            setVerifyMessage(`Tampering detected at event #${count}`);
           }
           setVerifying(false);
         }
@@ -461,7 +459,7 @@ export default function AuditTrail() {
     // Safety: ensure verifying is reset even if no events
     if (count === 0) {
       setVerifying(false);
-      setVerifyMessage('Aucun événement à vérifier');
+      setVerifyMessage('No events to verify');
     }
   }, [apiAvailable, events]);
 
@@ -495,8 +493,8 @@ export default function AuditTrail() {
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
           <div>
-            <div className="text-sm font-body font-medium text-foreground">Explorateur d'audit <InfoTooltip text="Journal complet de tous les événements MCP traités, avec preuve cryptographique d'intégrité." /></div>
-            <div className="text-xs text-muted-foreground">{events.length} événements · Chaîne inviolable</div>
+            <div className="text-sm font-body font-medium text-foreground">Audit Explorer <InfoTooltip text="Complete log of all processed MCP events, with cryptographic integrity proof." /></div>
+            <div className="text-xs text-muted-foreground">{events.length} events · Tamper-evident chain</div>
           </div>
         </div>
         <div className="flex gap-2">
@@ -505,11 +503,11 @@ export default function AuditTrail() {
             disabled={exporting}
             className="text-xs font-body px-3 py-1.5 border border-border rounded-sm text-muted-foreground hover:text-foreground transition-colors disabled:opacity-50"
           >
-            {exporting ? 'Export en cours...' : 'Exporter vers SIEM'}
+            {exporting ? 'Exporting...' : 'Export to SIEM'}
           </button>
-          <InfoTooltip text="Génère un bundle evidence.json vérifiable offline — transmissible à Risk/Audit/Conformité." />
+          <InfoTooltip text="Generates a verifiable evidence.json bundle — transmittable to Risk/Audit/Compliance." />
           <button className="text-xs font-body px-3 py-1.5 border border-border rounded-sm text-muted-foreground hover:text-foreground transition-colors">
-            Générer un rapport
+            Generate Report
           </button>
         </div>
       </div>
@@ -518,8 +516,8 @@ export default function AuditTrail() {
       <div className="card-surface shadow-card p-5">
         <div className="flex items-center justify-between mb-4">
           <div>
-            <div className="text-sm font-body font-medium text-foreground">Chaîne de hash <InfoTooltip text="Chaque événement inclut le hash SHA-256 de l'événement précédent. Toute modification casse la chaîne — détectable par VerifyChain()." /></div>
-            <div className="text-xs text-muted-foreground">Journal d'audit inviolable</div>
+            <div className="text-sm font-body font-medium text-foreground">Hash Chain <InfoTooltip text="Each event includes the SHA-256 hash of the previous event. Any modification breaks the chain — detectable by VerifyChain()." /></div>
+            <div className="text-xs text-muted-foreground">Tamper-evident audit trail</div>
           </div>
           <button
             onClick={handleVerify}
@@ -530,7 +528,7 @@ export default function AuditTrail() {
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="shrink-0">
               <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
             </svg>
-            {verifying ? 'Vérification...' : "Vérifier l'intégrité"}
+            {verifying ? 'Verifying...' : 'Verify integrity'}
           </button>
         </div>
 
@@ -552,7 +550,7 @@ export default function AuditTrail() {
               {verifyMessage}
             </span>
             <span className="text-[10px] text-muted-foreground font-mono ml-auto">
-              {verification ? `${verification.events} événements` : ''}
+              {verification ? `${verification.events} events` : ''}
             </span>
           </div>
         )}
@@ -571,22 +569,22 @@ export default function AuditTrail() {
                   filterDecision === f ? 'border-primary bg-primary/5 text-foreground' : 'border-border text-muted-foreground hover:text-foreground'
                 }`}
               >
-                {f === 'all' ? 'Tous' : f}
+                {f === 'all' ? 'All' : f}
               </button>
             ))}
           </div>
 
           {/* Hint */}
-          <div className="text-[10px] text-muted-foreground font-body mb-2">👆 Cliquez une ligne pour voir la preuve cryptographique complète et le payload JSON</div>
+          <div className="text-[10px] text-muted-foreground font-body mb-2">Click a row to see the full cryptographic proof and JSON payload</div>
 
           {/* Table */}
           <div className="card-surface shadow-card overflow-hidden">
             <div className="grid grid-cols-[80px_100px_110px_70px_50px_50px_80px] gap-2 px-5 py-2 border-b border-border">
-              {(['Heure', 'Agent', 'Outil', 'Résultat', 'PII', 'Lat.', 'Hash'] as const).map(h => (
+              {(['Time', 'Agent', 'Tool', 'Result', 'PII', 'Lat.', 'Hash'] as const).map(h => (
                 <span key={h} className="table-header">
                   {h}
-                  {h === 'Hash' && <InfoTooltip text="Empreinte SHA-256 de l'événement. Utilisée pour vérifier l'intégrité de la chaîne." />}
-                  {h === 'Résultat' && <InfoTooltip text="Décision du moteur de politique : allow (autorisé), deny (refusé) ou rate-limited (limité)." />}
+                  {h === 'Hash' && <InfoTooltip text="SHA-256 fingerprint of the event. Used to verify chain integrity." />}
+                  {h === 'Result' && <InfoTooltip text="Policy engine decision: allow (authorized), deny (refused) or rate-limited." />}
                 </span>
               ))}
             </div>
@@ -621,7 +619,7 @@ export default function AuditTrail() {
                       disabled={loadingMore}
                       className="text-xs font-body px-4 py-1.5 border border-border rounded-sm text-muted-foreground hover:text-foreground transition-colors disabled:opacity-50"
                     >
-                      {loadingMore ? 'Chargement...' : 'Charger plus'}
+                      {loadingMore ? 'Loading...' : 'Load more'}
                     </button>
                   </div>
                 )}
@@ -642,7 +640,7 @@ export default function AuditTrail() {
           <div className="fixed inset-y-0 right-0 w-[400px] bg-card border-l border-border z-50 overflow-y-auto shadow-card">
             <div className="flex items-center justify-between p-5 border-b border-border">
               <div>
-                <div className="text-lg font-heading text-foreground">Événement #{selectedEvent.id.slice(0, 8)}</div>
+                <div className="text-lg font-heading text-foreground">Event #{selectedEvent.id.slice(0, 8)}</div>
                 <div className="text-xs text-muted-foreground font-mono">{timeAgo(selectedEvent.timestamp)}</div>
               </div>
               <button onClick={() => setSelectedEvent(null)} className="text-muted-foreground hover:text-foreground transition-colors">
@@ -652,34 +650,33 @@ export default function AuditTrail() {
             <div className="p-5 space-y-5">
               {/* Intro explainer */}
               <div className="text-[10px] text-muted-foreground bg-muted/40 rounded p-2">
-                Chaque événement est chaîné au précédent par son hash SHA-256 et signé individuellement (Ed25519).
-                Toute modification d'un seul champ invalide la chaîne entière — rendant l'audit infalsifiable.
+                Each event is chained to the previous one by its SHA-256 hash and individually signed (Ed25519). Any modification of a single field invalidates the entire chain — making the audit tamper-proof.
               </div>
 
-              {/* Hash de l'événement */}
+              {/* Event hash */}
               <div>
-                <div className="table-header mb-1">Hash de l'événement</div>
+                <div className="table-header mb-1">Event hash</div>
                 <div className="font-mono text-xs text-foreground break-all bg-secondary/20 rounded-sm p-2">{selectedEvent.hash}</div>
                 <div className="text-[10px] text-muted-foreground bg-muted/40 rounded p-2 mt-1.5">
-                  SHA-256 du payload canonique de cet événement. Sert d'ancre pour le chaînage.
+                  SHA-256 of this event's canonical payload. Serves as an anchor for chaining.
                 </div>
               </div>
 
-              {/* Hash précédent */}
+              {/* Previous hash */}
               <div>
-                <div className="table-header mb-1">Hash précédent</div>
+                <div className="table-header mb-1">Previous hash</div>
                 <div className="font-mono text-xs text-foreground break-all bg-secondary/20 rounded-sm p-2">{selectedEvent.prevHash}</div>
                 <div className="text-[10px] text-muted-foreground bg-muted/40 rounded p-2 mt-1.5">
-                  Empreinte de l'événement N-1. Garantit l'ordre et l'intégrité de la séquence.
+                  Fingerprint of event N-1. Guarantees the order and integrity of the sequence.
                 </div>
               </div>
 
               {/* Signature Ed25519 */}
               <div>
-                <div className="table-header mb-1">Signature Ed25519 <InfoTooltip text="Signature cryptographique par événement. Prouve qu'aucune altération n'a eu lieu depuis la création." /></div>
-                <div className="text-xs text-safe font-mono">Signature vérifiée ✓</div>
+                <div className="table-header mb-1">Ed25519 Signature <InfoTooltip text="Per-event cryptographic signature. Proves no tampering has occurred since creation." /></div>
+                <div className="text-xs text-safe font-mono">Signature verified ✓</div>
                 <div className="text-[10px] text-muted-foreground bg-muted/40 rounded p-2 mt-1.5">
-                  La clé privée de signature est isolée dans le module gateway. Un auditeur peut vérifier avec la clé publique seule.
+                  The signing private key is isolated in the gateway module. An auditor can verify with the public key alone.
                 </div>
               </div>
 
@@ -689,40 +686,40 @@ export default function AuditTrail() {
                 <div className="text-xs font-mono text-foreground">{selectedEvent.agent}</div>
               </div>
 
-              {/* Outil */}
+              {/* Tool */}
               <div>
-                <div className="table-header mb-1">Outil</div>
+                <div className="table-header mb-1">Tool</div>
                 <div className="text-xs font-mono text-foreground">{selectedEvent.tool}</div>
               </div>
 
-              {/* Décision */}
+              {/* Decision */}
               <div>
-                <div className="table-header mb-1">Décision</div>
+                <div className="table-header mb-1">Decision</div>
                 <div className={`text-xs font-mono ${
                   selectedEvent.decision === 'allow' ? 'text-safe' : selectedEvent.decision === 'deny' ? 'text-danger' : 'text-warn'
                 }`}>
-                  {selectedEvent.decision === 'allow' ? '✓ Autorisé' : selectedEvent.decision === 'deny' ? '✗ Refusé' : '⚠ Rate-limited'} ({selectedEvent.decision})
+                  {selectedEvent.decision === 'allow' ? '✓ Allowed' : selectedEvent.decision === 'deny' ? '✗ Denied' : '⚠ Rate-limited'} ({selectedEvent.decision})
                 </div>
               </div>
 
-              {/* PII détectés */}
+              {/* PII detected */}
               <div>
-                <div className="table-header mb-1">PII détectés</div>
+                <div className="table-header mb-1">PII detected</div>
                 <div className="text-xs font-mono text-foreground">{selectedEvent.piiTokens}</div>
               </div>
 
-              {/* Latence */}
+              {/* Latency */}
               <div>
-                <div className="table-header mb-1">Latence</div>
+                <div className="table-header mb-1">Latency</div>
                 <div className="text-xs font-mono text-foreground">{selectedEvent.latency}ms</div>
               </div>
 
-              {/* Payload complet */}
+              {/* Full payload */}
               <div>
-                <div className="table-header mb-1">Payload complet</div>
+                <div className="table-header mb-1">Full payload</div>
                 <pre className="text-xs font-mono text-ink-2 whitespace-pre-wrap bg-secondary/20 rounded-sm p-2 overflow-x-auto">{JSON.stringify(selectedEvent.details, null, 2)}</pre>
                 <div className="text-[10px] text-muted-foreground bg-muted/40 rounded p-2 mt-1.5">
-                  Ce JSON constitue le fichier evidence.json exportable — vérifiable indépendamment sans accès aux serveurs.
+                  This JSON constitutes the exportable evidence.json file — independently verifiable without server access.
                 </div>
               </div>
             </div>

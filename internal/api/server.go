@@ -215,6 +215,18 @@ func (rw *responseWriter) WriteHeader(code int) {
 	rw.ResponseWriter.WriteHeader(code)
 }
 
+// Flush forwards to the underlying ResponseWriter if it implements http.Flusher.
+func (rw *responseWriter) Flush() {
+	if f, ok := rw.ResponseWriter.(http.Flusher); ok {
+		f.Flush()
+	}
+}
+
+// Unwrap returns the underlying ResponseWriter (supports http.ResponseController).
+func (rw *responseWriter) Unwrap() http.ResponseWriter {
+	return rw.ResponseWriter
+}
+
 // --- Handlers ---
 
 func (s *Server) handleHealth(w http.ResponseWriter, r *http.Request) {

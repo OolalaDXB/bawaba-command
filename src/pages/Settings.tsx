@@ -33,7 +33,7 @@ function StatusBadge({ ok }: { ok: boolean }) {
       ok ? 'bg-safe-bg text-safe' : 'bg-danger-bg text-danger'
     }`}>
       <span className={`w-1.5 h-1.5 rounded-full ${ok ? 'bg-safe animate-pulse-dot' : 'bg-danger'}`} />
-      {ok ? 'Connecté' : 'Hors ligne'}
+      {ok ? 'Connected' : 'Offline'}
     </span>
   );
 }
@@ -45,9 +45,9 @@ function formatUptime(seconds: number): string {
   const h = Math.floor((seconds % 86400) / 3600);
   const m = Math.floor((seconds % 3600) / 60);
   const parts: string[] = [];
-  if (d > 0) parts.push(`${d}j`);
+  if (d > 0) parts.push(`${d}d`);
   if (h > 0) parts.push(`${h}h`);
-  parts.push(`${m}min`);
+  parts.push(`${m}m`);
   return parts.join(' ');
 }
 
@@ -69,12 +69,12 @@ const JURISDICTION_FLAGS: Record<string, string> = {
 /* ── Gateway Section ────────────────────────────── */
 function GatewaySection({ health, loading }: { health: HealthResponse | null; loading: boolean }) {
   const rows: { label: React.ReactNode; value: React.ReactNode }[] = [
-    { label: <span>Statut<InfoTooltip text="État de connexion de la gateway. Connecté = opérationnel. Hors ligne = indisponible." /></span>, value: health ? <StatusBadge ok={health.status === 'healthy'} /> : null },
+    { label: <span>Status<InfoTooltip text="Gateway connection state. Connected = operational. Offline = unavailable." /></span>, value: health ? <StatusBadge ok={health.status === 'healthy'} /> : null },
     { label: 'Version', value: <span className="font-mono">{health?.version || '-'}</span> },
-    { label: <span>Disponibilité<InfoTooltip text="Temps écoulé depuis le dernier redémarrage de la gateway." /></span>, value: health ? formatUptime(health.uptime_seconds) : '-' },
+    { label: <span>Uptime<InfoTooltip text="Time elapsed since the last gateway restart." /></span>, value: health ? formatUptime(health.uptime_seconds) : '-' },
     { label: 'Port proxy', value: <span className="font-mono">8080</span> },
     { label: 'Port API', value: <span className="font-mono">8081</span> },
-    { label: 'Niveau de log', value: 'info' },
+    { label: 'Log level', value: 'info' },
   ];
 
   // Append modules_status rows if available
@@ -101,7 +101,7 @@ function GatewaySection({ health, loading }: { health: HealthResponse | null; lo
 
   return (
     <div className="bg-background border border-border rounded-sm p-5">
-      <SectionHeader icon={Server} title="Gateway" subtitle="Configuration principale de la gateway" tooltip="Composant central de la gateway Bawaba. Gère le proxy, l'API de contrôle et les modules de sécurité." />
+      <SectionHeader icon={Server} title="Gateway" subtitle="Main gateway configuration" tooltip="Core Bawaba gateway component. Manages the proxy, control API, and security modules." />
       <div className="space-y-0">
         {allRows.map((row, idx) => (
           <div key={idx} className="flex items-center justify-between py-2.5 border-b border-border last:border-0">
@@ -129,14 +129,14 @@ function AgentsSection({ agents, recentAgents, loading }: {
 }) {
   const headers: { label: string; tooltip?: string }[] = [
     { label: 'Agent' },
-    { label: 'Clé', tooltip: "Clé API masquée de l'agent. Seuls les 4 derniers caractères sont visibles." },
-    { label: 'Permissions', tooltip: 'Outils MCP autorisés (vert) et refusés (rouge barré) pour cet agent.' },
-    { label: 'Statut', tooltip: 'Actif = a émis des requêtes récemment. Inactif = aucune activité détectée.' },
+    { label: 'Key', tooltip: "Masked API key for the agent. Only the last 4 characters are visible." },
+    { label: 'Permissions', tooltip: 'Allowed (green) and denied (red strikethrough) MCP tools for this agent.' },
+    { label: 'Status', tooltip: 'Active = recently issued requests. Inactive = no activity detected.' },
   ];
 
   return (
     <div className="bg-background border border-border rounded-sm p-5">
-      <SectionHeader icon={Users} title="Agents enregistrés" subtitle={`${agents.length} agents configurés`} tooltip="Liste des agents IA configurés avec leurs clés d'API et permissions." />
+      <SectionHeader icon={Users} title="Registered agents" subtitle={`${agents.length} agents configured`} tooltip="List of configured AI agents with their API keys and permissions." />
 
       {/* Table header */}
       <div className="grid grid-cols-[1fr_100px_1fr_80px] gap-3 mb-2">
@@ -175,7 +175,7 @@ function AgentsSection({ agents, recentAgents, loading }: {
               recentAgents.has(agent.id) ? 'text-safe' : 'text-muted-foreground'
             }`}>
               <span className={`w-1.5 h-1.5 rounded-full ${recentAgents.has(agent.id) ? 'bg-safe' : 'bg-ink-4'}`} />
-              {recentAgents.has(agent.id) ? 'Actif' : 'Inactif'}
+              {recentAgents.has(agent.id) ? 'Active' : 'Inactive'}
             </span>
           </div>
         ))
@@ -190,7 +190,7 @@ function PoliciesSection({ policies, loading }: { policies: PolicyEntry[]; loadi
 
   return (
     <div className="bg-background border border-border rounded-sm p-5">
-      <SectionHeader icon={Scale} title="Politiques actives" subtitle={`${policies.length} règles de politique`} tooltip="Règles OPA/Rego configurées pour chaque agent. Définissent les autorisations et restrictions." />
+      <SectionHeader icon={Scale} title="Active policies" subtitle={`${policies.length} policy rules`} tooltip="OPA/Rego rules configured for each agent. Define permissions and restrictions." />
 
       {loading ? (
         Array.from({ length: 3 }).map((_, i) => (
@@ -201,7 +201,7 @@ function PoliciesSection({ policies, loading }: { policies: PolicyEntry[]; loadi
         ))
       ) : policies.length === 0 ? (
         <div className="py-6 text-center">
-          <span className="text-xs text-muted-foreground">Aucune politique configurée</span>
+          <span className="text-xs text-muted-foreground">No policies configured</span>
         </div>
       ) : (
         policies.map(policy => (
@@ -221,19 +221,19 @@ function PoliciesSection({ policies, loading }: { policies: PolicyEntry[]; loadi
             {expanded === policy.agent_id && (
               <div className="pb-3 pl-8 animate-fade-in">
                 <div className="mb-2">
-                  <span className="table-header">Autorisé</span>
+                  <span className="table-header">Allowed</span>
                   <div className="flex flex-wrap gap-1 mt-1">
                     {policy.allowed_tools.length > 0 ? policy.allowed_tools.map(t => (
                       <span key={t} className="text-[10px] font-mono px-1.5 py-0.5 bg-safe-bg text-safe rounded-sm">{t}</span>
-                    )) : <span className="text-[10px] text-muted-foreground">Aucun</span>}
+                    )) : <span className="text-[10px] text-muted-foreground">None</span>}
                   </div>
                 </div>
                 <div>
-                  <span className="table-header">Refusé</span>
+                  <span className="table-header">Denied</span>
                   <div className="flex flex-wrap gap-1 mt-1">
                     {policy.denied_tools.length > 0 ? policy.denied_tools.map(t => (
                       <span key={t} className="text-[10px] font-mono px-1.5 py-0.5 bg-danger-bg text-danger rounded-sm">{t}</span>
-                    )) : <span className="text-[10px] text-muted-foreground">Aucun</span>}
+                    )) : <span className="text-[10px] text-muted-foreground">None</span>}
                   </div>
                 </div>
               </div>
@@ -247,11 +247,11 @@ function PoliciesSection({ policies, loading }: { policies: PolicyEntry[]; loadi
 
 /* ── Jurisdictions Section ──────────────────────── */
 const JURISDICTION_META: Record<string, { name: string; plane: string }> = {
-  ma: { name: 'Maroc', plane: 'Casablanca \u2014 Inwi DC' },
+  ma: { name: 'Morocco', plane: 'Casablanca \u2014 Inwi DC' },
   sa: { name: 'KSA', plane: 'Riyadh \u2014 stc cloud' },
-  ae: { name: 'EAU', plane: 'Abu Dhabi \u2014 G42' },
+  ae: { name: 'UAE', plane: 'Abu Dhabi \u2014 G42' },
   fr: { name: 'France', plane: 'Paris \u2014 OVHcloud' },
-  eu: { name: 'UE', plane: 'Frankfurt \u2014 Hetzner' },
+  eu: { name: 'EU', plane: 'Frankfurt \u2014 Hetzner' },
 };
 
 function JurisdictionsSection({ jurisdictions, loading }: {
@@ -263,14 +263,14 @@ function JurisdictionsSection({ jurisdictions, loading }: {
 
   const headers: { label: string; tooltip?: string }[] = [
     { label: 'Code' },
-    { label: 'Nom' },
-    { label: 'Plan de données', tooltip: 'Infrastructure physique de traitement dans chaque juridiction.' },
-    { label: 'Événements', tooltip: "Nombre d'événements traités dans cette juridiction." },
+    { label: 'Name' },
+    { label: 'Data plane', tooltip: 'Physical processing infrastructure in each jurisdiction.' },
+    { label: 'Events', tooltip: "Number of events processed in this jurisdiction." },
   ];
 
   return (
     <div className="bg-background border border-border rounded-sm p-5">
-      <SectionHeader icon={Globe} title="Juridictions" subtitle={`${jurisdictions.length} zones actives`} tooltip="Zones de données souveraines actives avec leurs plans de données associés." />
+      <SectionHeader icon={Globe} title="Jurisdictions" subtitle={`${jurisdictions.length} active zones`} tooltip="Active sovereign data zones with their associated data planes." />
 
       {/* Table header */}
       <div className="grid grid-cols-[60px_1fr_1fr_80px] gap-3 mb-2">
@@ -397,7 +397,7 @@ export default function Settings() {
           Configuration
         </h2>
         <p className="text-xs text-muted-foreground mt-1">
-          Paramètres de la gateway et ressources enregistrées (lecture seule)
+          Gateway settings and registered resources (read-only)
         </p>
       </div>
 
@@ -428,15 +428,15 @@ export default function Settings() {
           className="flex items-center gap-2 px-4 py-2 text-xs font-body font-medium border border-border rounded-sm text-muted-foreground bg-secondary/50 cursor-not-allowed"
         >
           <Lock className="h-3.5 w-3.5" strokeWidth={1.5} />
-          Modifier la configuration
+          Edit configuration
           <span className="text-[9px] font-mono px-1.5 py-0.5 bg-secondary rounded-sm ml-1">P2</span>
         </button>
         <button
-          onClick={() => alert('Fonctionnalité P2 — Export YAML bientôt disponible.')}
+          onClick={() => alert('P2 feature — YAML export coming soon.')}
           className="flex items-center gap-2 px-4 py-2 text-xs font-body font-medium border border-border rounded-sm text-foreground hover:bg-secondary/50 transition-colors"
         >
           <Download className="h-3.5 w-3.5" strokeWidth={1.5} />
-          Exporter la config
+          Export config
         </button>
       </div>
     </div>

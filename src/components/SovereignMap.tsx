@@ -10,6 +10,7 @@ interface SovereignMapProps {
     event_count: number;
     avg_latency?: number;
   }>;
+  onNodeClick?: (code: string) => void;
 }
 
 // ---------------------------------------------------------------------------
@@ -17,12 +18,12 @@ interface SovereignMapProps {
 // viewBox covers longitude -15..75, latitude 65..12
 // ---------------------------------------------------------------------------
 
-const LNG_MIN = -15;
-const LNG_MAX = 75;
-const LAT_MAX = 65;
-const LAT_MIN = 12;
-const VB_W = 900;
-const VB_H = 530;
+const LNG_MIN = -20;
+const LNG_MAX = 80;
+const LAT_MAX = 68;
+const LAT_MIN = 10;
+const VB_W = 1000;
+const VB_H = 580;
 
 function toSvg(lat: number, lng: number): { x: number; y: number } {
   return {
@@ -49,7 +50,7 @@ const DATA_PLANES: DataPlane[] = [
   { id: 'casa', code: 'ma', label: 'Casablanca', lat: 33.57, lng: -7.59, color: 'hsl(var(--safe))', pulseDelay: '0s' },
   { id: 'riyadh', code: 'sa', label: 'Riyadh', lat: 24.71, lng: 46.67, color: '#1D4ED8', pulseDelay: '0.75s' },
   { id: 'abudhabi', code: 'ae', label: 'Abu Dhabi', lat: 24.45, lng: 54.65, color: 'hsl(var(--accent))', pulseDelay: '1.5s' },
-  { id: 'frankfurt', code: 'fr', label: 'Francfort', lat: 50.11, lng: 8.68, color: 'hsl(var(--muted-foreground))', pulseDelay: '2.25s' },
+  { id: 'frankfurt', code: 'fr', label: 'Frankfurt', lat: 50.11, lng: 8.68, color: 'hsl(var(--muted-foreground))', pulseDelay: '2.25s' },
 ];
 
 // ---------------------------------------------------------------------------
@@ -164,7 +165,7 @@ function f(p: { x: number; y: number }): string {
 // Component
 // ---------------------------------------------------------------------------
 
-export default function SovereignMap({ jurisdictions }: SovereignMapProps) {
+export default function SovereignMap({ jurisdictions, onNodeClick }: SovereignMapProps) {
   const [hoveredNode, setHoveredNode] = useState<string | null>(null);
 
   // Map jurisdiction data by code for quick lookup
@@ -240,7 +241,7 @@ export default function SovereignMap({ jurisdictions }: SovereignMapProps) {
       className="w-full"
       style={{ height: 350 }}
       role="img"
-      aria-label="Carte des data planes souverains"
+      aria-label="Sovereign data plane map"
     >
       {/* ── Inline CSS for animations ─────────────────── */}
       <defs>
@@ -294,6 +295,7 @@ export default function SovereignMap({ jurisdictions }: SovereignMapProps) {
       {nodes.map((node) => (
         <g
           key={node.id}
+          onClick={() => onNodeClick?.(node.code)}
           onMouseEnter={() => setHoveredNode(node.id)}
           onMouseLeave={() => setHoveredNode(null)}
           style={{ cursor: 'pointer' }}
@@ -328,9 +330,9 @@ export default function SovereignMap({ jurisdictions }: SovereignMapProps) {
             y={node.y + 16}
             textAnchor="middle"
             fill={node.color}
-            fontSize={10}
+            fontSize={14}
             fontFamily="'DM Sans', sans-serif"
-            fontWeight={500}
+            fontWeight={600}
           >
             {node.label}
           </text>
@@ -339,10 +341,10 @@ export default function SovereignMap({ jurisdictions }: SovereignMapProps) {
           {hoveredNode === node.id && (
             <g>
               <rect
-                x={node.x - 60}
-                y={node.y - 40}
-                width={120}
-                height={28}
+                x={node.x - 80}
+                y={node.y - 44}
+                width={160}
+                height={36}
                 rx={2}
                 fill="hsl(var(--card))"
                 stroke="hsl(var(--border))"
@@ -353,10 +355,10 @@ export default function SovereignMap({ jurisdictions }: SovereignMapProps) {
                 y={node.y - 22}
                 textAnchor="middle"
                 fill="hsl(var(--foreground))"
-                fontSize={9}
+                fontSize={12}
                 fontFamily="'JetBrains Mono', monospace"
               >
-                {node.eventCount.toLocaleString()} évén.
+                {node.eventCount.toLocaleString()} events
                 {node.avgLatency != null ? ` / ${node.avgLatency}ms` : ''}
               </text>
             </g>

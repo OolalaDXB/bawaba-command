@@ -48,9 +48,9 @@ jobs:
           PGPASSWORD: bawaba_secret
           PGDATABASE: bawaba
         run: |
-          if [ -f migrations/001_init.sql ]; then
-            psql -f migrations/001_init.sql
-          fi
+          for f in migrations/*.sql; do
+            [ -f "$f" ] && psql -f "$f"
+          done
 
       - name: Go Vet
         run: go vet ./internal/api/... ./internal/siem/...
