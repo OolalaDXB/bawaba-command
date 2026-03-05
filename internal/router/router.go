@@ -92,12 +92,13 @@ type RoutingProof struct {
 }
 
 // RoutingProofPayload contains the signed data for a routing decision.
+// Fields are ordered alphabetically by JSON key for canonical serialization.
 type RoutingProofPayload struct {
-	RequestID    string `json:"request_id"`
 	Jurisdiction string `json:"jurisdiction"`
 	NodeID       string `json:"node_id"`
-	Timestamp    string `json:"timestamp"`
 	Nonce        string `json:"nonce"`
+	RequestID    string `json:"request_id"`
+	Timestamp    string `json:"timestamp"`
 }
 
 func (e *Engine) generateProof(tenantID string, decision *RoutingDecision, requestID string) (string, error) {

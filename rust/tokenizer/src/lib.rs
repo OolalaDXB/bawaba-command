@@ -8,6 +8,9 @@ use uuid::Uuid;
 use crate::regex::{luhn_check, PATTERNS};
 use crate::vault::{global_vault, init_global_vault};
 
+/// Token prefix used in PII token format: `{{PII:<uuid>}}`
+pub const TOKEN_PREFIX: &str = "{{PII:";
+
 /// Result returned from tokenization.
 #[repr(C)]
 pub struct CTokenizationResult {
