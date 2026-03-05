@@ -70,7 +70,7 @@ type RoutingRule struct {
 }
 
 type AuditConfig struct {
-	MerkleWindowHours int           `yaml:"merkle_window_hours"`
+	MerkleWindowHours int           `yaml:"merkle_window_hours"` // TODO P2: Merkle window
 	SIEMExport        SIEMConfig    `yaml:"siem_export"`
 	RetentionDays     int           `yaml:"retention_days"`
 }

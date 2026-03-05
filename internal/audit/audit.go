@@ -37,7 +37,7 @@ type Event struct {
 	RoutingProof     string    `json:"routing_proof,omitempty"`
 	EventHash        string    `json:"event_hash"`
 	PrevHash         string    `json:"prev_hash"`
-	MerkleRoot       string    `json:"merkle_root"`
+	MerkleRoot       string    `json:"-"` // TODO P2: Merkle window
 	Signature        string    `json:"signature"`
 }
 
