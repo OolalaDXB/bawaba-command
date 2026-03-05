@@ -22,6 +22,7 @@ agents:
     pii_mode: tokenize
     rate_limit: 1000/hour
     max_results: 50
+    jurisdiction: ma
 
   claude-code:
     auth: api_key
@@ -35,6 +36,7 @@ agents:
     pii_mode: tokenize
     rate_limit: 1000/hour
     max_results: 50
+    jurisdiction: ma
 
   cursor-ide:
     auth: api_key
@@ -45,6 +47,7 @@ agents:
     pii_mode: mask
     rate_limit: 500/hour
     max_results: 100
+    jurisdiction: ae
 
 routing:
   default_backend: localhost

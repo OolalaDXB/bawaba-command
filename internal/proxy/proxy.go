@@ -249,7 +249,7 @@ func (g *Gateway) handleToolsList(w http.ResponseWriter, _ *http.Request, req *J
 	g.writeResult(w, req.ID, map[string]interface{}{"tools": tools})
 }
 
-func (g *Gateway) handleToolsCall(w http.ResponseWriter, _ *http.Request, req *JSONRPCRequest, identity *auth.AgentIdentity, body []byte, start time.Time) {
+func (g *Gateway) handleToolsCall(w http.ResponseWriter, r *http.Request, req *JSONRPCRequest, identity *auth.AgentIdentity, body []byte, start time.Time) {
 	// Parse tool call params
 	var params ToolCallParams
 	if err := json.Unmarshal(req.Params, &params); err != nil {
@@ -298,9 +298,10 @@ func (g *Gateway) handleToolsCall(w http.ResponseWriter, _ *http.Request, req *J
 		tokenizedArgs = string(params.Arguments)
 	}
 
-	// Step 5: Sovereign routing
+	// Step 5: Sovereign routing — resolve jurisdiction
+	jurisdiction := g.resolveJurisdiction(r, identity, agentCfg)
 	requestID := fmt.Sprintf("%v", req.ID)
-	routingDecision, err := g.routerEngine.Route(identity.TenantID, "default", requestID)
+	routingDecision, err := g.routerEngine.Route(identity.TenantID, jurisdiction, requestID)
 	if err != nil {
 		g.writeError(w, req.ID, -32004, "Routing error")
 		return
@@ -399,6 +400,24 @@ func (g *Gateway) handlePrompts(w http.ResponseWriter, _ *http.Request, req *JSO
 	g.writeResult(w, req.ID, map[string]interface{}{
 		"prompts": []interface{}{},
 	})
+}
+
+// resolveJurisdiction determines the jurisdiction for a request.
+// Priority: (1) token claim, (2) X-Bawaba-Jurisdiction header, (3) agent config.
+func (g *Gateway) resolveJurisdiction(r *http.Request, identity *auth.AgentIdentity, agentCfg config.AgentConfig) string {
+	// 1. Token claim (identity metadata)
+	if j, ok := identity.Metadata["jurisdiction"]; ok && j != "" {
+		return j
+	}
+	// 2. Request header
+	if j := r.Header.Get("X-Bawaba-Jurisdiction"); j != "" {
+		return j
+	}
+	// 3. Agent config from bawaba.yaml
+	if agentCfg.Jurisdiction != "" {
+		return agentCfg.Jurisdiction
+	}
+	return "default"
 }
 
 func (g *Gateway) executeToolCall(tool, args string) string {

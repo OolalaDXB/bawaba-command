@@ -55,6 +55,7 @@ type AgentConfig struct {
 	PIIMode      string   `yaml:"pii_mode"`
 	RateLimit    string   `yaml:"rate_limit"`
 	MaxResults   int      `yaml:"max_results"`
+	Jurisdiction string   `yaml:"jurisdiction"`
 }
 
 type RoutingConfig struct {
