@@ -90,7 +90,7 @@ func testServer(t *testing.T) (*Server, *httptest.Server) {
 	if err != nil {
 		t.Fatalf("audit trail: %v", err)
 	}
-	srv := NewServer(db, cfg, trail, defaultLogger())
+	srv := NewServer(db, cfg, "", trail, defaultLogger())
 	ts := httptest.NewServer(srv.Handler())
 	t.Cleanup(func() { ts.Close() })
 	return srv, ts

@@ -2,12 +2,15 @@ package api
 
 import (
 	"crypto/ed25519"
+	"crypto/sha256"
 	"database/sql"
 	"encoding/csv"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"log/slog"
 	"net/http"
+	"os"
 	"strconv"
 	"strings"
 	"time"
@@ -32,26 +35,28 @@ func Chain(h http.Handler, middlewares ...Middleware) http.Handler {
 
 // Server is the REST API server that exposes the gateway internals.
 type Server struct {
-	db        *sql.DB
-	cfg       *config.Config
-	trail     *audit.Trail
-	pubKey    ed25519.PublicKey
-	logger    *slog.Logger
-	startTime time.Time
-	sse       *SSEHub
-	quota     *QuotaManager
+	db         *sql.DB
+	cfg        *config.Config
+	configPath string
+	trail      *audit.Trail
+	pubKey     ed25519.PublicKey
+	logger     *slog.Logger
+	startTime  time.Time
+	sse        *SSEHub
+	quota      *QuotaManager
 }
 
 // NewServer creates a new API server.
-func NewServer(db *sql.DB, cfg *config.Config, trail *audit.Trail, logger *slog.Logger) *Server {
+func NewServer(db *sql.DB, cfg *config.Config, configPath string, trail *audit.Trail, logger *slog.Logger) *Server {
 	s := &Server{
-		db:        db,
-		cfg:       cfg,
-		trail:     trail,
-		pubKey:    trail.PublicKey(),
-		logger:    logger,
-		startTime: time.Now(),
-		sse:       NewSSEHub(db, logger),
+		db:         db,
+		cfg:        cfg,
+		configPath: configPath,
+		trail:      trail,
+		pubKey:     trail.PublicKey(),
+		logger:     logger,
+		startTime:  time.Now(),
+		sse:        NewSSEHub(db, logger),
 	}
 
 	// Initialize quota manager from config
@@ -77,6 +82,7 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("GET /api/v1/events/stream", s.handleEventsStream)
 	mux.HandleFunc("POST /api/v1/events/verify", s.handleEventsVerify)
 	mux.HandleFunc("POST /api/v1/events/export", s.handleEventsExport)
+	mux.HandleFunc("GET /api/v1/audit/export", s.handleAuditExport)
 	mux.HandleFunc("GET /api/v1/events/{id}", s.handleEventByID)
 	mux.HandleFunc("GET /api/v1/events", s.handleEvents)
 	mux.HandleFunc("GET /api/v1/stats/pii", s.handleStatsPII)
@@ -762,4 +768,118 @@ func (s *Server) handleJurisdictions(w http.ResponseWriter, r *http.Request) {
 			"timestamp": time.Now().UTC().Format(time.RFC3339),
 		},
 	})
+}
+
+// handleAuditExport generates an evidence bundle for compliance audits.
+// GET /api/v1/audit/export?window=90
+func (s *Server) handleAuditExport(w http.ResponseWriter, r *http.Request) {
+	windowDays, _ := strconv.Atoi(r.URL.Query().Get("window"))
+	if windowDays <= 0 {
+		windowDays = 90
+	}
+
+	since := time.Now().AddDate(0, 0, -windowDays)
+
+	// Fetch events within the window
+	rows, err := s.db.Query(`SELECT event_id, timestamp, event_type, agent_id, tenant_id, jurisdiction,
+		mcp_server, tool, params_hash, resource_path,
+		policy_result, policy_version, matched_rule,
+		pii_mode, entities_detected, tokens_generated,
+		response_status, result_count, latency_ms, overhead_ms,
+		event_hash, prev_hash, merkle_root, signature
+		FROM audit_events WHERE timestamp >= $1
+		ORDER BY timestamp ASC`, since)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "database error")
+		return
+	}
+	defer rows.Close()
+
+	var events []audit.Event
+	for rows.Next() {
+		var evt audit.Event
+		if err := rows.Scan(
+			&evt.EventID, &evt.Timestamp, &evt.EventType, &evt.AgentID, &evt.TenantID, &evt.Jurisdiction,
+			&evt.MCPServer, &evt.Tool, &evt.ParamsHash, &evt.ResourcePath,
+			&evt.PolicyResult, &evt.PolicyVersion, &evt.MatchedRule,
+			&evt.PIIMode, &evt.EntitiesDetected, &evt.TokensGenerated,
+			&evt.ResponseStatus, &evt.ResultCount, &evt.LatencyMS, &evt.OverheadMS,
+			&evt.EventHash, &evt.PrevHash, &evt.MerkleRoot, &evt.Signature,
+		); err != nil {
+			writeError(w, http.StatusInternalServerError, "scan error")
+			return
+		}
+		events = append(events, evt)
+	}
+
+	// Verify chain integrity
+	chainValid := true
+	chainError := ""
+	if err := audit.VerifyChain(events, s.pubKey); err != nil {
+		chainValid = false
+		chainError = err.Error()
+	}
+
+	// Extract routing proofs from events
+	type proofEntry struct {
+		EventID string          `json:"event_id"`
+		Proof   json.RawMessage `json:"proof"`
+	}
+	var routingProofs []proofEntry
+	for _, evt := range events {
+		if evt.RoutingProof != "" {
+			routingProofs = append(routingProofs, proofEntry{
+				EventID: evt.EventID,
+				Proof:   json.RawMessage(evt.RoutingProof),
+			})
+		}
+	}
+
+	// Compact event summaries for the bundle
+	type eventSummary struct {
+		EventID   string `json:"event_id"`
+		EventHash string `json:"event_hash"`
+		Signature string `json:"signature"`
+	}
+	summaries := make([]eventSummary, len(events))
+	for i, evt := range events {
+		summaries[i] = eventSummary{
+			EventID:   evt.EventID,
+			EventHash: evt.EventHash,
+			Signature: evt.Signature,
+		}
+	}
+
+	// Hash the policy config file
+	policyHash := hashConfigFile(s.configPath)
+
+	bundle := map[string]interface{}{
+		"generated_at":         time.Now().UTC().Format(time.RFC3339),
+		"window_days":          windowDays,
+		"audit_mode":           "hash_chain_ed25519",
+		"merkle_status":        "planned_p2",
+		"total_events":         len(events),
+		"events":               summaries,
+		"routing_proofs":       routingProofs,
+		"chain_verified":       chainValid,
+		"chain_error":          chainError,
+		"policy_snapshot_hash": policyHash,
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set("Content-Disposition", "attachment; filename=evidence.json")
+	json.NewEncoder(w).Encode(bundle)
+}
+
+// hashConfigFile returns the SHA-256 hex digest of the config file, or "unavailable".
+func hashConfigFile(path string) string {
+	if path == "" {
+		return "unavailable"
+	}
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return "unavailable"
+	}
+	h := sha256.Sum256(data)
+	return hex.EncodeToString(h[:])
 }

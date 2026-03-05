@@ -130,5 +130,5 @@ func handleHealth() {
 		gatewayURL = "http://localhost:8080"
 	}
 	fmt.Printf("Checking health at %s/healthz ...\n", gatewayURL)
-	fmt.Println("(Use curl or httpie to check: curl %s/healthz)")
+	fmt.Printf("(Use curl or httpie to check: curl %s/healthz)\n", gatewayURL)
 }

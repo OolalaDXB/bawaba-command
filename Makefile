@@ -1,5 +1,5 @@
 .PHONY: all build build-rust build-go build-docker test test-go-nocgo \
-       up down logs demo verify bench keygen backup clean config-validate
+       up down logs demo verify proof bench keygen backup clean config-validate
 
 RUST_DIR    := rust/tokenizer
 GO_GATEWAY  := cmd/gateway
@@ -75,6 +75,14 @@ verify:
 	@echo "==> Verifying audit hash chain..."
 	@curl -sS -X POST $(API_URL)/api/v1/events/verify | python3 -m json.tool 2>/dev/null || \
 		curl -sS -X POST $(API_URL)/api/v1/events/verify
+
+## Generate evidence bundle (compliance export)
+proof:
+	@echo "==> Generating evidence bundle..."
+	@curl -sS "$(API_URL)/api/v1/audit/export?window=90" -o evidence.json && \
+		echo "Evidence bundle saved: evidence.json" && \
+		python3 -c "import json; d=json.load(open('evidence.json')); print(f'  events: {d[\"total_events\"]}  chain_verified: {d[\"chain_verified\"]}  proofs: {len(d.get(\"routing_proofs\",[]))}')" 2>/dev/null || \
+		echo "  (install python3 for summary)"
 
 ## Benchmark: 100 requests, show P50/P95/P99 latency
 bench:
