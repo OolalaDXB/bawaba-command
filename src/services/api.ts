@@ -324,6 +324,24 @@ export async function verifyChain(): Promise<ChainVerification> {
 }
 
 /**
+ * POST /api/v1/events/review
+ *
+ * Records a human-in-the-loop review decision as a real, chained, signed audit
+ * event that references the original event id. Returns the persisted event.
+ */
+export async function postEventReview(
+  eventId: string,
+  decision: 'acknowledge' | 'escalate',
+  reviewer: string,
+): Promise<ApiEvent> {
+  return request<ApiEvent>('/api/v1/events/review', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ event_id: eventId, decision, reviewer }),
+  });
+}
+
+/**
  * POST /api/v1/events/export?format=json|csv
  *
  * For CSV the raw text body is returned.

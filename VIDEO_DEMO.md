@@ -18,6 +18,14 @@ simulated demonstration data.
   invents an entity category or a token UUID.
 - `routing_proof` is persisted in PostgreSQL and returned by REST/SSE/export.
 - The UI carries a permanent demonstration-data disclosure.
+- The hash chain and **Verify integrity** cover only persisted server events;
+  local-only events (agent registration, offline review, simulated requests)
+  are shown separately with a "Local demo"/"Simulated" badge and are excluded
+  from server verification.
+- Review decisions are persisted through the backend (`POST /api/v1/events/review`)
+  as real chained, signed events when the API is reachable.
+- An unreachable API produces an explicit status banner rather than a silent
+  fallback; server verification is disabled until the API is reachable.
 
 ## Local setup
 
@@ -36,6 +44,18 @@ pnpm dev
 ```
 
 Open `http://localhost:5173`.
+
+## Database schema
+
+Migration `001_audit_schema.sql` is never modified. The `routing_proof` column
+is added by the additive, idempotent migration `002_demo_evidence.sql`
+(`ALTER TABLE audit_events ADD COLUMN IF NOT EXISTS routing_proof TEXT DEFAULT ''`),
+mounted after `001` and before the demo seed `999`.
+
+`docker compose down -v` is **destructive**: it deletes the Postgres volume. It
+is required **only** when you want to rebuild the local demonstration database
+from the Docker init scripts (`001` → `002` → `999`). An already-provisioned
+database picks up the column by running `002` once; it does not need `down -v`.
 
 ## Deterministic scenes
 
@@ -60,10 +80,10 @@ corresponding page is visible.
 ### Scene 3 — Signed jurisdiction routing
 
 1. Open **Sovereign Routing**.
-2. Keep the routing-proofs table visible.
+2. Keep the signed routing-proofs table visible.
 3. Run `make video-routing`.
-4. Wait for the new `cursor-ide / git-read -> Abu Dhabi` row.
-5. Click that row to open the persisted canonical payload and Ed25519 signature.
+4. Wait for the new `claude-code / git-read → Casablanca` row (Morocco data plane).
+5. Click that row to open the persisted canonical payload and the real Ed25519 signature.
 
 ### Scene 4 — Audit-chain verification
 

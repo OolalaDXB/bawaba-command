@@ -262,8 +262,10 @@ function LiveFeed() {
                 <span className="text-foreground truncate font-body font-medium">{evt.agent}</span>
                 <span className="text-ink-2 truncate flex items-center gap-1">
                   {evt.tool}
-                  {(evt.details as { simulated?: boolean })?.simulated && (
-                    <span className="text-[8px] font-mono uppercase tracking-wide px-1 py-0.5 rounded-sm bg-muted text-muted-foreground border border-border shrink-0">sim</span>
+                  {evt.id.startsWith('loc-') && (
+                    <span className="text-[8px] font-mono uppercase tracking-wide px-1 py-0.5 rounded-sm bg-muted text-muted-foreground border border-border shrink-0">
+                      {(evt.details as { simulated?: boolean })?.simulated ? 'sim' : 'local'}
+                    </span>
                   )}
                 </span>
                 <span className={evt.decision === 'allow' ? 'text-safe' : evt.decision === 'deny' ? 'text-danger' : 'text-warn'}>

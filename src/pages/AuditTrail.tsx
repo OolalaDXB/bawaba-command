@@ -8,7 +8,7 @@ import {
   TooltipProvider,
 } from '@/components/ui/tooltip';
 import {
-  isApiAvailable, fetchEvents, streamEvents, verifyChain, exportEvents,
+  isApiAvailable, fetchEvents, streamEvents, verifyChain, exportEvents, postEventReview,
   type ApiEvent, type ChainVerification,
 } from '@/services/api';
 import InfoTooltip from '@/components/InfoTooltip';
@@ -27,6 +27,7 @@ function timeAgo(date: Date): string {
 
 /** Map an API event to the MCPEvent shape used by the UI. */
 function mapApiEvent(apiEvt: ApiEvent): MCPEvent {
+  const isReview = apiEvt.event_type === 'review_decision';
   return {
     id: apiEvt.event_id,
     timestamp: new Date(apiEvt.timestamp),
@@ -43,6 +44,10 @@ function mapApiEvent(apiEvt: ApiEvent): MCPEvent {
     jurisdiction: apiEvt.jurisdiction,
     hash: apiEvt.event_hash || '',
     prevHash: apiEvt.prev_hash || '',
+    eventType: apiEvt.event_type,
+    refEventId: isReview ? apiEvt.resource_path : undefined,
+    reviewLabel: isReview ? (apiEvt.matched_rule as 'acknowledge' | 'escalate') : undefined,
+    reviewer: isReview ? apiEvt.agent_id : undefined,
     details: {
       request_id: apiEvt.event_id,
       agent_id: apiEvt.agent_id,
@@ -333,6 +338,7 @@ export default function AuditTrail() {
   const [hasMore, setHasMore] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
   const [apiAvailable, setApiAvailable] = useState(false);
+  const [apiStatus, setApiStatus] = useState<'checking' | 'online' | 'offline' | 'error'>('checking');
   const [verification, setVerification] = useState<ChainVerification | null>(null);
   const [verifying, setVerifying] = useState(false);
   const [exporting, setExporting] = useState(false);
@@ -355,10 +361,22 @@ export default function AuditTrail() {
   const PAGE_SIZE = 50;
   const CHAIN_SIZE = 8;
 
-  // Local, UI-originated events (agent registrations, review decisions) are
-  // merged on top of the server/mock feed so they appear in the same chain.
-  const { injected, reviewStatus } = useLocalAudit();
-  const allEvents = useMemo(() => [...injected, ...events], [injected, events]);
+  // Boundary: the server-backed chain is `events` (persisted, or offline mock).
+  // Local UI-originated events live in the store and are shown separately with a
+  // badge; they are never part of the verified server chain.
+  const { injected: localEvents, reviewStatus } = useLocalAudit();
+
+  // Review status per origin id, derived from real persisted review_decision
+  // events plus any local (offline) review decisions.
+  const reviewStatusMap = useMemo(() => {
+    const m: Record<string, 'reviewed' | 'escalated'> = {};
+    for (const e of events) {
+      if (e.eventType === 'review_decision' && e.refEventId) {
+        m[e.refEventId] = e.reviewLabel === 'escalate' ? 'escalated' : 'reviewed';
+      }
+    }
+    return { ...m, ...reviewStatus };
+  }, [events, reviewStatus]);
 
   // An event needs review if it was denied, rate-limited or carried PII, and
   // has not been reviewed yet. Review/registration events are never reviewable.
@@ -366,15 +384,25 @@ export default function AuditTrail() {
     (e: MCPEvent) =>
       e.eventType !== 'review_decision' &&
       e.eventType !== 'agent_registered' &&
-      !reviewStatus[e.id] &&
+      !reviewStatusMap[e.id] &&
       (e.decision === 'deny' || e.decision === 'rate-limited' || e.piiTokens > 0),
-    [reviewStatus],
+    [reviewStatusMap],
   );
 
-  // Append-only review: create a NEW chained event, never touch the original.
-  // Exactly one review decision per event.
-  const submitReview = useCallback((origin: MCPEvent, label: 'acknowledge' | 'escalate') => {
-    if (reviewStatus[origin.id]) return;
+  // Review: when the API is reachable, persist a real chained review event via
+  // the backend (it streams back into the server chain). Otherwise record a
+  // local-only, badged review that stays outside the verified chain.
+  const submitReview = useCallback(async (origin: MCPEvent, label: 'acknowledge' | 'escalate') => {
+    if (reviewStatusMap[origin.id]) return;
+    if (apiAvailable) {
+      try {
+        const created = await postEventReview(origin.id, label, 'mickael.thomas');
+        setEvents(prev => [mapApiEvent(created), ...prev.filter(e => e.id !== created.event_id)]);
+        return;
+      } catch {
+        // fall through to a local, badged review on failure
+      }
+    }
     pushInjectedEvent({
       eventType: 'review_decision',
       agent: 'mickael.thomas',
@@ -384,14 +412,10 @@ export default function AuditTrail() {
       reviewer: 'mickael.thomas',
       refEventId: origin.id,
       reviewLabel: label,
-      details: {
-        origin_event: origin.id,
-        origin_decision: origin.decision,
-        origin_tool: origin.tool,
-      },
+      details: { local: true, origin_event: origin.id, origin_decision: origin.decision, origin_tool: origin.tool },
     });
     setReviewStatus(origin.id, label === 'acknowledge' ? 'reviewed' : 'escalated');
-  }, [reviewStatus]);
+  }, [apiAvailable, reviewStatusMap]);
 
   // Live timestamp updates
   useEffect(() => {
@@ -401,10 +425,10 @@ export default function AuditTrail() {
 
   // Initialize block/line statuses when events change
   useEffect(() => {
-    const count = Math.min(allEvents.length, CHAIN_SIZE);
+    const count = Math.min(events.length, CHAIN_SIZE);
     setBlockStatuses(Array(count).fill('idle'));
     setLineStatuses(Array(Math.max(0, count - 1)).fill('idle'));
-  }, [allEvents]);
+  }, [events]);
 
   // Clean up timers on unmount
   useEffect(() => {
@@ -430,15 +454,20 @@ export default function AuditTrail() {
           if (cancelled) return;
           setEvents((resp.events || []).map(mapApiEvent));
           setHasMore((resp.events || []).length >= PAGE_SIZE);
+          setApiStatus('online');
         } catch {
           if (!cancelled) {
             setEvents([]);
             setHasMore(false);
+            setApiStatus('error');
           }
         }
       } else {
+        // API unreachable: show clearly-labelled local demonstration data. This
+        // is never presented as a verified server chain.
         setEvents(generateInitialEvents(50));
         setHasMore(false);
+        setApiStatus('offline');
       }
 
       if (!cancelled) setLoading(false);
@@ -484,28 +513,25 @@ export default function AuditTrail() {
     animTimers.current = [];
 
     setVerifyMessage(null);
-    setVerifying(true);
 
-    const count = Math.min(allEvents.length, CHAIN_SIZE);
-    // Reset all to idle
+    // Verify integrity calls exclusively the real server endpoint. With no
+    // reachable API there is nothing authoritative to verify.
+    if (!apiAvailable) {
+      setVerification(null);
+      setVerifyMessage('Server verification unavailable — the API is not reachable.');
+      return;
+    }
+
+    setVerifying(true);
+    const count = Math.min(events.length, CHAIN_SIZE);
     setBlockStatuses(Array(count).fill('idle'));
     setLineStatuses(Array(Math.max(0, count - 1)).fill('idle'));
 
-    // Try API verification
     let result: ChainVerification;
-    if (apiAvailable) {
-      try {
-        result = await verifyChain();
-      } catch {
-        result = { valid: false, events: 0, verified_at: new Date().toISOString(), error: 'Verification request failed' };
-      }
-    } else {
-      // Mock: simulate a valid chain for demo
-      result = {
-        valid: true,
-        events: allEvents.length,
-        verified_at: new Date().toISOString(),
-      };
+    try {
+      result = await verifyChain();
+    } catch {
+      result = { valid: false, events: 0, verified_at: new Date().toISOString(), error: 'Verification request failed' };
     }
 
     setVerification(result);
@@ -536,7 +562,7 @@ export default function AuditTrail() {
         // After the last animated block, show the result message
         if (i === stopAt) {
           if (corruptAt === -1) {
-            setVerifyMessage(`Chain verified — ${result.events} events — 0 tampering`);
+            setVerifyMessage(`Server chain verified — ${result.events} persisted events, 0 tampering`);
           } else {
             setVerifyMessage(`Server chain check failed at event #${corruptAt + 1}`);
           }
@@ -549,9 +575,9 @@ export default function AuditTrail() {
     // Safety: ensure verifying is reset even if no events
     if (count === 0) {
       setVerifying(false);
-      setVerifyMessage('No events to verify');
+      setVerifyMessage('No persisted events to verify.');
     }
-  }, [apiAvailable, allEvents]);
+  }, [apiAvailable, events]);
 
   // ── Tamper simulation · local (separate from Verify integrity) ──────────────
   // Arm selection, tamper a chosen chain block, run a purely local check, restore.
@@ -559,14 +585,14 @@ export default function AuditTrail() {
     if (!tamperArmed) return;
     setTamperArmed(false);
     setTamperedIndex(i);
-    const count = Math.min(allEvents.length, CHAIN_SIZE);
+    const count = Math.min(events.length, CHAIN_SIZE);
     // Local verdict: everything up to the tampered block is fine, it breaks there.
     const statuses: BlockStatus[] = Array.from({ length: count }, (_, idx) =>
       idx < i ? 'verified' : idx === i ? 'corrupt' : 'idle',
     );
     setTamperStatuses(statuses);
     setTamperMessage(`Chain broken at #${i + 1}: event hash mismatch`);
-  }, [tamperArmed, allEvents]);
+  }, [tamperArmed, events]);
 
   const handleRestore = useCallback(() => {
     setTamperedIndex(null);
@@ -581,9 +607,11 @@ export default function AuditTrail() {
       bundle: 'bawaba-evidence',
       version: '1',
       generated_at: new Date().toISOString(),
-      event_count: allEvents.length,
+      event_count: events.length,
+      local_events_excluded: localEvents.length,
       verification: verification ?? { valid: null, note: 'Run Verify integrity for a fresh check.' },
-      events: allEvents.map(e => ({
+      // Only persisted server-chain events are included; local/simulated rows are excluded by design.
+      events: events.map(e => ({
         event_id: e.id,
         timestamp: e.timestamp.toISOString(),
         event_type: e.eventType ?? 'tool_call',
@@ -607,7 +635,7 @@ export default function AuditTrail() {
     a.download = `evidence-${new Date().toISOString().slice(0, 10)}.json`;
     a.click();
     URL.revokeObjectURL(url);
-  }, [allEvents, verification]);
+  }, [events, localEvents, verification]);
 
   // Export
   const handleExport = useCallback(async () => {
@@ -630,24 +658,39 @@ export default function AuditTrail() {
 
   const filtered =
     filterDecision === 'all'
-      ? allEvents
+      ? events
       : filterDecision === 'needs-review'
-        ? allEvents.filter(needsReview)
-        : allEvents.filter(e => e.decision === filterDecision);
+        ? events.filter(needsReview)
+        : events.filter(e => e.decision === filterDecision);
 
-  const needsReviewCount = allEvents.filter(needsReview).length;
+  const needsReviewCount = events.filter(needsReview).length;
 
   return (
     <div className="space-y-6">
       {/* Explainer Panel */}
       <ExplainerPanel />
 
+      {/* API status — explicit, never a silent fallback */}
+      {apiStatus === 'offline' && (
+        <div className="text-[11px] font-body rounded-sm p-2 border bg-warn-bg border-warn/20 text-warn">
+          API unreachable — showing local demonstration data. Server-side integrity verification is unavailable.
+        </div>
+      )}
+      {apiStatus === 'error' && (
+        <div className="text-[11px] font-body rounded-sm p-2 border bg-danger-bg border-danger/20 text-danger">
+          Failed to load events from the API. No data is shown rather than fabricated events. Retry once the backend is reachable.
+        </div>
+      )}
+
       {/* Export controls */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
           <div>
             <div className="text-sm font-body font-medium text-foreground">Audit Explorer</div>
-            <div className="text-xs text-muted-foreground">{allEvents.length} events · Tamper-evident chain</div>
+            <div className="text-xs text-muted-foreground">
+              {events.length} persisted events · Tamper-evident chain
+              {localEvents.length > 0 && <span className="text-ink-4"> · {localEvents.length} local/simulated (separate)</span>}
+            </div>
           </div>
         </div>
         <div className="flex gap-2">
@@ -678,8 +721,14 @@ export default function AuditTrail() {
           </div>
           <button
             onClick={handleVerify}
-            disabled={verifying || tamperedIndex !== null}
-            title={tamperedIndex !== null ? 'Restore the tamper simulation before running the real check' : undefined}
+            disabled={verifying || tamperedIndex !== null || !apiAvailable}
+            title={
+              !apiAvailable
+                ? 'Server verification requires a reachable API'
+                : tamperedIndex !== null
+                  ? 'Restore the tamper simulation before running the real check'
+                  : undefined
+            }
             className="text-xs font-body px-4 py-2 bg-safe-bg border border-safe/10 text-safe rounded-sm hover:opacity-90 transition-opacity disabled:opacity-50 flex items-center gap-2"
           >
             {/* Checkmark / shield icon */}
@@ -689,10 +738,13 @@ export default function AuditTrail() {
             {verifying ? 'Verifying...' : 'Verify integrity'}
           </button>
         </div>
-        <div className="text-[10px] text-muted-foreground font-body mb-3">Verify integrity calls the live server endpoint <span className="font-mono">/api/v1/events/verify</span>.</div>
+        <div className="text-[10px] text-muted-foreground font-body mb-3">
+          Verify integrity calls the live server endpoint <span className="font-mono">/api/v1/events/verify</span> and covers only persisted events.
+          {!apiAvailable && ' The API is not reachable, so it is disabled.'}
+        </div>
 
         <HashChainViz
-          events={allEvents}
+          events={events}
           blockStatuses={tamperedIndex !== null ? tamperStatuses : blockStatuses}
           lineStatuses={lineStatuses}
           tamperedIndex={tamperedIndex}
@@ -712,8 +764,13 @@ export default function AuditTrail() {
               {verifyMessage}
             </span>
             <span className="text-[10px] text-muted-foreground font-mono ml-auto">
-              {verification ? `${verification.events} events` : ''}
+              {verification ? `scope: ${verification.events} persisted events` : ''}
             </span>
+          </div>
+        )}
+        {verifyMessage && tamperedIndex === null && verification?.valid && localEvents.length > 0 && (
+          <div className="mt-2 text-[10px] text-muted-foreground font-body">
+            {localEvents.length} local/simulated row{localEvents.length === 1 ? '' : 's'} are shown separately and are outside the verified server chain.
           </div>
         )}
 
@@ -794,7 +851,7 @@ export default function AuditTrail() {
               <div className="max-h-[400px] overflow-y-auto">
                 {filtered.map(evt => {
                   const isReview = evt.eventType === 'review_decision';
-                  const badge = reviewStatus[evt.id];
+                  const badge = reviewStatusMap[evt.id];
                   return (
                     <div key={evt.id}>
                       <div
@@ -842,9 +899,36 @@ export default function AuditTrail() {
         </div>
 
         <div className="col-span-4">
-          <AuditStats events={allEvents} />
+          <AuditStats events={events} />
         </div>
       </div>
+
+      {/* Local & simulated events — explicitly outside the verified server chain */}
+      {localEvents.length > 0 && (
+        <div className="card-surface shadow-card overflow-hidden">
+          <div className="px-5 py-3 border-b border-border bg-secondary/10">
+            <div className="text-sm font-body font-medium text-foreground">Local &amp; simulated events</div>
+            <div className="text-[10px] text-muted-foreground font-body">
+              Generated in this browser session (agent registration, offline review, simulated requests). Not part of the persisted chain and excluded from server verification.
+            </div>
+          </div>
+          <div className="max-h-[220px] overflow-y-auto">
+            {localEvents.map(evt => {
+              const simulated = (evt.details as { simulated?: boolean })?.simulated === true;
+              return (
+                <div key={evt.id} className="grid grid-cols-[80px_120px_1fr_90px] gap-2 px-5 py-2 text-xs font-mono border-b border-border last:border-0 border-l-2 border-l-ink-4/40">
+                  <span className="text-muted-foreground">{timeAgo(evt.timestamp)}</span>
+                  <span className="text-foreground truncate">{evt.agent}</span>
+                  <span className="text-ink-2 truncate">{evt.eventType === 'review_decision' ? `${evt.reviewLabel} → ${evt.refEventId?.slice(0, 8)}` : evt.tool}</span>
+                  <span className={`text-[9px] font-mono uppercase tracking-wide px-1.5 py-0.5 rounded-sm justify-self-end self-center border ${simulated ? 'bg-muted text-muted-foreground border-border' : 'bg-warn-bg text-warn border-warn/20'}`}>
+                    {simulated ? 'Simulated' : 'Local demo'}
+                  </span>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
 
       {/* Detail Drawer */}
       {selectedEvent && (
@@ -862,14 +946,14 @@ export default function AuditTrail() {
             </div>
             <div className="p-5 space-y-5">
               {/* Review status badge */}
-              {reviewStatus[selectedEvent.id] && (
+              {reviewStatusMap[selectedEvent.id] && (
                 <div className={`inline-flex items-center gap-2 text-[11px] font-mono px-2.5 py-1 rounded-sm border ${
-                  reviewStatus[selectedEvent.id] === 'escalated'
+                  reviewStatusMap[selectedEvent.id] === 'escalated'
                     ? 'bg-warn-bg text-warn border-warn/20'
                     : 'bg-safe-bg text-safe border-safe/20'
                 }`}>
                   <span className="w-1.5 h-1.5 rounded-full bg-current" />
-                  {reviewStatus[selectedEvent.id] === 'escalated' ? 'Escalated' : 'Reviewed'}
+                  {reviewStatusMap[selectedEvent.id] === 'escalated' ? 'Escalated' : 'Reviewed'}
                 </div>
               )}
 
@@ -890,23 +974,25 @@ export default function AuditTrail() {
                     <div className="flex gap-2">
                       <button
                         onClick={() => submitReview(selectedEvent, 'acknowledge')}
-                        disabled={!!reviewStatus[selectedEvent.id]}
+                        disabled={!!reviewStatusMap[selectedEvent.id]}
                         className="flex-1 text-xs font-body font-medium px-3 py-2 bg-safe-bg border border-safe/20 text-safe rounded-sm hover:opacity-90 transition-opacity disabled:opacity-40 disabled:cursor-not-allowed"
                       >
                         Acknowledge
                       </button>
                       <button
                         onClick={() => submitReview(selectedEvent, 'escalate')}
-                        disabled={!!reviewStatus[selectedEvent.id]}
+                        disabled={!!reviewStatusMap[selectedEvent.id]}
                         className="flex-1 text-xs font-body font-medium px-3 py-2 bg-warn-bg border border-warn/20 text-warn rounded-sm hover:opacity-90 transition-opacity disabled:opacity-40 disabled:cursor-not-allowed"
                       >
                         Escalate
                       </button>
                     </div>
                     <div className="text-[10px] text-muted-foreground bg-muted/40 rounded p-2 mt-1.5">
-                      {reviewStatus[selectedEvent.id]
-                        ? 'This event has already been reviewed. Exactly one review decision is allowed per event; the decision is recorded as a chained, immutable event.'
-                        : <>Each decision appends a new <span className="font-mono">review_decision</span> event to the chain, referencing this event's id. One decision per event; the original event is immutable.</>}
+                      {reviewStatusMap[selectedEvent.id]
+                        ? 'This event has already been reviewed. Exactly one review decision is allowed per event; the decision is a separate immutable event.'
+                        : apiAvailable
+                          ? <>The decision is persisted by the backend as a new signed <span className="font-mono">review_decision</span> event chained into the server audit trail, referencing this event's id. One decision per event; the original event is immutable.</>
+                          : <>API unreachable — the decision is recorded as a <span className="font-mono">Local demo</span> event shown separately, outside the verified server chain. One decision per event; the original event is immutable.</>}
                     </div>
                   </div>
                 )}

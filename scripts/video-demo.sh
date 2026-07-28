@@ -141,9 +141,11 @@ pii() {
 }
 
 routing() {
-  printf '%bScenario 3 — sovereign routing proof%b\n' "$bold" "$reset"
+  printf '%bScenario 3 — sovereign routing proof (Morocco -> Casablanca)%b\n' "$bold" "$reset"
   local response
-  response=$(send_rpc "$KEY_CURSOR" '{"jsonrpc":"2.0","id":103,"method":"tools/call","params":{"name":"git-read","arguments":{"repository":"bawaba-demo","ref":"main","path":"README.md"}}}')
+  # claude-code is a Moroccan-jurisdiction agent allowed to call git-read, so the
+  # request routes to the Casablanca data plane and produces a real signed proof.
+  response=$(send_rpc "$KEY_CLAUDE" '{"jsonrpc":"2.0","id":103,"method":"tools/call","params":{"name":"git-read","arguments":{"repository":"bawaba-demo","ref":"main","path":"README.md"}}}')
   printf '%s\n' "$response" | pretty_json
   sleep 0.7
   latest_event

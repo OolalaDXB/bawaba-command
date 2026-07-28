@@ -107,6 +107,14 @@ func (t *Trail) SetForwarder(f SIEMForwarder) {
 
 // Log records an audit event.
 func (t *Trail) Log(evt Event) error {
+	_, err := t.Append(evt)
+	return err
+}
+
+// Append records an audit event and returns the persisted event, including its
+// generated id, chained prev/event hashes and Ed25519 signature. It is the
+// canonical way to add a real, verifiable event to the chain.
+func (t *Trail) Append(evt Event) (Event, error) {
 	t.mu.Lock()
 	defer t.mu.Unlock()
 
@@ -133,15 +141,15 @@ func (t *Trail) Log(evt Event) error {
 	if t.noDB {
 		t.events = append(t.events, evt)
 		t.forwardToSIEM(evt)
-		return nil
+		return evt, nil
 	}
 
 	if err := t.insertEvent(evt); err != nil {
-		return err
+		return evt, err
 	}
 
 	t.forwardToSIEM(evt)
-	return nil
+	return evt, nil
 }
 
 // forwardToSIEM sends the event to the SIEM forwarder if one is configured.
