@@ -190,7 +190,7 @@ function PoliciesSection({ policies, loading }: { policies: PolicyEntry[]; loadi
 
   return (
     <div className="bg-background border border-border rounded-sm p-5">
-      <SectionHeader icon={Scale} title="Active policies" subtitle={`${policies.length} policy rules`} tooltip="OPA/Rego rules configured for each agent. Define permissions and restrictions." />
+      <SectionHeader icon={Scale} title="Active policies" subtitle={`${policies.length} policy rules`} tooltip="Policy rules configured for each agent. Define permissions and restrictions." />
 
       {loading ? (
         Array.from({ length: 3 }).map((_, i) => (

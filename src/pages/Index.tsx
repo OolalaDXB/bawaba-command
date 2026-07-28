@@ -762,7 +762,7 @@ export default function Dashboard() {
                 subtitle="Across 4 jurisdictions"
               />
               <MetricCard
-                label={<>Policy denials <InfoTooltip text="Requests denied by the OPA policy engine. A denial protects against unauthorized usage." /></>}
+                label={<>Policy denials <InfoTooltip text="Requests denied by the policy engine. A denial protects against unauthorized usage." /></>}
                 value={denials}
                 sparkData={sparkDenials}
                 sparkColor={DECISION_COLORS.deny}

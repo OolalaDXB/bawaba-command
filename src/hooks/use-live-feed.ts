@@ -27,7 +27,11 @@ function mapApiEvent(apiEvt: ApiEvent): MCPEvent {
       agent_id: apiEvt.agent_id,
       tool_name: apiEvt.tool,
       policy_matched: apiEvt.matched_rule,
-      pii_entities: [],
+      pii_mode: apiEvt.pii_mode,
+      entities_detected: apiEvt.entities_detected || 0,
+      tokens_generated: apiEvt.tokens_generated || 0,
+      routing_proof: apiEvt.routing_proof || '',
+      mcp_server: apiEvt.mcp_server || '',
       jurisdiction: apiEvt.jurisdiction,
       evaluation_time_ms: apiEvt.overhead_ms?.toFixed(2) ?? '0.00',
     },
@@ -55,13 +59,12 @@ export function useLiveFeed(initialCount = 25) {
           const resp = await fetchEvents(1, initialCount);
           if (!cancelled) {
             const mapped = (resp.events || []).map(mapApiEvent).reverse();
-            setEvents(mapped.length > 0 ? mapped : generateInitialEvents(initialCount));
+            setEvents(mapped);
           }
         } catch {
-          // If fetch fails, fall back to mock
-          if (!cancelled) {
-            setEvents(generateInitialEvents(initialCount));
-          }
+          // The backend is reachable: never replace a failed/empty live fetch with
+          // random events, because that would make a product demo look live when it is not.
+          if (!cancelled) setEvents([]);
         }
       } else {
         setEvents(generateInitialEvents(initialCount));
@@ -100,5 +103,5 @@ export function useLiveFeed(initialCount = 25) {
 
   const toggleLive = useCallback(() => setIsLive(prev => !prev), []);
 
-  return { events, isLive, toggleLive };
+  return { events, isLive, toggleLive, apiReady };
 }

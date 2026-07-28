@@ -52,90 +52,45 @@ function mapPolicyToRules(policy: PolicyEntry): PolicyRule[] {
   return rules;
 }
 
-const POLICY_YAML = `# bawaba.yaml — Policy Configuration
-version: "1.0"
-policies:
-  - agent: claude-code
-    rules:
-      - tool: database-query
-        action: allow
-        conditions:
-          jurisdiction: [ma, sa, ae, fr]
-          pii_mode: tokenize
-      - tool: git-read
-        action: allow
-      - tool: git-write
-        action: allow
-      - tool: jira-read
-        action: allow
-      - tool: slack-send
-        action: deny
-        reason: "Agent not authorized for messaging"
+const POLICY_YAML = `# bawaba.yaml — live policy projection
+agents:
+  test-agent:
+    allowed_tools: [echo, time]
+    denied_tools: []
+    pii_mode: tokenize
+    jurisdiction: ma
 
-  - agent: chatgpt-agent
-    rules:
-      - tool: jira-read
-        action: allow
-      - tool: slack-send
-        action: allow
-        conditions:
-          pii_mode: redact
-      - tool: database-query
-        action: deny
-        reason: "Insufficient trust level"
-      - tool: git-write
-        action: deny
-        reason: "Read-only agent"
+  claude-code:
+    allowed_tools: [database-query, git-read, jira-read]
+    denied_tools: [database-write, git-push]
+    pii_mode: tokenize
+    jurisdiction: ma
 
-  - agent: gemini-pro
-    rules:
-      - tool: "*"
-        action: deny
-        reason: "Agent blocked — compliance review pending"
+  cursor-ide:
+    allowed_tools: [git-read, git-write]
+    denied_tools: []
+    pii_mode: mask
+    jurisdiction: ae
 
-  - agent: "*"
-    rules:
-      - tool: "*"
-        action: deny
-        conditions:
-          rate_limit_exceeded: true
-        reason: "Rate limit exceeded"
+policy_semantics:
+  deny_precedence: true
+  default_decision: deny
+  version: v1.0.0`;
 
-defaults:
-  pii_mode: tokenize
-  rate_limit: 1000
-  audit: required
-  merkle_chain: enabled`;
+const DECISION_LOGIC = `decision(agent, tool):
+  1. unknown agent               -> deny · default_deny
+  2. tool matches denied_tools   -> deny · denied_tools.<tool>
+  3. allowed_tools is empty      -> deny · no_allowed_tools
+  4. tool matches allowed_tools  -> allow · allowed_tools.<tool>
+  5. otherwise                   -> deny · default_deny
 
-const REGO_COMPILED = `package bawaba.policy
+Implementation:
+  YAML-backed in-memory evaluation
+  deny rules take precedence
+  every decision records policy version + matched rule
 
-import future.keywords.in
-
-default allow := false
-
-allow {
-    input.agent == "claude-code"
-    input.tool in {"database-query", "git-read", "git-write", "jira-read"}
-    input.jurisdiction in {"ma", "sa", "ae", "fr"}
-}
-
-deny {
-    input.agent == "claude-code"
-    input.tool == "slack-send"
-}
-
-deny {
-    input.agent == "chatgpt-agent"
-    input.tool in {"database-query", "git-write"}
-}
-
-deny {
-    input.agent == "gemini-pro"
-}
-
-deny {
-    input.rate_limit_exceeded == true
-}`;
+Roadmap:
+  optional external policy-engine adapter — not active in this build`;
 
 /* ── Skeleton for rules sidebar ─────────────────── */
 function RulesSkeleton() {
@@ -153,7 +108,7 @@ function RulesSkeleton() {
 
 export default function Policy() {
   const { events } = useLiveFeed(20);
-  const [activeTab, setActiveTab] = useState<'yaml' | 'rego'>('yaml');
+  const [activeTab, setActiveTab] = useState<'yaml' | 'logic'>('yaml');
   const [rules, setRules] = useState<PolicyRule[]>(MOCK_POLICY_RULES);
   const [loading, setLoading] = useState(true);
   const [, setTick] = useState(0);
@@ -175,14 +130,11 @@ export default function Policy() {
       if (available) {
         try {
           const policies = await fetchPolicies();
-          if (!cancelled && policies && policies.length > 0) {
-            const mapped = policies.flatMap(mapPolicyToRules);
-            if (mapped.length > 0) {
-              setRules(mapped);
-            }
+          if (!cancelled) {
+            setRules((policies || []).flatMap(mapPolicyToRules));
           }
         } catch {
-          // Keep mock rules on failure
+          if (!cancelled) setRules([]);
         }
       }
 
@@ -199,7 +151,7 @@ export default function Policy() {
         <div>
           <div className="text-sm font-body font-medium text-foreground">
             Policy Configuration
-            <InfoTooltip text="OPA/Rego rules evaluated for each MCP request. Defines who can call what and under which conditions." />
+            <InfoTooltip text="YAML-backed in-memory rules evaluated for each governed tool call. Deny rules take precedence and the default is deny." />
           </div>
           <div className="text-xs text-muted-foreground">{rules.length} active rules</div>
         </div>
@@ -213,7 +165,7 @@ export default function Policy() {
               Active rules
               <InfoTooltip text="List of currently active policy rules. Each rule links an agent to a tool with an action." />
             </div>
-            <div className="text-[10px] text-muted-foreground font-body mb-3">Click a rule to see conditions, impacted agents, and shadow status</div>
+            <div className="text-[10px] text-muted-foreground font-body mb-3">Click a rule to inspect the active agent/tool decision</div>
             {loading ? (
               <RulesSkeleton />
             ) : (
@@ -249,11 +201,11 @@ export default function Policy() {
           </div>
         </div>
 
-        {/* YAML / Rego editor */}
+        {/* YAML / decision-logic view */}
         <div className="col-span-9">
           <div className="card-surface shadow-card">
             <div className="flex border-b border-border">
-              {(['yaml', 'rego'] as const).map(tab => (
+              {(['yaml', 'logic'] as const).map(tab => (
                 <button
                   key={tab}
                   onClick={() => setActiveTab(tab)}
@@ -261,12 +213,12 @@ export default function Policy() {
                     activeTab === tab ? 'text-foreground border-b-2 border-primary' : 'text-muted-foreground hover:text-foreground'
                   }`}
                 >
-                  {tab === 'yaml' ? 'bawaba.yaml' : 'compiled.rego'}
+                  {tab === 'yaml' ? 'bawaba.yaml' : 'decision.logic'}
                 </button>
               ))}
             </div>
             <pre className="p-5 text-xs font-mono text-ink-2 leading-relaxed overflow-x-auto max-h-[500px] overflow-y-auto">
-              {activeTab === 'yaml' ? POLICY_YAML : REGO_COMPILED}
+              {activeTab === 'yaml' ? POLICY_YAML : DECISION_LOGIC}
             </pre>
           </div>
         </div>
@@ -277,9 +229,9 @@ export default function Policy() {
         <div className="flex items-center gap-3 mb-4">
           <div className="text-sm font-body font-medium text-foreground">
             Policy evaluation log
-            <InfoTooltip text="Real-time history of policy evaluations. Each row = one OPA engine decision." />
+            <InfoTooltip text="Real-time history of decisions returned by the running YAML-backed policy engine." />
           </div>
-          <div className="text-[10px] text-muted-foreground font-body">Click an evaluation to see the Rego rule that produced this decision</div>
+          <div className="text-[10px] text-muted-foreground font-body">Click an evaluation to inspect the persisted matched-rule identifier</div>
         </div>
         <div className="card-surface shadow-card overflow-hidden">
           <div className="grid grid-cols-[80px_100px_110px_70px_1fr_60px] gap-2 px-5 py-2 border-b border-border">
@@ -288,11 +240,11 @@ export default function Policy() {
             <span className="table-header">Tool</span>
             <span className="table-header">
               Result
-              <InfoTooltip text="OPA engine decision: allow (authorized) or deny (refused)." />
+              <InfoTooltip text="Policy-engine decision: allow (authorized) or deny (refused)." />
             </span>
             <span className="table-header">
               Matched rule
-              <InfoTooltip text="Identifier of the Rego rule that produced this decision." />
+              <InfoTooltip text="Identifier persisted by the policy engine for the rule that produced this decision." />
             </span>
             <span className="table-header">
               Eval.
@@ -359,13 +311,6 @@ export default function Policy() {
                   <div>
                     <div className="text-[10px] uppercase tracking-wider text-muted-foreground mb-1">Matches</div>
                     <div className="text-sm font-mono text-foreground">{selectedRule.rule.matched}</div>
-                  </div>
-                  <div>
-                    <div className="text-[10px] uppercase tracking-wider text-muted-foreground mb-1">
-                      Shadow mode
-                      <InfoTooltip text="In shadow mode, the rule is evaluated but the denial is not enforced. Allows validating a rule before production deployment." />
-                    </div>
-                    <div className="text-sm font-mono text-ink-3">Not active</div>
                   </div>
                 </>
               ) : (
