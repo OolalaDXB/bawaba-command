@@ -7,6 +7,7 @@ import {
   type StatsResponse, type AgentInfo, type JurisdictionEntry,
 } from '@/services/api';
 import InfoTooltip from '@/components/InfoTooltip';
+import { PETROL, DECISION_COLORS } from '@/lib/chart-colors';
 
 /* ── Time-ago helper ────────────────────────────── */
 function timeAgo(date: Date): string {
@@ -529,28 +530,28 @@ export default function Dashboard() {
                 label={<>MCP calls today <InfoTooltip text="Total number of MCP calls processed by the gateway today. Includes allow, deny, and rate-limited." /></>}
                 value={callsToday}
                 sparkData={sparkCalls}
-                sparkColor="hsl(30, 24%, 44%)"
+                sparkColor={PETROL}
                 subtitle={<span className="text-safe">+12.4% vs yesterday</span>}
               />
               <MetricCard
                 label={<>PII entities tokenized <InfoTooltip text="Personal data detected and replaced with UUID tokens before transmission to the LLM." /></>}
                 value={piiTokenized}
                 sparkData={sparkPii}
-                sparkColor="hsl(148, 59%, 24%)"
+                sparkColor={DECISION_COLORS.allow}
                 subtitle="Across 4 jurisdictions"
               />
               <MetricCard
                 label={<>Policy denials <InfoTooltip text="Requests denied by the OPA policy engine. A denial protects against unauthorized usage." /></>}
                 value={denials}
                 sparkData={sparkDenials}
-                sparkColor="hsl(343, 78%, 35%)"
+                sparkColor={DECISION_COLORS.deny}
                 subtitle={<span className="text-danger">-6.7% vs yesterday</span>}
               />
               <MetricCard
                 label={<>Active agents <InfoTooltip text="Number of AI agents registered and authorized to send requests through the gateway." /></>}
                 value={agentCount.toString()}
                 sparkData={sparkAgents}
-                sparkColor="hsl(30, 24%, 44%)"
+                sparkColor={PETROL}
                 subtitle={
                   <span className="flex items-center gap-2">
                     <StatusDot status="healthy" /> {healthyCount}

@@ -13,6 +13,7 @@ import {
 } from '@/services/api';
 import InfoTooltip from '@/components/InfoTooltip';
 import { useLocalAudit, pushInjectedEvent, setReviewStatus } from '@/lib/local-audit';
+import { PETROL, PETROL_SERIES, DECISION_COLORS } from '@/lib/chart-colors';
 import { X } from 'lucide-react';
 
 /* ── Time-ago helper ────────────────────────────── */
@@ -199,7 +200,7 @@ function AuditStats({ events }: { events: MCPEvent[] }) {
     }));
   }, []);
 
-  const COLORS = ['hsl(148, 59%, 24%)', 'hsl(343, 78%, 35%)', 'hsl(28, 84%, 31%)'];
+  const COLORS = [DECISION_COLORS.allow, DECISION_COLORS.deny, DECISION_COLORS['rate-limited']];
 
   return (
     <div className="space-y-5">
@@ -234,7 +235,7 @@ function AuditStats({ events }: { events: MCPEvent[] }) {
             <BarChart data={byJurisdiction} margin={{ top: 0, right: 0, left: -20, bottom: 0 }}>
               <XAxis dataKey="name" tick={{ fontSize: 9 }} axisLine={false} tickLine={false} />
               <YAxis tick={{ fontSize: 9 }} axisLine={false} tickLine={false} />
-              <Bar dataKey="value" fill="hsl(30, 24%, 44%)" radius={[1, 1, 0, 0]} />
+              <Bar dataKey="value" fill={PETROL} radius={[1, 1, 0, 0]} />
             </BarChart>
           </ResponsiveContainer>
         </div>
@@ -248,7 +249,9 @@ function AuditStats({ events }: { events: MCPEvent[] }) {
             <BarChart data={byAgent} layout="vertical" margin={{ top: 0, right: 0, left: 0, bottom: 0 }}>
               <XAxis type="number" tick={{ fontSize: 9 }} axisLine={false} tickLine={false} />
               <YAxis type="category" dataKey="name" tick={{ fontSize: 9, fontFamily: 'JetBrains Mono' }} axisLine={false} tickLine={false} width={90} />
-              <Bar dataKey="value" fill="hsl(30, 24%, 44%)" radius={[0, 1, 1, 0]} />
+              <Bar dataKey="value" radius={[0, 1, 1, 0]}>
+                {byAgent.map((_, i) => <Cell key={i} fill={PETROL_SERIES[i % PETROL_SERIES.length]} />)}
+              </Bar>
             </BarChart>
           </ResponsiveContainer>
         </div>
@@ -262,7 +265,7 @@ function AuditStats({ events }: { events: MCPEvent[] }) {
             <LineChart data={latencyTrend} margin={{ top: 0, right: 0, left: -20, bottom: 0 }}>
               <XAxis dataKey="day" tick={{ fontSize: 9 }} axisLine={false} tickLine={false} />
               <YAxis tick={{ fontSize: 9 }} axisLine={false} tickLine={false} />
-              <Line type="monotone" dataKey="avg" stroke="hsl(30, 24%, 44%)" strokeWidth={1.5} dot={false} />
+              <Line type="monotone" dataKey="avg" stroke={PETROL} strokeWidth={1} dot={false} />
             </LineChart>
           </ResponsiveContainer>
         </div>

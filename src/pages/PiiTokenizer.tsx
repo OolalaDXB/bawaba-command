@@ -3,6 +3,7 @@ import { PII_TYPES as MOCK_PII_TYPES, JURISDICTIONS, generateSparklineData } fro
 import { useLiveFeed } from '@/hooks/use-live-feed';
 import { BarChart, Bar, ResponsiveContainer, XAxis, YAxis } from 'recharts';
 import { isApiAvailable, fetchPiiStats, type PiiStatEntry } from '@/services/api';
+import { PETROL } from '@/lib/chart-colors';
 import InfoTooltip from '@/components/InfoTooltip';
 import { X } from 'lucide-react';
 
@@ -226,7 +227,7 @@ export default function PiiTokenizer() {
                   <span className="text-xs text-foreground">{p.type}</span>
                   <div className="flex items-center gap-4">
                     <div className="w-24 h-1.5 bg-secondary rounded-full overflow-hidden">
-                      <div className="h-full bg-primary" style={{ width: `${totalAll > 0 ? (p.count / totalAll) * 100 : 0}%` }} />
+                      <div className="h-full" style={{ background: PETROL, width: `${totalAll > 0 ? (p.count / totalAll) * 100 : 0}%` }} />
                     </div>
                     <span className="text-xs font-mono text-muted-foreground w-12 text-right">{p.count.toLocaleString()}</span>
                     <span className="text-[10px] font-mono text-ink-4 w-8 text-right">+{p.today}</span>
@@ -246,7 +247,7 @@ export default function PiiTokenizer() {
                 <BarChart data={processingDist} margin={{ top: 0, right: 0, left: -10, bottom: 0 }}>
                   <XAxis dataKey="range" tick={{ fontSize: 10, fontFamily: 'JetBrains Mono' }} axisLine={false} tickLine={false} />
                   <YAxis tick={{ fontSize: 9 }} axisLine={false} tickLine={false} />
-                  <Bar dataKey="count" fill="hsl(30, 24%, 44%)" radius={[1, 1, 0, 0]} />
+                  <Bar dataKey="count" fill={PETROL} radius={[1, 1, 0, 0]} />
                 </BarChart>
               </ResponsiveContainer>
             </div>
