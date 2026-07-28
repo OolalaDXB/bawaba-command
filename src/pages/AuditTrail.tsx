@@ -12,6 +12,7 @@ import {
   type ApiEvent, type ChainVerification,
 } from '@/services/api';
 import InfoTooltip from '@/components/InfoTooltip';
+import { useLocalAudit } from '@/lib/local-audit';
 import { X } from 'lucide-react';
 
 /* ── Time-ago helper ────────────────────────────── */
@@ -313,6 +314,11 @@ export default function AuditTrail() {
   const PAGE_SIZE = 50;
   const CHAIN_SIZE = 8;
 
+  // Local, UI-originated events (agent registrations, review decisions) are
+  // merged on top of the server/mock feed so they appear in the same chain.
+  const { injected } = useLocalAudit();
+  const allEvents = useMemo(() => [...injected, ...events], [injected, events]);
+
   // Live timestamp updates
   useEffect(() => {
     const interval = setInterval(() => setTick(t => t + 1), 1000);
@@ -321,10 +327,10 @@ export default function AuditTrail() {
 
   // Initialize block/line statuses when events change
   useEffect(() => {
-    const count = Math.min(events.length, CHAIN_SIZE);
+    const count = Math.min(allEvents.length, CHAIN_SIZE);
     setBlockStatuses(Array(count).fill('idle'));
     setLineStatuses(Array(Math.max(0, count - 1)).fill('idle'));
-  }, [events]);
+  }, [allEvents]);
 
   // Clean up timers on unmount
   useEffect(() => {
@@ -400,7 +406,7 @@ export default function AuditTrail() {
     setVerifyMessage(null);
     setVerifying(true);
 
-    const count = Math.min(events.length, CHAIN_SIZE);
+    const count = Math.min(allEvents.length, CHAIN_SIZE);
     // Reset all to idle
     setBlockStatuses(Array(count).fill('idle'));
     setLineStatuses(Array(Math.max(0, count - 1)).fill('idle'));
@@ -417,7 +423,7 @@ export default function AuditTrail() {
       // Mock: simulate a valid chain for demo
       result = {
         valid: true,
-        events: events.length,
+        events: allEvents.length,
         verified_at: new Date().toISOString(),
       };
     }
@@ -461,7 +467,7 @@ export default function AuditTrail() {
       setVerifying(false);
       setVerifyMessage('No events to verify');
     }
-  }, [apiAvailable, events]);
+  }, [apiAvailable, allEvents]);
 
   // Export
   const handleExport = useCallback(async () => {
@@ -482,7 +488,7 @@ export default function AuditTrail() {
     setExporting(false);
   }, [apiAvailable]);
 
-  const filtered = filterDecision === 'all' ? events : events.filter(e => e.decision === filterDecision);
+  const filtered = filterDecision === 'all' ? allEvents : allEvents.filter(e => e.decision === filterDecision);
 
   return (
     <div className="space-y-6">
@@ -494,7 +500,7 @@ export default function AuditTrail() {
         <div className="flex items-center gap-3">
           <div>
             <div className="text-sm font-body font-medium text-foreground">Audit Explorer</div>
-            <div className="text-xs text-muted-foreground">{events.length} events · Tamper-evident chain</div>
+            <div className="text-xs text-muted-foreground">{allEvents.length} events · Tamper-evident chain</div>
           </div>
         </div>
         <div className="flex gap-2">
@@ -534,7 +540,7 @@ export default function AuditTrail() {
         </div>
 
         <HashChainViz
-          events={events}
+          events={allEvents}
           blockStatuses={blockStatuses}
           lineStatuses={lineStatuses}
         />
@@ -626,7 +632,7 @@ export default function AuditTrail() {
         </div>
 
         <div className="col-span-4">
-          <AuditStats events={events} />
+          <AuditStats events={allEvents} />
         </div>
       </div>
 

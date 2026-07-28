@@ -175,6 +175,9 @@
   .status-blocked {
     color: hsl(var(--danger));
   }
+  .status-pending {
+    color: hsl(var(--ink-3));
+  }
 
   .row-allow {
     background: hsl(var(--safe-bg));
