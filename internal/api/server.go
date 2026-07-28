@@ -81,6 +81,7 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("GET /api/v1/health", s.handleHealth)
 	mux.HandleFunc("GET /api/v1/events/stream", s.handleEventsStream)
 	mux.HandleFunc("POST /api/v1/events/verify", s.handleEventsVerify)
+	mux.HandleFunc("POST /api/v1/events/review", s.handleEventsReview)
 	mux.HandleFunc("POST /api/v1/events/export", s.handleEventsExport)
 	mux.HandleFunc("GET /api/v1/audit/export", s.handleAuditExport)
 	mux.HandleFunc("GET /api/v1/events/{id}", s.handleEventByID)
@@ -432,6 +433,64 @@ func (s *Server) handleEventsVerify(w http.ResponseWriter, r *http.Request) {
 
 	writeJSON(w, http.StatusOK, envelope{
 		Data: result,
+		Meta: map[string]string{"timestamp": time.Now().UTC().Format(time.RFC3339)},
+	})
+}
+
+// handleEventsReview records a human-in-the-loop review decision as a real,
+// chained, signed audit event. It references the original event by id and is
+// covered by /api/v1/events/verify like any other event — the original event is
+// never modified.
+func (s *Server) handleEventsReview(w http.ResponseWriter, r *http.Request) {
+	var body struct {
+		EventID  string `json:"event_id"`
+		Decision string `json:"decision"`
+		Reviewer string `json:"reviewer"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid body")
+		return
+	}
+	if body.EventID == "" || (body.Decision != "acknowledge" && body.Decision != "escalate") {
+		writeError(w, http.StatusBadRequest, "event_id and decision (acknowledge|escalate) are required")
+		return
+	}
+	reviewer := body.Reviewer
+	if reviewer == "" {
+		reviewer = "reviewer"
+	}
+
+	// Confirm the original event exists and carry over its tenant/jurisdiction.
+	var tenant, jurisdiction string
+	err := s.db.QueryRow(`SELECT tenant_id, jurisdiction FROM audit_events WHERE event_id = $1`, body.EventID).
+		Scan(&tenant, &jurisdiction)
+	if err == sql.ErrNoRows {
+		writeError(w, http.StatusNotFound, "origin event not found")
+		return
+	} else if err != nil {
+		writeError(w, http.StatusInternalServerError, "database error")
+		return
+	}
+
+	persisted, err := s.trail.Append(audit.Event{
+		EventType:      "review_decision",
+		AgentID:        reviewer,
+		TenantID:       tenant,
+		Jurisdiction:   jurisdiction,
+		Tool:           "review:" + body.Decision,
+		ResourcePath:   body.EventID,
+		MatchedRule:    body.Decision,
+		PolicyResult:   "review",
+		PIIMode:        "none",
+		ResponseStatus: "200",
+	})
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "failed to record review decision")
+		return
+	}
+
+	writeJSON(w, http.StatusOK, envelope{
+		Data: persisted,
 		Meta: map[string]string{"timestamp": time.Now().UTC().Format(time.RFC3339)},
 	})
 }
