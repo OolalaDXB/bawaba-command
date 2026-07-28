@@ -37,6 +37,18 @@ pnpm dev
 
 Open `http://localhost:5173`.
 
+## Database schema
+
+Migration `001_audit_schema.sql` is never modified. The `routing_proof` column
+is added by the additive, idempotent migration `002_demo_evidence.sql`
+(`ALTER TABLE audit_events ADD COLUMN IF NOT EXISTS routing_proof TEXT DEFAULT ''`),
+mounted after `001` and before the demo seed `999`.
+
+`docker compose down -v` is **destructive**: it deletes the Postgres volume. It
+is required **only** when you want to rebuild the local demonstration database
+from the Docker init scripts (`001` → `002` → `999`). An already-provisioned
+database picks up the column by running `002` once; it does not need `down -v`.
+
 ## Deterministic scenes
 
 Do not run `make video-demo` while recording. Generate each event only when the
