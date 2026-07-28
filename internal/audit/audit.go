@@ -172,21 +172,21 @@ func (t *Trail) insertEvent(evt Event) error {
 			policy_result, policy_version, matched_rule,
 			pii_mode, entities_detected, tokens_generated,
 			response_status, result_count, latency_ms, overhead_ms,
-			event_hash, prev_hash, merkle_root, signature
+			routing_proof, event_hash, prev_hash, merkle_root, signature
 		) VALUES (
 			$1, $2, $3, $4, $5, $6,
 			$7, $8, $9, $10,
 			$11, $12, $13,
 			$14, $15, $16,
 			$17, $18, $19, $20,
-			$21, $22, $23, $24
+			$21, $22, $23, $24, $25
 		)`,
 		evt.EventID, evt.Timestamp, evt.EventType, evt.AgentID, evt.TenantID, evt.Jurisdiction,
 		evt.MCPServer, evt.Tool, evt.ParamsHash, evt.ResourcePath,
 		evt.PolicyResult, evt.PolicyVersion, evt.MatchedRule,
 		evt.PIIMode, evt.EntitiesDetected, evt.TokensGenerated,
 		evt.ResponseStatus, evt.ResultCount, evt.LatencyMS, evt.OverheadMS,
-		evt.EventHash, evt.PrevHash, evt.MerkleRoot, evt.Signature,
+		evt.RoutingProof, evt.EventHash, evt.PrevHash, evt.MerkleRoot, evt.Signature,
 	)
 	return err
 }

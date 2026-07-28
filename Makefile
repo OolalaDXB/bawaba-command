@@ -1,5 +1,6 @@
 .PHONY: all build build-rust build-go build-docker test test-go-nocgo \
-       up down logs demo verify proof bench keygen backup clean config-validate
+       up down logs demo verify proof bench keygen backup clean config-validate \
+       video-prepare video-policy video-pii video-routing video-verify video-demo
 
 RUST_DIR    := rust/tokenizer
 GO_GATEWAY  := cmd/gateway
@@ -65,6 +66,30 @@ logs:
 demo:
 	@chmod +x scripts/demo.sh
 	./scripts/demo.sh
+
+## Reset the local deterministic product-video environment
+video-prepare:
+	@./scripts/video-demo.sh prepare
+
+## Generate the policy-denial scene
+video-policy:
+	@./scripts/video-demo.sh policy
+
+## Generate the PII-tokenization scene
+video-pii:
+	@./scripts/video-demo.sh pii
+
+## Generate the signed sovereign-routing scene
+video-routing:
+	@./scripts/video-demo.sh routing
+
+## Verify the real server-side audit chain
+video-verify:
+	@./scripts/video-demo.sh verify
+
+## Run the complete deterministic video scenario
+video-demo:
+	@./scripts/video-demo.sh all
 
 # ──────────────────────────────────────────────
 # Operations

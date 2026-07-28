@@ -310,7 +310,7 @@ func (s *Server) handleEvents(w http.ResponseWriter, r *http.Request) {
 		policy_result, policy_version, matched_rule,
 		pii_mode, entities_detected, tokens_generated,
 		response_status, result_count, latency_ms, overhead_ms,
-		event_hash, prev_hash, merkle_root, signature
+		routing_proof, event_hash, prev_hash, merkle_root, signature
 		FROM audit_events WHERE %s
 		ORDER BY timestamp DESC
 		LIMIT $%d OFFSET $%d`, whereClause, argN, argN+1)
@@ -332,7 +332,7 @@ func (s *Server) handleEvents(w http.ResponseWriter, r *http.Request) {
 			&evt.PolicyResult, &evt.PolicyVersion, &evt.MatchedRule,
 			&evt.PIIMode, &evt.EntitiesDetected, &evt.TokensGenerated,
 			&evt.ResponseStatus, &evt.ResultCount, &evt.LatencyMS, &evt.OverheadMS,
-			&evt.EventHash, &evt.PrevHash, &evt.MerkleRoot, &evt.Signature,
+			&evt.RoutingProof, &evt.EventHash, &evt.PrevHash, &evt.MerkleRoot, &evt.Signature,
 		); err != nil {
 			writeError(w, http.StatusInternalServerError, "scan error")
 			return
@@ -364,14 +364,14 @@ func (s *Server) handleEventByID(w http.ResponseWriter, r *http.Request) {
 		policy_result, policy_version, matched_rule,
 		pii_mode, entities_detected, tokens_generated,
 		response_status, result_count, latency_ms, overhead_ms,
-		event_hash, prev_hash, merkle_root, signature
+		routing_proof, event_hash, prev_hash, merkle_root, signature
 		FROM audit_events WHERE event_id = $1`, id).Scan(
 		&evt.EventID, &evt.Timestamp, &evt.EventType, &evt.AgentID, &evt.TenantID, &evt.Jurisdiction,
 		&evt.MCPServer, &evt.Tool, &evt.ParamsHash, &evt.ResourcePath,
 		&evt.PolicyResult, &evt.PolicyVersion, &evt.MatchedRule,
 		&evt.PIIMode, &evt.EntitiesDetected, &evt.TokensGenerated,
 		&evt.ResponseStatus, &evt.ResultCount, &evt.LatencyMS, &evt.OverheadMS,
-		&evt.EventHash, &evt.PrevHash, &evt.MerkleRoot, &evt.Signature,
+		&evt.RoutingProof, &evt.EventHash, &evt.PrevHash, &evt.MerkleRoot, &evt.Signature,
 	)
 	if err == sql.ErrNoRows {
 		writeError(w, http.StatusNotFound, "event not found")
@@ -394,7 +394,7 @@ func (s *Server) handleEventsVerify(w http.ResponseWriter, r *http.Request) {
 		policy_result, policy_version, matched_rule,
 		pii_mode, entities_detected, tokens_generated,
 		response_status, result_count, latency_ms, overhead_ms,
-		event_hash, prev_hash, merkle_root, signature
+		routing_proof, event_hash, prev_hash, merkle_root, signature
 		FROM audit_events ORDER BY timestamp ASC`)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "database error")
@@ -411,7 +411,7 @@ func (s *Server) handleEventsVerify(w http.ResponseWriter, r *http.Request) {
 			&evt.PolicyResult, &evt.PolicyVersion, &evt.MatchedRule,
 			&evt.PIIMode, &evt.EntitiesDetected, &evt.TokensGenerated,
 			&evt.ResponseStatus, &evt.ResultCount, &evt.LatencyMS, &evt.OverheadMS,
-			&evt.EventHash, &evt.PrevHash, &evt.MerkleRoot, &evt.Signature,
+			&evt.RoutingProof, &evt.EventHash, &evt.PrevHash, &evt.MerkleRoot, &evt.Signature,
 		); err != nil {
 			writeError(w, http.StatusInternalServerError, "scan error")
 			return
@@ -515,11 +515,11 @@ func (s *Server) handleEventsExport(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) handleStats(w http.ResponseWriter, r *http.Request) {
 	type stats struct {
-		TotalEvents   int     `json:"total_events"`
-		CallsLastMin  int     `json:"calls_last_minute"`
-		DenyRate      float64 `json:"deny_rate"`
-		AvgLatencyMS  float64 `json:"avg_latency_ms"`
-		EventsByType  map[string]int `json:"events_by_type"`
+		TotalEvents  int            `json:"total_events"`
+		CallsLastMin int            `json:"calls_last_minute"`
+		DenyRate     float64        `json:"deny_rate"`
+		AvgLatencyMS float64        `json:"avg_latency_ms"`
+		EventsByType map[string]int `json:"events_by_type"`
 	}
 
 	var st stats
@@ -829,7 +829,7 @@ func (s *Server) handleAuditExport(w http.ResponseWriter, r *http.Request) {
 		policy_result, policy_version, matched_rule,
 		pii_mode, entities_detected, tokens_generated,
 		response_status, result_count, latency_ms, overhead_ms,
-		event_hash, prev_hash, merkle_root, signature
+		routing_proof, event_hash, prev_hash, merkle_root, signature
 		FROM audit_events WHERE timestamp >= $1 AND timestamp <= $2
 		ORDER BY timestamp ASC`, windowStart, windowEnd)
 	if err != nil {
@@ -847,7 +847,7 @@ func (s *Server) handleAuditExport(w http.ResponseWriter, r *http.Request) {
 			&evt.PolicyResult, &evt.PolicyVersion, &evt.MatchedRule,
 			&evt.PIIMode, &evt.EntitiesDetected, &evt.TokensGenerated,
 			&evt.ResponseStatus, &evt.ResultCount, &evt.LatencyMS, &evt.OverheadMS,
-			&evt.EventHash, &evt.PrevHash, &evt.MerkleRoot, &evt.Signature,
+			&evt.RoutingProof, &evt.EventHash, &evt.PrevHash, &evt.MerkleRoot, &evt.Signature,
 		); err != nil {
 			writeError(w, http.StatusInternalServerError, "scan error")
 			return

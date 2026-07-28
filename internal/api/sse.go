@@ -8,26 +8,18 @@ import (
 	"net/http"
 	"sync"
 	"time"
+
+	"github.com/OolalaDXB/bawaba-command/internal/audit"
 )
 
-// SSEEvent is a lightweight audit event pushed to SSE clients.
-type SSEEvent struct {
-	EventID      string  `json:"id"`
-	Timestamp    string  `json:"timestamp"`
-	EventType    string  `json:"event_type"`
-	AgentID      string  `json:"agent"`
-	Tool         string  `json:"tool"`
-	PolicyResult string  `json:"policy_result"`
-	Jurisdiction string  `json:"jurisdiction"`
-	LatencyMS    float64 `json:"latency_ms"`
-}
-
-// SSEHub manages SSE client connections and polls for new audit events.
+// SSEHub manages SSE client connections and polls for newly persisted audit events.
+// The event payload uses the same audit.Event JSON shape as GET /api/v1/events,
+// so the dashboard never has to guess or remap a reduced mock schema.
 type SSEHub struct {
 	db      *sql.DB
 	logger  *slog.Logger
 	mu      sync.Mutex
-	clients map[chan SSEEvent]struct{}
+	clients map[chan audit.Event]struct{}
 	stop    chan struct{}
 }
 
@@ -36,51 +28,47 @@ func NewSSEHub(db *sql.DB, logger *slog.Logger) *SSEHub {
 	return &SSEHub{
 		db:      db,
 		logger:  logger,
-		clients: make(map[chan SSEEvent]struct{}),
+		clients: make(map[chan audit.Event]struct{}),
 		stop:    make(chan struct{}),
 	}
 }
 
 // Start begins the background polling goroutine.
-func (h *SSEHub) Start() {
-	go h.poll()
-}
+func (h *SSEHub) Start() { go h.poll() }
 
 // Stop signals the polling goroutine to exit.
-func (h *SSEHub) Stop() {
-	close(h.stop)
-}
+func (h *SSEHub) Stop() { close(h.stop) }
 
-func (h *SSEHub) addClient(ch chan SSEEvent) {
+func (h *SSEHub) addClient(ch chan audit.Event) {
 	h.mu.Lock()
 	h.clients[ch] = struct{}{}
 	h.mu.Unlock()
 }
 
-func (h *SSEHub) removeClient(ch chan SSEEvent) {
+func (h *SSEHub) removeClient(ch chan audit.Event) {
 	h.mu.Lock()
 	delete(h.clients, ch)
 	close(ch)
 	h.mu.Unlock()
 }
 
-func (h *SSEHub) broadcast(evt SSEEvent) {
+func (h *SSEHub) broadcast(evt audit.Event) {
 	h.mu.Lock()
 	defer h.mu.Unlock()
 	for ch := range h.clients {
 		select {
 		case ch <- evt:
 		default:
-			// Client too slow, drop event
+			// Client too slow; the initial REST fetch will reconcile on reload.
 		}
 	}
 }
 
 func (h *SSEHub) poll() {
-	// Track the last seen event timestamp to only fetch new events
+	// Only events created after the hub starts are streamed. Existing events are
+	// loaded through GET /api/v1/events when the page mounts.
 	lastSeen := time.Now().UTC()
-
-	ticker := time.NewTicker(500 * time.Millisecond)
+	ticker := time.NewTicker(350 * time.Millisecond)
 	defer ticker.Stop()
 
 	for {
@@ -96,8 +84,12 @@ func (h *SSEHub) poll() {
 			}
 
 			rows, err := h.db.Query(`
-				SELECT event_id, timestamp, event_type, agent_id, tool,
-					policy_result, jurisdiction, latency_ms
+				SELECT event_id, timestamp, event_type, agent_id, tenant_id, jurisdiction,
+					mcp_server, tool, params_hash, resource_path,
+					policy_result, policy_version, matched_rule,
+					pii_mode, entities_detected, tokens_generated,
+					response_status, result_count, latency_ms, overhead_ms,
+					routing_proof, event_hash, prev_hash, merkle_root, signature
 				FROM audit_events
 				WHERE timestamp > $1
 				ORDER BY timestamp ASC
@@ -109,15 +101,20 @@ func (h *SSEHub) poll() {
 
 			var newest time.Time
 			for rows.Next() {
-				var evt SSEEvent
-				var ts time.Time
-				if err := rows.Scan(&evt.EventID, &ts, &evt.EventType, &evt.AgentID,
-					&evt.Tool, &evt.PolicyResult, &evt.Jurisdiction, &evt.LatencyMS); err != nil {
+				var evt audit.Event
+				if err := rows.Scan(
+					&evt.EventID, &evt.Timestamp, &evt.EventType, &evt.AgentID, &evt.TenantID, &evt.Jurisdiction,
+					&evt.MCPServer, &evt.Tool, &evt.ParamsHash, &evt.ResourcePath,
+					&evt.PolicyResult, &evt.PolicyVersion, &evt.MatchedRule,
+					&evt.PIIMode, &evt.EntitiesDetected, &evt.TokensGenerated,
+					&evt.ResponseStatus, &evt.ResultCount, &evt.LatencyMS, &evt.OverheadMS,
+					&evt.RoutingProof, &evt.EventHash, &evt.PrevHash, &evt.MerkleRoot, &evt.Signature,
+				); err != nil {
+					h.logger.Warn("sse scan error", "error", err)
 					continue
 				}
-				evt.Timestamp = ts.Format(time.RFC3339)
-				if ts.After(newest) {
-					newest = ts
+				if evt.Timestamp.After(newest) {
+					newest = evt.Timestamp
 				}
 				h.broadcast(evt)
 			}
@@ -144,14 +141,11 @@ func (h *SSEHub) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if origin := r.Header.Get("Origin"); origin != "" {
 		w.Header().Set("Access-Control-Allow-Origin", origin)
 	}
-	// Flush headers immediately so the client receives the response.
 	w.WriteHeader(http.StatusOK)
 	flusher.Flush()
 
-	ch := make(chan SSEEvent, 64)
+	ch := make(chan audit.Event, 64)
 	h.addClient(ch)
-
-	// Remove client on disconnect
 	ctx := r.Context()
 
 	for {
