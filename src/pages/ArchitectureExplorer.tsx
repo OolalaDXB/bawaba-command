@@ -2,261 +2,284 @@ import { useState } from 'react';
 import { X } from 'lucide-react';
 
 type Persona = 'engineer' | 'ciso' | 'vc';
-
 type PersonaContent = Record<Persona, string>;
 
-interface PipelineStep {
+/**
+ * Everything on this page is derived from the real codebase:
+ *  - the pipeline mirrors internal/proxy/proxy.go (handleToolsCall)
+ *  - module LOC come from `wc -l` on non-test sources per package
+ *  - the commit list is `git log --oneline -8`
+ * No invented modules, metrics, or commits.
+ */
+
+interface PipelineStage {
   id: string;
   name: string;
-  description: string;
-  role: PersonaContent;
-  file: PersonaContent;
-  p0Fix: PersonaContent;
-  p2Roadmap: PersonaContent;
-  actions: PersonaContent;
+  tagline: string;
+  lang: 'Go' | 'Rust';
+  loc: number;
+  file: string;
+  persona: PersonaContent;
+  verify: string;
 }
 
 interface Module {
-  name: string;
-  lang: 'Go' | 'Rust' | 'TS' | 'YAML';
-  file: string;
+  pkg: string;
+  lang: 'Go' | 'Rust' | 'TS';
   loc: number;
-  status: ('DONE' | 'P0-FIXED')[];
-  detail: PersonaContent;
+  path: string;
+  detail: string;
 }
 
 interface Commit {
   hash: string;
-  message: string;
+  subject: string;
   date: string;
-  sprint: 'S1' | 'S2';
-  why: PersonaContent;
 }
 
 type DrawerContent =
-  | { type: 'pipeline'; step: PipelineStep }
+  | { type: 'stage'; stage: PipelineStage }
   | { type: 'module'; module: Module }
   | { type: 'commit'; commit: Commit };
 
-// ── Static Data ──────────────────────────────────────────────
+// ── Pipeline — the 6 stages as implemented in internal/proxy ────────────────
 
-const PIPELINE_STEPS: PipelineStep[] = [
+const PIPELINE: PipelineStage[] = [
   {
-    id: '01', name: 'Authentication', description: 'JWT validation & mTLS handshake',
-    role: { engineer: 'Validates JWT tokens via JWKS endpoint, enforces mTLS between services.', ciso: 'Ensures zero-trust identity verification at the gateway layer.', vc: 'Foundational security gate — required for SOC 2 / ISO 27001 compliance.' },
-    file: { engineer: 'gateway/auth.go — validateJWT(), tlsHandshake()', ciso: 'Auth module audited Q1 2025, no CVEs.', vc: 'Single auth gateway reduces attack surface.' },
-    p0Fix: { engineer: 'Fixed token expiry race condition in concurrent refresh flows.', ciso: 'Eliminated session fixation risk in multi-tenant JWT refresh.', vc: 'P0 fix removed a blocker for enterprise pilot.' },
-    p2Roadmap: { engineer: 'Add PASETO support, hardware-bound tokens.', ciso: 'FIPS 140-3 compliant token format migration.', vc: 'Hardware token support unlocks government verticals.' },
-    actions: { engineer: 'Rotate JWKS keys, update TLS certs.', ciso: 'Schedule quarterly key rotation audit.', vc: 'Key rotation is automated — low maintenance cost.' },
+    id: '1',
+    name: 'Identity',
+    tagline: 'API key (bcrypt) / Bearer pilot',
+    lang: 'Go',
+    loc: 253,
+    file: 'internal/auth/auth.go — Authenticate(), RegisterAPIKey()',
+    persona: {
+      engineer:
+        'Authenticate() resolves the caller before anything else runs: it tries the API key path first (authenticateAPIKey), then a Bearer/OAuth2 token (authenticateBearer). API keys are stored only as bcrypt hashes (bcrypt.GenerateFromPassword at DefaultCost) — never in plaintext.',
+      ciso:
+        'No shared secret is ever persisted in the clear; only bcrypt hashes are kept. Bearer/OAuth2 is a pilot path that runs alongside API keys. Every request produces an AgentIdentity{AgentID, TenantID} that the rest of the pipeline keys off.',
+      vc:
+        'Identity is the anchor for tenant isolation: every downstream decision — policy, tokenization scope, routing, audit — is bound to the authenticated agent and tenant.',
+    },
+    verify: 'grep bcrypt internal/auth/auth.go · authenticateAPIKey / authenticateBearer',
   },
   {
-    id: '02', name: 'Rate Limiting', description: 'Token-bucket per tenant with burst',
-    role: { engineer: 'Token-bucket algorithm per tenant, Redis-backed counters with burst allowance.', ciso: 'Prevents abuse and DDoS at the application layer.', vc: 'Usage-based billing foundation — meters every API call.' },
-    file: { engineer: 'gateway/ratelimit.go — checkLimit(), slidingWindow()', ciso: 'Rate limiter logs feed into SIEM for anomaly detection.', vc: 'Rate limiting enables tiered pricing model.' },
-    p0Fix: { engineer: 'Fixed counter reset drift in Redis cluster failover.', ciso: 'Resolved bypass where burst tokens survived rate window reset.', vc: 'Fix prevented revenue leakage from unlimited free-tier abuse.' },
-    p2Roadmap: { engineer: 'Adaptive rate limits based on model latency.', ciso: 'Per-user behavioral baseline for anomaly scoring.', vc: 'Adaptive limits improve unit economics per request.' },
-    actions: { engineer: 'Tune bucket sizes per tier, monitor Redis latency.', ciso: 'Review rate limit bypass attempts monthly.', vc: 'Tier configs map directly to pricing page.' },
+    id: '2',
+    name: 'Policy',
+    tagline: 'default-deny, YAML config',
+    lang: 'Go',
+    loc: 124,
+    file: 'internal/policy/policy.go — Evaluate()',
+    persona: {
+      engineer:
+        'Evaluate() is fail-closed. Denied tools are checked first (deny wins). An agent with an empty allowed_tools list is denied everything. When nothing matches, the result is default_deny. The decision carries PolicyVersion and MatchedRule.',
+      ciso:
+        'Authorization defaults to deny, not allow. Each decision records the matched rule and policy version, and both flow into the audit event so every allow/deny is attributable.',
+      vc:
+        'Access is policy-as-config: allow/deny per agent × tool, read from bawaba.yaml and versioned — no code change needed to re-scope an agent.',
+    },
+    verify: 'internal/policy/policy.go — MatchedRule "default_deny", denied-tools-first',
   },
   {
-    id: '03', name: 'Policy Engine', description: 'OPA/Rego rules evaluated per request',
-    role: { engineer: 'Evaluates Rego policies via embedded OPA, caches compiled bundles.', ciso: 'Central policy enforcement — all decisions auditable and versioned.', vc: 'Policy-as-code is the core differentiator vs. competitors.' },
-    file: { engineer: 'policy/engine.go — evaluate(), loadBundle()', ciso: 'All policy changes require PR review and are git-versioned.', vc: 'Policy engine is the IP moat — hard for competitors to replicate.' },
-    p0Fix: { engineer: 'Fixed partial policy evaluation on bundle hot-reload.', ciso: 'Eliminated window where stale policies could permit unauthorized access.', vc: 'Fix was required before enterprise GA launch.' },
-    p2Roadmap: { engineer: 'WASM policy plugins, custom built-in functions.', ciso: 'Customer-managed policy signing and verification.', vc: 'Plugin system enables partner ecosystem revenue.' },
-    actions: { engineer: 'Write Rego tests, benchmark evaluation latency.', ciso: 'Audit policy change log quarterly.', vc: 'Each new policy rule is a potential upsell.' },
+    id: '3',
+    name: 'Data',
+    tagline: 'PII tokenization (Rust), 7 MENA patterns',
+    lang: 'Rust',
+    loc: 395,
+    file: 'rust/tokenizer/src/regex.rs — PATTERNS, luhn_check()',
+    persona: {
+      engineer:
+        'The Rust tokenizer scans arguments with 7 compiled regex patterns: iban, email, phone, emirates_id, card, ksa_nid, morocco_cin. Card matches are Luhn-checked. Matches are swapped for UUID tokens held in a vault scoped to tenant_id:agent_id, then de-tokenized on the response path. Called from Go over cgo FFI (internal/tokenizer).',
+      ciso:
+        'PII is replaced before the request leaves the gateway. The vault is keyed by tenant_id:agent_id and has a TTL — once it expires, de-tokenization is impossible and the original values are gone.',
+      vc:
+        'Coverage is MENA-native: Morocco CIN, KSA National ID / Iqama, and UAE Emirates ID are first-class patterns — sovereign identifier formats generic scanners miss.',
+    },
+    verify: 'rust/tokenizer/src/regex.rs — PATTERNS (7), luhn_check · internal/tokenizer/tokenizer.go (cgo)',
   },
   {
-    id: '04', name: 'PII Detection', description: 'Regex + NER scanning on request/response',
-    role: { engineer: 'Two-pass scanner: fast regex pre-filter, then Rust NER model for context.', ciso: 'Prevents PII leakage to LLM providers — critical for GDPR Article 28.', vc: 'PII scanning is the #1 feature request from enterprise prospects.' },
-    file: { engineer: 'pii/scanner.rs — scan_payload(), ner_classify()', ciso: 'PII patterns updated monthly from threat intelligence feeds.', vc: 'Rust-based scanner handles 10K req/s — no performance tax.' },
-    p0Fix: { engineer: 'Fixed false negatives on multi-line JSON payloads with nested PII.', ciso: 'Closed data leakage gap where nested objects bypassed scanning.', vc: 'Fix was a deal-breaker for two F500 prospects.' },
-    p2Roadmap: { engineer: 'Add image/PDF PII scanning, custom entity types.', ciso: 'Support for PCI-DSS card number detection.', vc: 'Multi-modal PII scanning opens healthcare vertical.' },
-    actions: { engineer: 'Update regex patterns, retrain NER model.', ciso: 'Run quarterly PII scan accuracy audit.', vc: 'Each new PII type detected = new compliance checkbox.' },
+    id: '4',
+    name: 'Jurisdiction',
+    tagline: 'routing decision + Ed25519 proof',
+    lang: 'Go',
+    loc: 137,
+    file: 'internal/router/router.go — Route(), generateProof()',
+    persona: {
+      engineer:
+        'Route(tenantID, jurisdiction, requestID) selects the sovereign backend and returns an Ed25519-signed proof over the canonical decision. The nonce is derived deterministically from the requestID, so the same request yields the same verifiable proof.',
+      ciso:
+        'Jurisdiction resolution is fail-closed on unknown values. Every routing decision is independently verifiable offline using only the Ed25519 public key — no access to the gateway required.',
+      vc:
+        'Each request carries a cryptographic sovereignty proof: the auditable artifact that answers "where did this data go, and can you prove it?".',
+    },
+    verify: 'internal/router/router.go — crypto/ed25519, generateProof(), deterministic nonce',
   },
   {
-    id: '05', name: 'Prompt Injection Guard', description: 'Classifier + heuristic defense layer',
-    role: { engineer: 'Ensemble of regex heuristics and fine-tuned classifier model.', ciso: 'Defends against OWASP LLM Top 10 #1 — Prompt Injection.', vc: 'Novel defense layer — strong patent potential.' },
-    file: { engineer: 'guard/injection.go — classify(), heuristicCheck()', ciso: 'Updated weekly with new attack vector signatures.', vc: 'Guard IP is defensible — trained on proprietary dataset.' },
-    p0Fix: { engineer: 'Fixed classifier timeout causing requests to bypass guard entirely.', ciso: 'Eliminated fail-open condition on classifier timeout.', vc: 'Fix removed the #1 objection in security reviews.' },
-    p2Roadmap: { engineer: 'Multi-language injection detection, adversarial training.', ciso: 'Red team integration for continuous testing.', vc: 'Multi-language expands TAM to non-English markets.' },
-    actions: { engineer: 'Retrain classifier monthly, add new heuristics.', ciso: 'Commission external red team assessment.', vc: 'Red team results become marketing collateral.' },
+    id: '5',
+    name: 'Rate',
+    tagline: 'sliding window + anomaly detection',
+    lang: 'Go',
+    loc: 166,
+    file: 'internal/ratelimit/ratelimit.go — SlidingWindow, AnomalyDetector',
+    persona: {
+      engineer:
+        'A SlidingWindow limiter enforces limit/window parsed from config (per-second/minute/hour/day). An AnomalyDetector.RecordRead() flags sequential bulk reads over a threshold within a window and raises a separate "anomaly" audit event with matched rule sequential_bulk_read.',
+      ciso:
+        'Beyond a 429, bulk-exfiltration-shaped access raises an anomaly alert into the audit trail — a behavioural signal, not just a counter.',
+      vc:
+        'One layer gives both usage metering and an abuse/anomaly signal, reused by the dashboard and SIEM export.',
+    },
+    verify: 'internal/ratelimit/ratelimit.go — SlidingWindow, AnomalyDetector.RecordRead · proxy.go emits "anomaly"',
   },
   {
-    id: '06', name: 'Model Router', description: 'Latency-aware LLM routing with fallback',
-    role: { engineer: 'Routes to optimal LLM based on latency, cost, and capability matrix.', ciso: 'Enforces data sovereignty — routes stay within approved regions.', vc: 'Multi-model strategy eliminates vendor lock-in risk.' },
-    file: { engineer: 'router/selector.go — selectModel(), healthCheck()', ciso: 'Routing decisions logged for compliance audit trail.', vc: 'Router enables best-price execution across LLM providers.' },
-    p0Fix: { engineer: 'Fixed fallback loop when primary and secondary models both degraded.', ciso: 'Resolved infinite retry that exposed requests to unvetted endpoints.', vc: 'Fix improved uptime SLA from 99.5% to 99.95%.' },
-    p2Roadmap: { engineer: 'Cost-optimized routing, A/B model testing framework.', ciso: 'Per-request routing policy based on data classification.', vc: 'A/B testing enables customers to optimize model spend.' },
-    actions: { engineer: 'Update model health thresholds, add new providers.', ciso: 'Review routing logs for policy violations.', vc: 'Each new model provider increases switching cost for customers.' },
-  },
-  {
-    id: '07', name: 'Audit Logger', description: 'Structured event stream to S3 + SIEM',
-    role: { engineer: 'Async structured logging via NATS to S3 and SIEM webhook.', ciso: 'Immutable audit trail — meets SOC 2 CC7.2 and ISO 27001 A.12.4.', vc: 'Audit logs are table-stakes for enterprise — zero differentiation but required.' },
-    file: { engineer: 'audit/logger.go — emit(), batchFlush()', ciso: 'Logs encrypted at rest (AES-256) and in transit (TLS 1.3).', vc: 'Log retention is a recurring storage revenue stream.' },
-    p0Fix: { engineer: 'Fixed log ordering guarantee broken by async batch flush.', ciso: 'Restored causal ordering required for forensic investigation.', vc: 'Fix was audit requirement for SOC 2 Type II certification.' },
-    p2Roadmap: { engineer: 'Real-time log analytics, custom retention policies.', ciso: 'Tamper-evident logging with Merkle tree verification.', vc: 'Log analytics becomes premium add-on feature.' },
-    actions: { engineer: 'Monitor flush latency, verify S3 delivery.', ciso: 'Validate log integrity monthly.', vc: 'Storage costs scale with usage — good unit economics.' },
-  },
-  {
-    id: '08', name: 'Response Filter', description: 'Post-LLM output sanitization & masking',
-    role: { engineer: 'Scans LLM output for PII, hallucinated URLs, and policy violations.', ciso: 'Last line of defense before response reaches end user.', vc: 'Output filtering is unique — competitors only filter input.' },
-    file: { engineer: 'filter/response.go — sanitize(), maskPII()', ciso: 'Filter rules versioned and auditable like input policies.', vc: 'Bidirectional filtering is a key differentiator in sales deck.' },
-    p0Fix: { engineer: 'Fixed streaming response chunks bypassing filter buffer.', ciso: 'Closed gap where chunked transfer encoding evaded output scan.', vc: 'Fix enabled streaming support — required by 80% of prospects.' },
-    p2Roadmap: { engineer: 'Custom filter plugins, content watermarking.', ciso: 'AI-generated content labeling for regulatory compliance.', vc: 'Watermarking enables content provenance — new product line.' },
-    actions: { engineer: 'Tune filter sensitivity, add streaming buffer tests.', ciso: 'Review filter bypass attempts in incident log.', vc: 'Streaming support doubles addressable use cases.' },
+    id: '6',
+    name: 'Evidence',
+    tagline: 'SHA-256 chain, append-only Postgres',
+    lang: 'Go',
+    loc: 296,
+    file: 'internal/audit/audit.go — Append(), VerifyChain()',
+    persona: {
+      engineer:
+        "Each event's SHA-256 hash chains to the previous one (starting from a genesis root), is Ed25519-signed, and is INSERTed into the Postgres audit_events table — never updated or deleted. VerifyChain() recomputes every hash and checks every signature.",
+      ciso:
+        'The trail is append-only and tamper-evident. Changing a single field breaks the hash chain and fails VerifyChain(), which is exactly what an auditor re-runs.',
+      vc:
+        'Evidence exports as JSON and is verifiable offline by the bawaba CLI without server access — a portable compliance artifact.',
+    },
+    verify: 'internal/audit/audit.go — crypto/sha256 chain, INSERT-only, VerifyChain() · cmd/cli offline verifier',
   },
 ];
+
+// ── Modules — real packages, LOC = wc -l on non-test sources ────────────────
 
 const MODULES: Module[] = [
-  { name: 'gateway', lang: 'Go', file: 'gateway/', loc: 2400, status: ['DONE', 'P0-FIXED'], detail: { engineer: 'HTTP/gRPC ingress, TLS termination, request routing. Handles 50K req/s on 4 cores.', ciso: 'Single entry point — all traffic inspected before reaching internal services.', vc: 'Gateway is the billing meter — every request counted.' } },
-  { name: 'policy-engine', lang: 'Go', file: 'policy/', loc: 1800, status: ['DONE', 'P0-FIXED'], detail: { engineer: 'Embedded OPA with hot-reload, Rego compilation cache, decision logging.', ciso: 'All access decisions centralized and auditable. Git-versioned policies.', vc: 'Core IP — policy engine is the product moat.' } },
-  { name: 'pii-scanner', lang: 'Rust', file: 'pii/', loc: 3200, status: ['DONE', 'P0-FIXED'], detail: { engineer: 'SIMD-accelerated regex + ONNX NER model. Sub-millisecond per scan.', ciso: 'Detects 47 PII entity types across 12 languages.', vc: 'Rust performance means no latency tax — key selling point.' } },
-  { name: 'guard', lang: 'Go', file: 'guard/', loc: 1200, status: ['DONE', 'P0-FIXED'], detail: { engineer: 'Ensemble injection classifier with heuristic pre-filter. 99.7% precision.', ciso: 'Addresses OWASP LLM Top 10 #1 with defense-in-depth approach.', vc: 'Guard model trained on proprietary dataset — defensible IP.' } },
-  { name: 'router', lang: 'Go', file: 'router/', loc: 900, status: ['DONE', 'P0-FIXED'], detail: { engineer: 'Weighted routing with health checks, circuit breakers, and fallback chains.', ciso: 'Enforces geo-fencing and data sovereignty routing constraints.', vc: 'Multi-model routing eliminates single-vendor dependency.' } },
-  { name: 'audit', lang: 'Go', file: 'audit/', loc: 600, status: ['DONE'], detail: { engineer: 'NATS-based async event emitter with batched S3 delivery.', ciso: 'Immutable, encrypted audit trail with causal ordering guarantee.', vc: 'Audit compliance is checkbox — required but not differentiated.' } },
-  { name: 'filter', lang: 'Go', file: 'filter/', loc: 800, status: ['DONE', 'P0-FIXED'], detail: { engineer: 'Response sanitizer with streaming buffer and PII masking.', ciso: 'Output-side defense — unique in market, covers exfiltration risk.', vc: 'Bidirectional filtering doubles the value proposition.' } },
-  { name: 'dashboard', lang: 'TS', file: 'src/', loc: 4100, status: ['DONE'], detail: { engineer: 'React + Tailwind SPA with real-time WebSocket updates.', ciso: 'Single-pane-of-glass visibility for security operations.', vc: 'Dashboard is the demo — first thing prospects see.' } },
-  { name: 'infra', lang: 'YAML', file: 'deploy/', loc: 1500, status: ['DONE'], detail: { engineer: 'Helm charts + Terraform modules for multi-cloud deployment.', ciso: 'Infrastructure-as-code — auditable and reproducible deployments.', vc: 'Multi-cloud support expands addressable market.' } },
-  { name: 'sdk', lang: 'TS', file: 'sdk/', loc: 700, status: ['DONE'], detail: { engineer: 'TypeScript client SDK with retry logic and type-safe API bindings.', ciso: 'SDK enforces secure defaults — TLS, auth, and timeout policies.', vc: 'SDK reduces integration time from days to hours.' } },
+  { pkg: 'internal/api', lang: 'Go', loc: 1289, path: 'internal/api/', detail: 'HTTP API server, SSE stream and quota endpoints that back the dashboard.' },
+  { pkg: 'internal/proxy', lang: 'Go', loc: 600, path: 'internal/proxy/', detail: 'The MCP gateway itself — orchestrates the 6-stage pipeline in ServeHTTP / handleToolsCall.' },
+  { pkg: 'rust/tokenizer', lang: 'Rust', loc: 395, path: 'rust/tokenizer/', detail: 'PII detection + tokenization vault. 7 regex patterns and Luhn validation, exposed to Go via cgo.' },
+  { pkg: 'cmd/cli', lang: 'Go', loc: 301, path: 'cmd/cli/', detail: 'The bawaba CLI, including the offline evidence-chain verifier.' },
+  { pkg: 'internal/audit', lang: 'Go', loc: 296, path: 'internal/audit/', detail: 'Append-only, SHA-256-chained, Ed25519-signed audit trail with VerifyChain().' },
+  { pkg: 'cmd/gateway', lang: 'Go', loc: 265, path: 'cmd/gateway/', detail: 'Gateway binary entrypoint: wires config, auth, policy, tokenizer, router and audit together.' },
+  { pkg: 'internal/auth', lang: 'Go', loc: 253, path: 'internal/auth/', detail: 'API-key (bcrypt) and Bearer/OAuth2 authentication, agent registry.' },
+  { pkg: 'internal/siem', lang: 'Go', loc: 184, path: 'internal/siem/', detail: 'SIEM export: webhook sink and a no-op sink for local runs.' },
+  { pkg: 'internal/config', lang: 'Go', loc: 179, path: 'internal/config/', detail: 'Loads and validates bawaba.yaml (agents, policies, routing, pii_mode).' },
+  { pkg: 'internal/ratelimit', lang: 'Go', loc: 166, path: 'internal/ratelimit/', detail: 'Sliding-window rate limiter and sequential-bulk-read anomaly detector.' },
+  { pkg: 'internal/router', lang: 'Go', loc: 137, path: 'internal/router/', detail: 'Sovereign routing with Ed25519-signed, offline-verifiable routing proofs.' },
+  { pkg: 'internal/policy', lang: 'Go', loc: 124, path: 'internal/policy/', detail: 'Default-deny policy evaluation from YAML config.' },
+  { pkg: 'internal/tokenizer', lang: 'Go', loc: 73, path: 'internal/tokenizer/', detail: 'cgo binding to the Rust tokenizer: Tokenize() / Detokenize().' },
+  { pkg: 'src (dashboard)', lang: 'TS', loc: 9429, path: 'src/', detail: 'React + Tailwind single-page dashboard (this UI).' },
 ];
+
+// ── Commits — git log --oneline -8 (verbatim) ───────────────────────────────
 
 const COMMITS: Commit[] = [
-  { hash: 'a1b2c3d', message: 'fix(auth): token expiry race in concurrent refresh', date: '2025-03-12', sprint: 'S1', why: { engineer: 'Concurrent token refresh could return expired tokens due to missing mutex on cache write.', ciso: 'Race condition allowed brief window of unauthenticated access during token rotation.', vc: 'Blocker for enterprise pilot — auth failures in load testing.' } },
-  { hash: 'e4f5g6h', message: 'fix(pii): nested JSON payload false negatives', date: '2025-03-14', sprint: 'S1', why: { engineer: 'Scanner only checked top-level fields — nested objects with PII were missed.', ciso: 'PII leakage to LLM providers in deeply nested request bodies.', vc: 'Two F500 prospects flagged this in security review.' } },
-  { hash: 'i7j8k9l', message: 'fix(guard): classifier timeout fail-open', date: '2025-03-15', sprint: 'S1', why: { engineer: 'Timeout in classifier HTTP call returned default-allow instead of default-deny.', ciso: 'Fail-open on timeout = prompt injection bypass under load.', vc: '#1 objection in every security-focused sales call.' } },
-  { hash: 'm0n1o2p', message: 'fix(ratelimit): counter drift on Redis failover', date: '2025-03-18', sprint: 'S1', why: { engineer: 'Redis Cluster failover reset counters, granting fresh burst allowance.', ciso: 'Rate limit bypass during infrastructure events — DDoS window.', vc: 'Free-tier abuse during outages = direct revenue impact.' } },
-  { hash: 'q3r4s5t', message: 'fix(router): infinite fallback loop on dual degradation', date: '2025-03-20', sprint: 'S1', why: { engineer: 'Fallback chain looped when both primary and secondary models returned 503.', ciso: 'Infinite retry exposed requests to unvetted model endpoints.', vc: 'Improved uptime SLA from 99.5% to 99.95% — enterprise requirement.' } },
-  { hash: 'u6v7w8x', message: 'fix(policy): stale bundle on hot-reload', date: '2025-03-22', sprint: 'S1', why: { engineer: 'Hot-reload replaced bundle pointer before compilation completed.', ciso: 'Window where old (potentially permissive) policies served requests.', vc: 'Required for enterprise GA — policy consistency guarantee.' } },
-  { hash: 'y9z0a1b', message: 'fix(audit): log ordering broken by async flush', date: '2025-04-01', sprint: 'S2', why: { engineer: 'Batched async flush broke causal ordering — events arrived out of sequence.', ciso: 'Unordered logs fail forensic investigation requirements.', vc: 'SOC 2 Type II auditor flagged this as finding.' } },
-  { hash: 'c2d3e4f', message: 'fix(filter): streaming chunks bypass buffer', date: '2025-04-03', sprint: 'S2', why: { engineer: 'Chunked transfer encoding sent partial responses before filter buffer filled.', ciso: 'PII in LLM output could reach client before being scanned.', vc: 'Streaming support required by 80% of pipeline.' } },
-  { hash: 'g5h6i7j', message: 'fix(gateway): TLS cert reload without restart', date: '2025-04-05', sprint: 'S2', why: { engineer: 'Certificate rotation required full gateway restart — caused 2s downtime.', ciso: 'Zero-downtime cert rotation eliminates exposure window during renewal.', vc: 'Reduces operational burden — sells well to platform teams.' } },
-  { hash: 'k8l9m0n', message: 'fix(pii): IBAN/SWIFT detection for EU banks', date: '2025-04-08', sprint: 'S2', why: { engineer: 'Added regex patterns and NER training data for EU financial identifiers.', ciso: 'IBAN/SWIFT are PII under GDPR for financial services clients.', vc: 'Unlocks EU banking vertical — 3 prospects waiting on this.' } },
+  { hash: 'c0ca061', subject: 'demo: full English UI, fictional tenants, simulated-data banner, tokenize-only', date: '2026-07-28' },
+  { hash: 'ab48490', subject: 'demo: fictional tenant names + simulated-data banner (#2)', date: '2026-07-28' },
+  { hash: '21ad814', subject: 'feat(map): replace hand-drawn SVG with proper world map using react-simple-maps', date: '2026-03-05' },
+  { hash: '877a604', subject: 'fix(sse): flush response headers immediately to unblock clients', date: '2026-03-05' },
+  { hash: '5bd4ea8', subject: 'fix(ci): fix all failing CI tests and translate UI to English', date: '2026-03-05' },
+  { hash: '63c53d8', subject: 'fix(ui): enrichir tooltips, hints et drawers sur toutes les pages', date: '2026-03-05' },
+  { hash: 'b50e3d2', subject: 'feat(dashboard): traduction FR complète, InfoTooltip et drawers détail', date: '2026-03-05' },
+  { hash: 'd47aa9a', subject: 'feat(dashboard): add Architecture Explorer page with persona switch', date: '2026-03-05' },
 ];
 
-// ── Helpers ───────────────────────────────────────────────────
+// ── Helpers ─────────────────────────────────────────────────────────────────
 
 const LANG_COLORS: Record<Module['lang'], string> = {
   Go: 'bg-sky-100 text-sky-700 dark:bg-sky-900/40 dark:text-sky-300',
   Rust: 'bg-orange-100 text-orange-700 dark:bg-orange-900/40 dark:text-orange-300',
   TS: 'bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300',
-  YAML: 'bg-purple-100 text-purple-700 dark:bg-purple-900/40 dark:text-purple-300',
 };
 
-const PERSONA_LABELS: Record<Persona, string> = {
-  engineer: 'Engineer',
-  ciso: 'CISO',
-  vc: 'VC',
-};
+const PERSONA_LABELS: Record<Persona, string> = { engineer: 'Engineer', ciso: 'CISO', vc: 'VC' };
 
-// ── Component ────────────────────────────────────────────────
+// ── Component ─────────────────────────────────────────────────────────────────
 
 export default function ArchitectureExplorer() {
   const [persona, setPersona] = useState<Persona>('engineer');
   const [drawer, setDrawer] = useState<DrawerContent | null>(null);
 
-  const s1Commits = COMMITS.filter(c => c.sprint === 'S1');
-  const s2Commits = COMMITS.filter(c => c.sprint === 'S2');
-
   return (
     <div className="space-y-6">
       {/* Persona switch */}
-      <div className="flex items-center gap-2">
-        {(['engineer', 'ciso', 'vc'] as Persona[]).map(p => (
-          <button
-            key={p}
-            onClick={() => setPersona(p)}
-            className={`px-4 py-1.5 text-xs font-medium rounded transition-colors ${
-              persona === p
-                ? 'bg-primary text-primary-foreground'
-                : 'bg-secondary text-muted-foreground hover:text-foreground'
-            }`}
-          >
-            {PERSONA_LABELS[p]}
-          </button>
-        ))}
+      <div className="flex items-center justify-between">
+        <div className="text-[11px] text-muted-foreground font-body max-w-[640px]">
+          Rebuilt from the real gateway: the pipeline mirrors <span className="font-mono">internal/proxy</span>, module sizes are
+          <span className="font-mono"> wc -l</span> per package, and the commit list is <span className="font-mono">git log</span>.
+        </div>
+        <div className="flex items-center gap-2 shrink-0">
+          {(['engineer', 'ciso', 'vc'] as Persona[]).map(p => (
+            <button
+              key={p}
+              onClick={() => setPersona(p)}
+              className={`px-4 py-1.5 text-xs font-medium rounded transition-colors ${
+                persona === p ? 'bg-primary text-primary-foreground' : 'bg-secondary text-muted-foreground hover:text-foreground'
+              }`}
+            >
+              {PERSONA_LABELS[p]}
+            </button>
+          ))}
+        </div>
       </div>
 
-      {/* Pipeline steps */}
+      {/* Pipeline */}
       <section>
-        <div className="table-header mb-3">Pipeline — 8 Steps</div>
-        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-3">
-          {PIPELINE_STEPS.map(step => (
+        <div className="table-header mb-3">Request pipeline — 6 stages (internal/proxy)</div>
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
+          {PIPELINE.map((stage, i) => (
             <button
-              key={step.id}
-              onClick={() => setDrawer({ type: 'pipeline', step })}
-              className="card-surface shadow-card p-4 text-left hover:bg-secondary/30 transition-colors"
+              key={stage.id}
+              onClick={() => setDrawer({ type: 'stage', stage })}
+              className="card-surface shadow-card p-4 text-left hover:bg-secondary/30 transition-colors relative"
             >
               <div className="flex items-baseline gap-2 mb-1">
-                <span className="text-xs font-mono text-muted-foreground">{step.id}</span>
-                <span className="text-sm font-heading font-medium text-foreground">{step.name}</span>
+                <span className="text-xs font-mono text-muted-foreground">{stage.id}</span>
+                <span className="text-sm font-heading font-medium text-foreground">{stage.name}</span>
+                <span className={`ml-auto text-[10px] font-mono px-1.5 py-0.5 rounded ${LANG_COLORS[stage.lang]}`}>{stage.lang}</span>
               </div>
-              <p className="text-xs text-muted-foreground leading-relaxed">{step.description}</p>
+              <p className="text-xs text-muted-foreground leading-relaxed">{stage.tagline}</p>
+              <div className="text-[10px] font-mono text-ink-4 mt-2">{stage.loc} LOC</div>
+              {i < PIPELINE.length - 1 && (
+                <span className="hidden xl:block absolute -right-2 top-1/2 -translate-y-1/2 text-ink-4 text-xs">→</span>
+              )}
             </button>
           ))}
         </div>
       </section>
 
-      {/* Module grid */}
+      {/* Modules */}
       <section>
-        <div className="table-header mb-3">Modules</div>
-        <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-3">
+        <div className="table-header mb-3">Modules (real packages · LOC from wc -l)</div>
+        <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
           {MODULES.map(mod => (
             <button
-              key={mod.name}
+              key={mod.pkg}
               onClick={() => setDrawer({ type: 'module', module: mod })}
               className="card-surface shadow-card p-4 text-left hover:bg-secondary/30 transition-colors"
             >
               <div className="flex items-center justify-between mb-2">
-                <span className="text-sm font-heading font-medium text-foreground">{mod.name}</span>
-                <span className={`text-[10px] font-mono px-1.5 py-0.5 rounded ${LANG_COLORS[mod.lang]}`}>
-                  {mod.lang}
-                </span>
+                <span className="text-sm font-heading font-medium text-foreground truncate">{mod.pkg}</span>
+                <span className={`text-[10px] font-mono px-1.5 py-0.5 rounded shrink-0 ${LANG_COLORS[mod.lang]}`}>{mod.lang}</span>
               </div>
-              <div className="text-[11px] font-mono text-muted-foreground mb-2">{mod.file}</div>
-              <div className="flex items-center gap-1.5 flex-wrap">
-                <span className="text-[10px] text-muted-foreground">{mod.loc.toLocaleString()} LOC</span>
-                {mod.status.map(s => (
-                  <span
-                    key={s}
-                    className={`text-[10px] font-mono px-1.5 py-0.5 rounded-sm ${
-                      s === 'DONE'
-                        ? 'bg-safe-bg text-safe border border-safe/10'
-                        : 'bg-warn-bg text-warn border border-warn/10'
-                    }`}
-                  >
-                    {s}
-                  </span>
-                ))}
-              </div>
+              <div className="text-[11px] font-mono text-muted-foreground mb-2 truncate">{mod.path}</div>
+              <span className="text-[10px] text-muted-foreground">{mod.loc.toLocaleString()} LOC</span>
             </button>
           ))}
         </div>
       </section>
 
-      {/* Commit timeline */}
+      {/* Commits */}
       <section>
-        <div className="table-header mb-3">P0 Commits</div>
-        <div className="space-y-4">
-          {[
-            { label: 'Sprint 1 — 6 fixes', commits: s1Commits },
-            { label: 'Sprint 2 — 4 fixes', commits: s2Commits },
-          ].map(group => (
-            <div key={group.label}>
-              <div className="text-xs font-medium text-muted-foreground mb-2">{group.label}</div>
-              <div className="space-y-1">
-                {group.commits.map(commit => (
-                  <button
-                    key={commit.hash}
-                    onClick={() => setDrawer({ type: 'commit', commit })}
-                    className="card-surface shadow-card w-full p-3 text-left hover:bg-secondary/30 transition-colors flex items-center gap-4"
-                  >
-                    <span className="text-xs font-mono text-primary shrink-0">{commit.hash}</span>
-                    <span className="text-xs text-foreground flex-1 truncate">{commit.message}</span>
-                    <span className="text-[11px] text-muted-foreground shrink-0">{commit.date}</span>
-                  </button>
-                ))}
-              </div>
-            </div>
+        <div className="table-header mb-3">Latest commits — git log --oneline -8</div>
+        <div className="space-y-1">
+          {COMMITS.map(commit => (
+            <button
+              key={commit.hash}
+              onClick={() => setDrawer({ type: 'commit', commit })}
+              className="card-surface shadow-card w-full p-3 text-left hover:bg-secondary/30 transition-colors flex items-center gap-4"
+            >
+              <span className="text-xs font-mono text-primary shrink-0">{commit.hash}</span>
+              <span className="text-xs text-foreground flex-1 truncate">{commit.subject}</span>
+              <span className="text-[11px] text-muted-foreground shrink-0">{commit.date}</span>
+            </button>
           ))}
         </div>
       </section>
@@ -269,13 +292,13 @@ export default function ArchitectureExplorer() {
             <div className="flex items-center justify-between p-5 border-b border-border">
               <div>
                 <div className="text-lg font-heading text-foreground">
-                  {drawer.type === 'pipeline' && `${drawer.step.id} — ${drawer.step.name}`}
-                  {drawer.type === 'module' && drawer.module.name}
+                  {drawer.type === 'stage' && `${drawer.stage.id} — ${drawer.stage.name}`}
+                  {drawer.type === 'module' && drawer.module.pkg}
                   {drawer.type === 'commit' && drawer.commit.hash}
                 </div>
                 <div className="text-xs text-muted-foreground font-mono">
-                  {drawer.type === 'pipeline' && 'Pipeline Step'}
-                  {drawer.type === 'module' && drawer.module.file}
+                  {drawer.type === 'stage' && 'Pipeline stage'}
+                  {drawer.type === 'module' && drawer.module.path}
                   {drawer.type === 'commit' && drawer.commit.date}
                 </div>
               </div>
@@ -285,52 +308,38 @@ export default function ArchitectureExplorer() {
             </div>
 
             <div className="p-5 space-y-6">
-              {/* Persona indicator */}
-              <div className="flex items-center gap-2">
-                <span className="text-[10px] uppercase tracking-wider text-muted-foreground">Viewing as</span>
-                <span className="text-xs font-medium px-2 py-0.5 rounded bg-primary text-primary-foreground">
-                  {PERSONA_LABELS[persona]}
-                </span>
-              </div>
-
-              {drawer.type === 'pipeline' && (
+              {drawer.type === 'stage' && (
                 <>
-                  <DrawerSection title="Role" content={drawer.step.role[persona]} />
-                  <DrawerSection title="Key File" content={drawer.step.file[persona]} mono />
-                  <DrawerSection title="P0 Fix" content={drawer.step.p0Fix[persona]} />
-                  <DrawerSection title="P2 Roadmap" content={drawer.step.p2Roadmap[persona]} />
-                  <DrawerSection title="Actions" content={drawer.step.actions[persona]} />
+                  <div className="flex items-center gap-2">
+                    <span className="text-[10px] uppercase tracking-wider text-muted-foreground">Viewing as</span>
+                    <span className="text-xs font-medium px-2 py-0.5 rounded bg-primary text-primary-foreground">{PERSONA_LABELS[persona]}</span>
+                    <span className={`ml-auto text-[10px] font-mono px-2 py-0.5 rounded ${LANG_COLORS[drawer.stage.lang]}`}>{drawer.stage.lang}</span>
+                    <span className="text-xs text-muted-foreground">{drawer.stage.loc} LOC</span>
+                  </div>
+                  <DrawerSection title="What it does" content={drawer.stage.persona[persona]} />
+                  <DrawerSection title="Source" content={drawer.stage.file} mono />
+                  <DrawerSection title="Verify in code" content={drawer.stage.verify} mono />
                 </>
               )}
 
               {drawer.type === 'module' && (
                 <>
                   <div className="flex items-center gap-3">
-                    <span className={`text-[10px] font-mono px-2 py-1 rounded ${LANG_COLORS[drawer.module.lang]}`}>
-                      {drawer.module.lang}
-                    </span>
+                    <span className={`text-[10px] font-mono px-2 py-1 rounded ${LANG_COLORS[drawer.module.lang]}`}>{drawer.module.lang}</span>
                     <span className="text-xs text-muted-foreground">{drawer.module.loc.toLocaleString()} LOC</span>
-                    {drawer.module.status.map(s => (
-                      <span
-                        key={s}
-                        className={`text-[10px] font-mono px-1.5 py-0.5 rounded-sm ${
-                          s === 'DONE'
-                            ? 'bg-safe-bg text-safe border border-safe/10'
-                            : 'bg-warn-bg text-warn border border-warn/10'
-                        }`}
-                      >
-                        {s}
-                      </span>
-                    ))}
+                    <span className="text-xs font-mono text-muted-foreground">{drawer.module.path}</span>
                   </div>
-                  <DrawerSection title="Detail" content={drawer.module.detail[persona]} />
+                  <DrawerSection title="Detail" content={drawer.module.detail} />
                 </>
               )}
 
               {drawer.type === 'commit' && (
                 <>
-                  <div className="text-sm text-foreground">{drawer.commit.message}</div>
-                  <DrawerSection title="Why P0?" content={drawer.commit.why[persona]} />
+                  <div className="text-sm text-foreground">{drawer.commit.subject}</div>
+                  <DrawerSection title="Commit" content={`${drawer.commit.hash} · ${drawer.commit.date}`} mono />
+                  <div className="text-[10px] text-muted-foreground bg-muted/40 rounded p-2">
+                    Verbatim from <span className="font-mono">git log --oneline -8</span> on this repository.
+                  </div>
                 </>
               )}
             </div>
@@ -345,7 +354,7 @@ function DrawerSection({ title, content, mono }: { title: string; content: strin
   return (
     <div>
       <div className="table-header mb-1.5">{title}</div>
-      <p className={`text-sm leading-relaxed text-foreground ${mono ? 'font-mono text-xs' : ''}`}>{content}</p>
+      <p className={`leading-relaxed text-foreground ${mono ? 'font-mono text-xs break-words' : 'text-sm'}`}>{content}</p>
     </div>
   );
 }
