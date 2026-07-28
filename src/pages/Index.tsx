@@ -1,7 +1,10 @@
 import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { Area, AreaChart, CartesianGrid, ReferenceLine, ResponsiveContainer, YAxis } from 'recharts';
+import { X } from 'lucide-react';
 import { useLiveFeed } from '@/hooks/use-live-feed';
-import { AGENTS as MOCK_AGENTS, JURISDICTIONS as MOCK_JURISDICTIONS, generateSparklineData, getJurisdictionFlag, type JurisdictionData } from '@/lib/mock-data';
+import { AGENTS as MOCK_AGENTS, JURISDICTIONS as MOCK_JURISDICTIONS, TOOLS, generateSparklineData, getJurisdictionFlag, type JurisdictionData } from '@/lib/mock-data';
+import { useLocalAudit, pushInjectedEvent } from '@/lib/local-audit';
+import { tokenizePii } from '@/lib/pii-detect';
 import {
   isApiAvailable, fetchStats, fetchAgents, fetchJurisdictions,
   type StatsResponse, type AgentInfo, type JurisdictionEntry,
@@ -160,6 +163,8 @@ function PiiCount({ value, isNew }: { value: number; isNew: boolean }) {
 /* ── Live Feed ──────────────────────────────────── */
 function LiveFeed() {
   const { events, isLive, toggleLive } = useLiveFeed(30);
+  const { injected } = useLocalAudit();
+  const allEvents = useMemo(() => [...injected, ...events], [injected, events]);
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [, setTick] = useState(0);
   const prevEventsLenRef = useRef(0);
@@ -168,21 +173,21 @@ function LiveFeed() {
   // Track which events are "new" (appeared since last render)
   const newEventIds = useMemo(() => {
     const newIds = new Set<string>();
-    for (const evt of events) {
+    for (const evt of allEvents) {
       if (!seenIdsRef.current.has(evt.id)) {
         newIds.add(evt.id);
       }
     }
     return newIds;
-  }, [events]);
+  }, [allEvents]);
 
   // After render, record all seen IDs
   useEffect(() => {
-    for (const evt of events) {
+    for (const evt of allEvents) {
       seenIdsRef.current.add(evt.id);
     }
-    prevEventsLenRef.current = events.length;
-  }, [events]);
+    prevEventsLenRef.current = allEvents.length;
+  }, [allEvents]);
 
   // Update "time ago" every second
   useEffect(() => {
@@ -219,7 +224,7 @@ function LiveFeed() {
         <div className="flex items-center gap-3">
           <div>
             <div className="text-sm font-body font-medium text-foreground">Live activity feed <InfoTooltip text="Each row represents an MCP call processed in real time by the Bawaba gateway." /></div>
-            <div className="text-xs text-muted-foreground">{events.length} events captured</div>
+            <div className="text-xs text-muted-foreground">{allEvents.length} events captured</div>
           </div>
         </div>
         <button
@@ -242,7 +247,7 @@ function LiveFeed() {
 
       {/* Events */}
       <div className="flex-1 overflow-y-auto">
-        {events.map((evt, i) => {
+        {allEvents.map((evt, i) => {
           const isNew = newEventIds.has(evt.id);
           return (
             <div key={evt.id}>
@@ -451,6 +456,215 @@ function mapJurisdiction(entry: JurisdictionEntry): JurisdictionData {
   };
 }
 
+/* ── Simulate Request panel ──────────────────────── */
+const SIM_BACKENDS: Record<string, string> = {
+  ma: 'inwi-dc-casa',
+  sa: 'stc-cloud-riyadh',
+  ae: 'g42-abudhabi',
+  fr: 'ovhcloud-paris',
+};
+const SIM_STAGES = ['Identity', 'Policy', 'Data', 'Jurisdiction', 'Rate', 'Evidence'] as const;
+type StageStatus = 'pending' | 'pass' | 'deny' | 'rate-limited' | 'skipped';
+interface StageResult { name: string; status: StageStatus; ms: number; note: string; }
+
+function randMs(min: number, max: number) {
+  return Math.round((min + Math.random() * (max - min)) * 10) / 10;
+}
+
+function computePipeline(agentId: string, tool: string, jurisdiction: string, payload: string): {
+  stages: StageResult[]; outcome: 'allow' | 'deny' | 'rate-limited'; entities: number;
+} {
+  const agent = MOCK_AGENTS.find(a => a.id === agentId);
+  const denied = !!agent?.deniedTools.includes(tool);
+  const notAllowed = !!agent && agent.allowedTools.length > 0 && !agent.allowedTools.includes(tool);
+  const policyDeny = denied || notAllowed;
+  const rateLimited = agent?.status === 'rate-limited';
+  const { tokens } = tokenizePii(payload);
+  const entities = tokens.length;
+
+  const stages: StageResult[] = [
+    { name: 'Identity', status: 'pass', ms: randMs(0.5, 2), note: `${agentId} authenticated (${agent?.auth ?? 'API Key'})` },
+    {
+      name: 'Policy',
+      status: policyDeny ? 'deny' : 'pass',
+      ms: randMs(0.3, 1.2),
+      note: denied ? `${tool} in denied_tools` : notAllowed ? `${tool} not in allowed_tools (default-deny)` : `allow rule matched for ${tool}`,
+    },
+    {
+      name: 'Data',
+      status: policyDeny ? 'skipped' : 'pass',
+      ms: policyDeny ? 0 : randMs(0.4, 1 + entities * 0.3),
+      note: policyDeny ? 'skipped (denied)' : `${entities} PII entit${entities === 1 ? 'y' : 'ies'} tokenized`,
+    },
+    {
+      name: 'Jurisdiction',
+      status: policyDeny ? 'skipped' : 'pass',
+      ms: policyDeny ? 0 : randMs(0.5, 1.5),
+      note: policyDeny ? 'skipped (denied)' : `routed to ${SIM_BACKENDS[jurisdiction]}, Ed25519 proof`,
+    },
+    {
+      name: 'Rate',
+      status: policyDeny ? 'skipped' : rateLimited ? 'rate-limited' : 'pass',
+      ms: policyDeny ? 0 : randMs(0.2, 0.8),
+      note: policyDeny ? 'skipped (denied)' : rateLimited ? 'rate limit exceeded (sliding window)' : 'within sliding window',
+    },
+    {
+      name: 'Evidence',
+      status: 'pass',
+      ms: randMs(0.4, 1.3),
+      note: 'event appended, SHA-256 chained + signed',
+    },
+  ];
+
+  const outcome: 'allow' | 'deny' | 'rate-limited' = policyDeny ? 'deny' : rateLimited ? 'rate-limited' : 'allow';
+  return { stages, outcome, entities };
+}
+
+const STAGE_COLOR: Record<StageStatus, string> = {
+  pending: 'text-muted-foreground',
+  pass: 'text-safe',
+  deny: 'text-danger',
+  'rate-limited': 'text-warn',
+  skipped: 'text-ink-4',
+};
+
+function SimulateRequestPanel({ onClose }: { onClose: () => void }) {
+  const [agentId, setAgentId] = useState(MOCK_AGENTS[0]?.id ?? '');
+  const [tool, setTool] = useState(TOOLS[0]);
+  const [jurisdiction, setJurisdiction] = useState('ma');
+  const [payload, setPayload] = useState(
+    "SELECT * FROM customers WHERE iban = 'MA64011519000001205000534921' AND email = 'sara@example.ma'",
+  );
+  const [running, setRunning] = useState(false);
+  const [revealed, setRevealed] = useState(0);
+  const [result, setResult] = useState<ReturnType<typeof computePipeline> | null>(null);
+  const timers = useRef<ReturnType<typeof setTimeout>[]>([]);
+
+  useEffect(() => () => { timers.current.forEach(t => clearTimeout(t)); }, []);
+
+  const run = () => {
+    timers.current.forEach(t => clearTimeout(t));
+    timers.current = [];
+    const computed = computePipeline(agentId, tool, jurisdiction, payload);
+    setResult(computed);
+    setRunning(true);
+    setRevealed(0);
+    computed.stages.forEach((_, i) => {
+      const t = setTimeout(() => {
+        setRevealed(i + 1);
+        if (i === computed.stages.length - 1) {
+          setRunning(false);
+          pushInjectedEvent({
+            eventType: computed.outcome === 'deny' ? 'policy_deny' : 'tool_call',
+            agent: agentId,
+            tool,
+            decision: computed.outcome,
+            jurisdiction,
+            piiTokens: computed.entities,
+            details: {
+              simulated: true,
+              backend: SIM_BACKENDS[jurisdiction],
+              payload_preview: payload.slice(0, 80),
+              policy: computed.stages[1].note,
+            },
+          });
+        }
+      }, i * 420);
+      timers.current.push(t);
+    });
+  };
+
+  const totalMs = result ? result.stages.slice(0, revealed).reduce((s, st) => s + st.ms, 0) : 0;
+
+  return (
+    <div className="fixed inset-y-0 right-0 w-[460px] bg-card border-l border-border z-50 overflow-y-auto shadow-card">
+      <div className="flex items-center justify-between p-5 border-b border-border">
+        <div>
+          <div className="text-lg font-heading text-foreground">Simulate request</div>
+          <div className="text-xs text-muted-foreground font-mono">Run a request through the gateway pipeline</div>
+        </div>
+        <button onClick={onClose} className="text-muted-foreground hover:text-foreground transition-colors">
+          <X className="h-4 w-4" strokeWidth={1.5} />
+        </button>
+      </div>
+
+      <div className="p-5 space-y-5">
+        {/* Inputs */}
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <div className="table-header mb-1.5">Agent</div>
+            <select value={agentId} onChange={e => setAgentId(e.target.value)} className="w-full text-xs font-mono px-2 py-2 border border-border rounded-sm bg-background text-foreground focus:outline-none focus:border-primary">
+              {MOCK_AGENTS.map(a => <option key={a.id} value={a.id}>{a.id}</option>)}
+            </select>
+          </div>
+          <div>
+            <div className="table-header mb-1.5">Tool</div>
+            <select value={tool} onChange={e => setTool(e.target.value)} className="w-full text-xs font-mono px-2 py-2 border border-border rounded-sm bg-background text-foreground focus:outline-none focus:border-primary">
+              {TOOLS.map(t => <option key={t} value={t}>{t}</option>)}
+            </select>
+          </div>
+        </div>
+        <div>
+          <div className="table-header mb-1.5">Jurisdiction</div>
+          <div className="flex gap-1.5">
+            {['ma', 'sa', 'ae', 'fr'].map(j => (
+              <button key={j} onClick={() => setJurisdiction(j)} className={`text-[10px] font-mono px-2 py-1 rounded-sm border transition-colors ${jurisdiction === j ? 'bg-primary/10 text-foreground border-primary/40' : 'bg-background text-muted-foreground border-border hover:text-foreground'}`}>
+                {j.toUpperCase()}
+              </button>
+            ))}
+          </div>
+        </div>
+        <div>
+          <div className="table-header mb-1.5">Payload (optional)</div>
+          <textarea value={payload} onChange={e => setPayload(e.target.value)} rows={3} className="w-full text-xs font-mono px-3 py-2 border border-border rounded-sm bg-background text-foreground focus:outline-none focus:border-primary resize-y" />
+        </div>
+
+        <button onClick={run} disabled={running} className="w-full text-xs font-body font-medium px-4 py-2 bg-primary text-primary-foreground rounded-sm hover:opacity-90 transition-opacity disabled:opacity-50">
+          {running ? 'Running…' : 'Run request'}
+        </button>
+
+        {/* Pipeline visualization */}
+        {result && (
+          <div className="space-y-1.5">
+            <div className="table-header mb-1">Pipeline</div>
+            {result.stages.map((st, i) => {
+              const shown = i < revealed;
+              const active = i === revealed - 1 && running;
+              return (
+                <div key={st.name} className={`flex items-center gap-3 px-3 py-2 border rounded-sm transition-all ${shown ? 'border-border bg-background' : 'border-border/40 opacity-40'} ${active ? 'ring-1 ring-primary/30' : ''}`}>
+                  <span className="text-[10px] font-mono text-muted-foreground w-4">{i + 1}</span>
+                  <span className="text-xs font-body text-foreground w-24">{st.name}</span>
+                  {shown ? (
+                    <>
+                      <span className={`text-[10px] font-mono uppercase ${STAGE_COLOR[st.status]}`}>{st.status}</span>
+                      <span className="text-[10px] font-mono text-muted-foreground ml-auto">{st.ms > 0 ? `${st.ms}ms` : '—'}</span>
+                    </>
+                  ) : (
+                    <span className="text-[10px] font-mono text-ink-4 ml-auto">pending</span>
+                  )}
+                </div>
+              );
+            })}
+            {revealed > 0 && (
+              <div className="text-[10px] text-muted-foreground font-mono px-3">{result.stages[revealed - 1]?.note}</div>
+            )}
+
+            {/* Final result */}
+            {!running && revealed === result.stages.length && (
+              <div className={`mt-3 p-3 rounded-sm border ${result.outcome === 'allow' ? 'bg-safe-bg border-safe/20' : result.outcome === 'deny' ? 'bg-danger-bg border-danger/20' : 'bg-warn-bg border-warn/20'}`}>
+                <div className={`text-xs font-mono font-medium ${result.outcome === 'allow' ? 'text-safe' : result.outcome === 'deny' ? 'text-danger' : 'text-warn'}`}>
+                  {result.outcome === 'allow' ? '✓ Allowed' : result.outcome === 'deny' ? '✗ Denied' : '⚠ Rate-limited'} · {totalMs.toFixed(1)}ms total
+                </div>
+                <div className="text-[10px] text-muted-foreground mt-1">Event injected into the audit feed with {result.entities} tokenized PII entit{result.entities === 1 ? 'y' : 'ies'}.</div>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 /* ── Dashboard Page ─────────────────────────────── */
 export default function Dashboard() {
   const sparkCalls = useMemo(() => generateSparklineData(7, 3200, 400), []);
@@ -462,6 +676,7 @@ export default function Dashboard() {
   const [stats, setStats] = useState<StatsResponse | null>(null);
   const [agentCount, setAgentCount] = useState<number>(MOCK_AGENTS.length);
   const [jurisdictions, setJurisdictions] = useState<JurisdictionData[]>(MOCK_JURISDICTIONS);
+  const [showSimulate, setShowSimulate] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -513,8 +728,14 @@ export default function Dashboard() {
     <div className="space-y-6">
       {/* Section 01: Metrics */}
       <div>
-        <div className="flex items-center gap-3 mb-4">
+        <div className="flex items-center justify-between mb-4">
           <div className="text-sm font-body font-medium text-foreground">Overview</div>
+          <button
+            onClick={() => setShowSimulate(true)}
+            className="text-xs font-body font-medium px-4 py-2 bg-primary text-primary-foreground rounded-sm hover:opacity-90 transition-opacity"
+          >
+            Simulate request
+          </button>
         </div>
         <div className="grid grid-cols-4 gap-4">
           {loading ? (
@@ -582,6 +803,14 @@ export default function Dashboard() {
         </div>
         <ComplianceBar jurisdictions={jurisdictions} loading={loading} />
       </div>
+
+      {/* Simulate request panel */}
+      {showSimulate && (
+        <>
+          <div className="fixed inset-0 bg-foreground/5 z-40" onClick={() => setShowSimulate(false)} />
+          <SimulateRequestPanel onClose={() => setShowSimulate(false)} />
+        </>
+      )}
     </div>
   );
 }

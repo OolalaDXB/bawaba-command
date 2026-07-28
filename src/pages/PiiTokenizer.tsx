@@ -4,6 +4,7 @@ import { useLiveFeed } from '@/hooks/use-live-feed';
 import { BarChart, Bar, ResponsiveContainer, XAxis, YAxis } from 'recharts';
 import { isApiAvailable, fetchPiiStats, type PiiStatEntry } from '@/services/api';
 import { PETROL } from '@/lib/chart-colors';
+import { tokenizePii, PII_LABELS, type PiiMatch } from '@/lib/pii-detect';
 import InfoTooltip from '@/components/InfoTooltip';
 import { X } from 'lucide-react';
 
@@ -82,6 +83,96 @@ const VAULT_TOOLTIPS: Record<string, string> = {
   'Avg TTL remaining': 'Average token time-to-live remaining in memory. After expiration, detokenization becomes impossible.',
   'Memory usage': 'RAM usage by the token vault.',
 };
+
+/* ── "Try it" live PII detection ─────────────────── */
+const TRY_IT_SAMPLE =
+  'Wire settlement to IBAN MA64011519000001205000534921 for Ahmed, reachable at ahmed.benali@example.ma or +212 661 234 567. Card on file 4111 1111 1111 1111, Emirates ID 784-1985-1234567-8, KSA ID 1023456789.';
+
+function Highlighted({ text, matches }: { text: string; matches: PiiMatch[] }) {
+  if (!text) {
+    return <span className="text-ink-4">Paste text containing an IBAN, email, phone, card, Emirates ID, KSA ID or Morocco CIN…</span>;
+  }
+  if (!matches.length) return <span>{text}</span>;
+  const parts: React.ReactNode[] = [];
+  let cursor = 0;
+  matches.forEach((m, i) => {
+    if (m.start > cursor) parts.push(<span key={`t${i}`}>{text.slice(cursor, m.start)}</span>);
+    parts.push(
+      <mark
+        key={`m${i}`}
+        title={PII_LABELS[m.type] || m.type}
+        className="rounded-sm px-0.5 font-medium"
+        style={{ background: 'rgba(159, 18, 57, 0.16)', color: 'inherit' }}
+      >
+        {m.value}
+      </mark>,
+    );
+    cursor = m.end;
+  });
+  if (cursor < text.length) parts.push(<span key="tail">{text.slice(cursor)}</span>);
+  return <>{parts}</>;
+}
+
+function PiiTryIt() {
+  const [input, setInput] = useState(TRY_IT_SAMPLE);
+  const result = useMemo(() => tokenizePii(input), [input]);
+
+  return (
+    <div className="card-surface shadow-card p-4">
+      <div className="flex items-center justify-between mb-3">
+        <div className="table-header">
+          Try it — live detection
+          <InfoTooltip text="Runs the same 7 MENA patterns as the Rust tokenizer in your browser. Nothing leaves the page." />
+        </div>
+        <div className="flex items-center gap-2">
+          <span className="text-[10px] font-mono text-muted-foreground">{result.matches.length} entities</span>
+          <button
+            onClick={() => setInput(TRY_IT_SAMPLE)}
+            className="text-[10px] font-body px-2 py-1 border border-border rounded-sm text-muted-foreground hover:text-foreground transition-colors"
+          >
+            Reset sample
+          </button>
+        </div>
+      </div>
+
+      <textarea
+        value={input}
+        onChange={e => setInput(e.target.value)}
+        rows={3}
+        placeholder="Type or paste free text…"
+        className="w-full text-xs font-mono px-3 py-2 border border-border rounded-sm bg-background text-foreground placeholder:text-ink-4 focus:outline-none focus:border-primary resize-y"
+      />
+
+      <div className="grid grid-cols-2 gap-3 mt-3">
+        <div>
+          <div className="text-[10px] uppercase tracking-wider text-muted-foreground mb-1">Detected</div>
+          <div className="text-xs font-mono leading-relaxed bg-background border border-border rounded-sm p-2 min-h-[64px] whitespace-pre-wrap break-words">
+            <Highlighted text={input} matches={result.matches} />
+          </div>
+        </div>
+        <div>
+          <div className="text-[10px] uppercase tracking-wider text-muted-foreground mb-1">Tokenized</div>
+          <div className="text-xs font-mono leading-relaxed bg-background border border-border rounded-sm p-2 min-h-[64px] whitespace-pre-wrap break-words text-ink-2">
+            {result.output || <span className="text-ink-4">—</span>}
+          </div>
+        </div>
+      </div>
+
+      {result.tokens.length > 0 && (
+        <div className="mt-3 space-y-1">
+          {result.tokens.map((t, i) => (
+            <div key={i} className="flex items-center gap-2 text-[11px] font-mono">
+              <span className="px-1.5 py-0.5 rounded-sm bg-danger-bg text-danger border border-danger/10 shrink-0">{PII_LABELS[t.type] || t.type}</span>
+              <span className="text-muted-foreground truncate">{t.value}</span>
+              <span className="text-ink-4">→</span>
+              <span className="text-safe truncate">{t.token}</span>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
 
 export default function PiiTokenizer() {
   const { events } = useLiveFeed(20);
@@ -162,6 +253,9 @@ export default function PiiTokenizer() {
 
   return (
     <div className="space-y-6">
+      {/* Try it — live PII detection */}
+      <PiiTryIt />
+
       {/* Stats */}
       <div>
         <div className="flex items-center gap-3 mb-4">

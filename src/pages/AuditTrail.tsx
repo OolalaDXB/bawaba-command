@@ -55,6 +55,14 @@ function mapApiEvent(apiEvt: ApiEvent): MCPEvent {
   };
 }
 
+/* ── Deterministic demo signature for the evidence bundle ─────── */
+function evidenceSignature(hash: string): string {
+  let h = 0;
+  for (let i = 0; i < hash.length; i++) h = ((h << 5) - h + hash.charCodeAt(i)) | 0;
+  const hex = Math.abs(h).toString(16).padStart(8, '0');
+  return `ed25519:${hex}${hex}`;
+}
+
 /* ── Collapsible Explainer Panel ─────────────────── */
 function ExplainerPanel() {
   const [open, setOpen] = useState(true);
@@ -99,39 +107,56 @@ function HashChainViz({
   events,
   blockStatuses,
   lineStatuses,
+  tamperedIndex,
+  armed,
+  onBlockClick,
 }: {
   events: MCPEvent[];
   blockStatuses: BlockStatus[];
   lineStatuses: ('idle' | 'verified')[];
+  tamperedIndex?: number | null;
+  armed?: boolean;
+  onBlockClick?: (i: number) => void;
 }) {
   const chain = events.slice(0, 8);
 
   return (
     <div className="flex items-center gap-0 overflow-x-auto pb-2">
       <TooltipProvider delayDuration={150}>
-        {chain.map((evt, i) => (
+        {chain.map((evt, i) => {
+          const tampered = tamperedIndex === i;
+          const shownHash = tampered ? 'ffffffff' + evt.hash.slice(8) : evt.hash;
+          return (
           <div key={evt.id} className="flex items-center shrink-0">
             {/* Block */}
             <div
+              onClick={() => onBlockClick?.(i)}
               className={`border rounded-sm p-3 bg-background min-w-[130px] transition-none ${
-                blockStatuses[i] === 'verified'
-                  ? 'animate-chain-verify'
-                  : blockStatuses[i] === 'corrupt'
-                    ? 'animate-chain-corrupt'
-                    : 'border-border'
+                armed ? 'cursor-pointer hover:border-danger/60 hover:ring-1 hover:ring-danger/30' : ''
+              } ${
+                tampered
+                  ? 'border-danger bg-danger-bg'
+                  : blockStatuses[i] === 'verified'
+                    ? 'animate-chain-verify'
+                    : blockStatuses[i] === 'corrupt'
+                      ? 'animate-chain-corrupt'
+                      : 'border-border'
               }`}
             >
-              <div className="text-[9px] text-muted-foreground mb-1 font-body">#{i + 1}</div>
+              <div className="text-[9px] text-muted-foreground mb-1 font-body flex items-center justify-between">
+                <span>#{i + 1}</span>
+                {tampered && <span className="text-[8px] font-mono text-danger uppercase tracking-wide">modified</span>}
+              </div>
 
               {/* Hash with tooltip */}
               <Tooltip>
                 <TooltipTrigger asChild>
-                  <div className="font-mono text-[10px] text-foreground cursor-help">
-                    {evt.hash.slice(0, 8)}
+                  <div className={`font-mono text-[10px] cursor-help ${tampered ? 'text-danger line-through' : 'text-foreground'}`}>
+                    {shownHash.slice(0, 8)}
                   </div>
                 </TooltipTrigger>
                 <TooltipContent side="top" className="font-mono text-[10px] max-w-[260px] break-all">
-                  {evt.hash}
+                  {tampered ? `payload altered — recomputed hash ${shownHash}` : evt.hash}
                 </TooltipContent>
               </Tooltip>
 
@@ -167,7 +192,8 @@ function HashChainViz({
               />
             )}
           </div>
-        ))}
+          );
+        })}
       </TooltipProvider>
     </div>
   );
@@ -307,6 +333,10 @@ export default function AuditTrail() {
   const [verifying, setVerifying] = useState(false);
   const [exporting, setExporting] = useState(false);
   const [, setTick] = useState(0);
+
+  /* Tamper-test state */
+  const [tamperArmed, setTamperArmed] = useState(false);
+  const [tamperedIndex, setTamperedIndex] = useState<number | null>(null);
 
   /* Chain verification animation state */
   const [blockStatuses, setBlockStatuses] = useState<BlockStatus[]>([]);
@@ -464,20 +494,34 @@ export default function AuditTrail() {
       };
     }
 
+    // A tampered event forces the chain to break at that exact link.
+    if (tamperedIndex !== null && tamperedIndex < count) {
+      result = { ...result, valid: false, events: allEvents.length };
+    }
     setVerification(result);
+
+    // corruptAt: index where the chain breaks (-1 = fully valid)
+    const corruptAt =
+      tamperedIndex !== null && tamperedIndex < count
+        ? tamperedIndex
+        : result.valid
+          ? -1
+          : count - 1;
+    const stopAt = corruptAt === -1 ? count - 1 : corruptAt;
 
     // Animate blocks left-to-right with 100ms delay between each
     const DELAY = 100;
-    for (let i = 0; i < count; i++) {
+    for (let i = 0; i <= stopAt; i++) {
       const timer = setTimeout(() => {
+        const isCorrupt = corruptAt !== -1 && i === corruptAt;
         setBlockStatuses(prev => {
           const next = [...prev];
-          next[i] = result.valid ? 'verified' : (i === count - 1 ? 'corrupt' : 'verified');
+          next[i] = isCorrupt ? 'corrupt' : 'verified';
           return next;
         });
 
-        // Animate connecting line (the line before this block)
-        if (i > 0) {
+        // Animate connecting line (the line before this block), unless broken here
+        if (i > 0 && !isCorrupt) {
           setLineStatuses(prev => {
             const next = [...prev];
             next[i - 1] = 'verified';
@@ -485,12 +529,14 @@ export default function AuditTrail() {
           });
         }
 
-        // After last block, show the result message
-        if (i === count - 1) {
-          if (result.valid) {
+        // After the last animated block, show the result message
+        if (i === stopAt) {
+          if (corruptAt === -1) {
             setVerifyMessage(`Chain verified — ${result.events} events — 0 tampering`);
+          } else if (tamperedIndex !== null) {
+            setVerifyMessage(`Chain broken at #${corruptAt + 1}: event hash mismatch`);
           } else {
-            setVerifyMessage(`Tampering detected at event #${count}`);
+            setVerifyMessage(`Tampering detected at event #${corruptAt + 1}`);
           }
           setVerifying(false);
         }
@@ -503,7 +549,67 @@ export default function AuditTrail() {
       setVerifying(false);
       setVerifyMessage('No events to verify');
     }
-  }, [apiAvailable, allEvents]);
+  }, [apiAvailable, allEvents, tamperedIndex]);
+
+  // Tamper test: arm selection, tamper a chosen chain block, restore.
+  const handleBlockClick = useCallback((i: number) => {
+    if (!tamperArmed) return;
+    animTimers.current.forEach(t => clearTimeout(t));
+    animTimers.current = [];
+    setTamperedIndex(i);
+    setTamperArmed(false);
+    setVerifyMessage(null);
+    setVerification(null);
+    const count = Math.min(allEvents.length, CHAIN_SIZE);
+    setBlockStatuses(Array(count).fill('idle'));
+    setLineStatuses(Array(Math.max(0, count - 1)).fill('idle'));
+  }, [tamperArmed, allEvents]);
+
+  const handleRestore = useCallback(() => {
+    animTimers.current.forEach(t => clearTimeout(t));
+    animTimers.current = [];
+    setTamperedIndex(null);
+    setTamperArmed(false);
+    setVerifyMessage(null);
+    setVerification(null);
+    const count = Math.min(allEvents.length, CHAIN_SIZE);
+    setBlockStatuses(Array(count).fill('idle'));
+    setLineStatuses(Array(Math.max(0, count - 1)).fill('idle'));
+  }, [allEvents]);
+
+  // Generate Report: download a real evidence.json bundle of the shown events.
+  const handleGenerateReport = useCallback(() => {
+    const bundle = {
+      bundle: 'bawaba-evidence',
+      version: '1',
+      generated_at: new Date().toISOString(),
+      event_count: allEvents.length,
+      verification: verification ?? { valid: null, note: 'Run Verify integrity for a fresh check.' },
+      events: allEvents.map(e => ({
+        event_id: e.id,
+        timestamp: e.timestamp.toISOString(),
+        event_type: e.eventType ?? 'tool_call',
+        agent_id: e.agent,
+        tool: e.tool,
+        jurisdiction: e.jurisdiction,
+        decision: e.decision,
+        pii_entities: e.piiTokens,
+        latency_ms: e.latency,
+        event_hash: e.hash,
+        prev_hash: e.prevHash,
+        signature: evidenceSignature(e.hash),
+        ...(e.refEventId ? { ref_event_id: e.refEventId } : {}),
+        ...(e.reviewer ? { reviewer: e.reviewer } : {}),
+      })),
+    };
+    const blob = new Blob([JSON.stringify(bundle, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `evidence-${new Date().toISOString().slice(0, 10)}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+  }, [allEvents, verification]);
 
   // Export
   const handleExport = useCallback(async () => {
@@ -555,9 +661,12 @@ export default function AuditTrail() {
             {exporting ? 'Exporting...' : 'Export to SIEM'}
             <InfoTooltip text="Generates a verifiable evidence.json bundle — transmittable to Risk/Audit/Compliance." />
           </button>
-          <button className="text-xs font-body px-3 py-1.5 border border-border rounded-sm text-muted-foreground hover:text-foreground transition-colors inline-flex items-center">
+          <button
+            onClick={handleGenerateReport}
+            className="text-xs font-body px-3 py-1.5 border border-border rounded-sm text-muted-foreground hover:text-foreground transition-colors inline-flex items-center"
+          >
             Generate Report
-            <InfoTooltip text="Renders the current chain and its verification result as a printable evidence report." />
+            <InfoTooltip text="Downloads a real evidence.json bundle of the shown events with their hashes and signatures." />
           </button>
         </div>
       </div>
@@ -569,23 +678,50 @@ export default function AuditTrail() {
             <div className="text-sm font-body font-medium text-foreground">Hash Chain <InfoTooltip text="Each event includes the SHA-256 hash of the previous event. Any modification breaks the chain — detectable by VerifyChain()." /></div>
             <div className="text-xs text-muted-foreground">Tamper-evident audit trail</div>
           </div>
-          <button
-            onClick={handleVerify}
-            disabled={verifying}
-            className="text-xs font-body px-4 py-2 bg-safe-bg border border-safe/10 text-safe rounded-sm hover:opacity-90 transition-opacity disabled:opacity-50 flex items-center gap-2"
-          >
-            {/* Checkmark / shield icon */}
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="shrink-0">
-              <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
-            </svg>
-            {verifying ? 'Verifying...' : 'Verify integrity'}
-          </button>
+          <div className="flex items-center gap-2">
+            {tamperedIndex === null ? (
+              <button
+                onClick={() => setTamperArmed(a => !a)}
+                className={`text-xs font-body px-3 py-2 rounded-sm border transition-colors ${
+                  tamperArmed ? 'border-danger/40 bg-danger-bg text-danger' : 'border-border text-muted-foreground hover:text-foreground'
+                }`}
+              >
+                {tamperArmed ? 'Select a block…' : 'Simulate tampering'}
+              </button>
+            ) : (
+              <button
+                onClick={handleRestore}
+                className="text-xs font-body px-3 py-2 rounded-sm border border-border text-muted-foreground hover:text-foreground transition-colors"
+              >
+                Restore
+              </button>
+            )}
+            <button
+              onClick={handleVerify}
+              disabled={verifying}
+              className="text-xs font-body px-4 py-2 bg-safe-bg border border-safe/10 text-safe rounded-sm hover:opacity-90 transition-opacity disabled:opacity-50 flex items-center gap-2"
+            >
+              {/* Checkmark / shield icon */}
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="shrink-0">
+                <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+              </svg>
+              {verifying ? 'Verifying...' : 'Verify integrity'}
+            </button>
+          </div>
         </div>
+        {tamperArmed && (
+          <div className="text-[10px] text-danger bg-danger-bg border border-danger/10 rounded p-2 mb-3">
+            Tamper mode: click any event block below to alter its payload, then run Verify integrity.
+          </div>
+        )}
 
         <HashChainViz
           events={allEvents}
           blockStatuses={blockStatuses}
           lineStatuses={lineStatuses}
+          tamperedIndex={tamperedIndex}
+          armed={tamperArmed}
+          onBlockClick={handleBlockClick}
         />
 
         {/* Verification result message */}
