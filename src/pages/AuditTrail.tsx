@@ -12,7 +12,7 @@ import {
   type ApiEvent, type ChainVerification,
 } from '@/services/api';
 import InfoTooltip from '@/components/InfoTooltip';
-import { useLocalAudit } from '@/lib/local-audit';
+import { useLocalAudit, pushInjectedEvent, setReviewStatus } from '@/lib/local-audit';
 import { X } from 'lucide-react';
 
 /* ── Time-ago helper ────────────────────────────── */
@@ -316,8 +316,39 @@ export default function AuditTrail() {
 
   // Local, UI-originated events (agent registrations, review decisions) are
   // merged on top of the server/mock feed so they appear in the same chain.
-  const { injected } = useLocalAudit();
+  const { injected, reviewStatus } = useLocalAudit();
   const allEvents = useMemo(() => [...injected, ...events], [injected, events]);
+
+  // An event needs review if it was denied, rate-limited or carried PII, and
+  // has not been reviewed yet. Review/registration events are never reviewable.
+  const needsReview = useCallback(
+    (e: MCPEvent) =>
+      e.eventType !== 'review_decision' &&
+      e.eventType !== 'agent_registered' &&
+      !reviewStatus[e.id] &&
+      (e.decision === 'deny' || e.decision === 'rate-limited' || e.piiTokens > 0),
+    [reviewStatus],
+  );
+
+  // Append-only review: create a NEW chained event, never touch the original.
+  const submitReview = useCallback((origin: MCPEvent, label: 'acknowledge' | 'escalate') => {
+    pushInjectedEvent({
+      eventType: 'review_decision',
+      agent: 'mickael.thomas',
+      tool: `review:${origin.id.slice(0, 8)}`,
+      decision: 'allow',
+      jurisdiction: origin.jurisdiction,
+      reviewer: 'mickael.thomas',
+      refEventId: origin.id,
+      reviewLabel: label,
+      details: {
+        origin_event: origin.id,
+        origin_decision: origin.decision,
+        origin_tool: origin.tool,
+      },
+    });
+    setReviewStatus(origin.id, label === 'acknowledge' ? 'reviewed' : 'escalated');
+  }, []);
 
   // Live timestamp updates
   useEffect(() => {
@@ -488,7 +519,14 @@ export default function AuditTrail() {
     setExporting(false);
   }, [apiAvailable]);
 
-  const filtered = filterDecision === 'all' ? allEvents : allEvents.filter(e => e.decision === filterDecision);
+  const filtered =
+    filterDecision === 'all'
+      ? allEvents
+      : filterDecision === 'needs-review'
+        ? allEvents.filter(needsReview)
+        : allEvents.filter(e => e.decision === filterDecision);
+
+  const needsReviewCount = allEvents.filter(needsReview).length;
 
   return (
     <div className="space-y-6">
@@ -567,16 +605,19 @@ export default function AuditTrail() {
       <div className="grid grid-cols-12 gap-6">
         <div className="col-span-8">
           {/* Filters */}
-          <div className="flex gap-2 mb-4">
-            {['all', 'allow', 'deny', 'rate-limited'].map(f => (
+          <div className="flex gap-2 mb-4 flex-wrap">
+            {['all', 'allow', 'deny', 'rate-limited', 'needs-review'].map(f => (
               <button
                 key={f}
                 onClick={() => setFilterDecision(f)}
                 className={`text-xs font-mono px-3 py-1.5 rounded-sm border transition-colors ${
                   filterDecision === f ? 'border-primary bg-primary/5 text-foreground' : 'border-border text-muted-foreground hover:text-foreground'
-                }`}
+                } ${f === 'needs-review' ? 'inline-flex items-center gap-1.5' : ''}`}
               >
-                {f === 'all' ? 'All' : f}
+                {f === 'all' ? 'All' : f === 'needs-review' ? 'needs review' : f}
+                {f === 'needs-review' && needsReviewCount > 0 && (
+                  <span className="text-[9px] font-mono px-1.5 py-0.5 rounded-full bg-warn-bg text-warn border border-warn/20">{needsReviewCount}</span>
+                )}
               </button>
             ))}
           </div>
@@ -595,24 +636,37 @@ export default function AuditTrail() {
               <TableSkeleton />
             ) : (
               <div className="max-h-[400px] overflow-y-auto">
-                {filtered.map(evt => (
-                  <div key={evt.id}>
-                    <div
-                      onClick={() => setSelectedEvent(selectedEvent?.id === evt.id ? null : evt)}
-                      className={`grid grid-cols-[80px_100px_110px_70px_50px_50px_80px] gap-2 px-5 py-2 text-xs font-mono cursor-pointer hover:bg-secondary/30 transition-colors border-b border-border ${
-                        evt.decision === 'deny' ? 'row-deny' : evt.decision === 'rate-limited' ? 'row-rate-limited' : ''
-                      }`}
-                    >
-                      <span className="text-muted-foreground">{timeAgo(evt.timestamp)}</span>
-                      <span className="text-foreground truncate">{evt.agent}</span>
-                      <span className="text-ink-2 truncate">{evt.tool}</span>
-                      <span className={evt.decision === 'allow' ? 'text-safe' : evt.decision === 'deny' ? 'text-danger' : 'text-warn'}>{evt.decision}</span>
-                      <span className="text-muted-foreground">{evt.piiTokens}</span>
-                      <span className="text-muted-foreground">{evt.latency}ms</span>
-                      <span className="text-ink-4 truncate">{evt.hash.slice(0, 8)}{evt.hash.length > 8 ? '...' : ''}</span>
+                {filtered.map(evt => {
+                  const isReview = evt.eventType === 'review_decision';
+                  const badge = reviewStatus[evt.id];
+                  return (
+                    <div key={evt.id}>
+                      <div
+                        onClick={() => setSelectedEvent(selectedEvent?.id === evt.id ? null : evt)}
+                        className={`grid grid-cols-[80px_100px_110px_70px_50px_50px_80px] gap-2 px-5 py-2 text-xs font-mono cursor-pointer hover:bg-secondary/30 transition-colors border-b border-border ${
+                          isReview ? 'bg-secondary/20' : evt.decision === 'deny' ? 'row-deny' : evt.decision === 'rate-limited' ? 'row-rate-limited' : ''
+                        }`}
+                      >
+                        <span className="text-muted-foreground">{timeAgo(evt.timestamp)}</span>
+                        <span className="text-foreground truncate">{evt.agent}</span>
+                        <span className="text-ink-2 truncate">{evt.tool}</span>
+                        <span className="flex flex-col gap-0.5 min-w-0">
+                          {isReview ? (
+                            <span className={evt.reviewLabel === 'escalate' ? 'text-warn' : 'text-safe'}>{evt.reviewLabel}</span>
+                          ) : (
+                            <span className={evt.decision === 'allow' ? 'text-safe' : evt.decision === 'deny' ? 'text-danger' : 'text-warn'}>{evt.decision}</span>
+                          )}
+                          {badge && (
+                            <span className={`text-[8px] uppercase tracking-wide ${badge === 'escalated' ? 'text-warn' : 'text-safe'}`}>{badge}</span>
+                          )}
+                        </span>
+                        <span className="text-muted-foreground">{evt.piiTokens}</span>
+                        <span className="text-muted-foreground">{evt.latency}ms</span>
+                        <span className="text-ink-4 truncate">{evt.hash.slice(0, 8)}{evt.hash.length > 8 ? '...' : ''}</span>
+                      </div>
                     </div>
-                  </div>
-                ))}
+                  );
+                })}
 
                 {/* Load More button */}
                 {hasMore && (
@@ -651,6 +705,52 @@ export default function AuditTrail() {
               </button>
             </div>
             <div className="p-5 space-y-5">
+              {/* Review status badge */}
+              {reviewStatus[selectedEvent.id] && (
+                <div className={`inline-flex items-center gap-2 text-[11px] font-mono px-2.5 py-1 rounded-sm border ${
+                  reviewStatus[selectedEvent.id] === 'escalated'
+                    ? 'bg-warn-bg text-warn border-warn/20'
+                    : 'bg-safe-bg text-safe border-safe/20'
+                }`}>
+                  <span className="w-1.5 h-1.5 rounded-full bg-current" />
+                  {reviewStatus[selectedEvent.id] === 'escalated' ? 'Escalated' : 'Reviewed'}
+                </div>
+              )}
+
+              {/* Review decision detail (for review_decision events) */}
+              {selectedEvent.eventType === 'review_decision' && (
+                <div className="text-[10px] text-muted-foreground bg-muted/40 rounded p-2 space-y-1">
+                  <div>Human review decision: <span className="font-mono text-foreground">{selectedEvent.reviewLabel}</span> by <span className="font-mono text-foreground">{selectedEvent.reviewer}</span>.</div>
+                  <div>References original event <span className="font-mono text-foreground">{selectedEvent.refEventId?.slice(0, 12)}</span>. This is a new, chained, signed event — the original was not modified.</div>
+                </div>
+              )}
+
+              {/* Human-in-the-loop review actions */}
+              {selectedEvent.eventType !== 'review_decision' &&
+                selectedEvent.eventType !== 'agent_registered' &&
+                (selectedEvent.decision === 'deny' || selectedEvent.decision === 'rate-limited' || selectedEvent.piiTokens > 0) && (
+                  <div>
+                    <div className="table-header mb-2">Review<InfoTooltip text="Records an append-only review decision as a new signed event chained after this one. The original event is never modified or deleted." /></div>
+                    <div className="flex gap-2">
+                      <button
+                        onClick={() => submitReview(selectedEvent, 'acknowledge')}
+                        className="flex-1 text-xs font-body font-medium px-3 py-2 bg-safe-bg border border-safe/20 text-safe rounded-sm hover:opacity-90 transition-opacity"
+                      >
+                        Acknowledge
+                      </button>
+                      <button
+                        onClick={() => submitReview(selectedEvent, 'escalate')}
+                        className="flex-1 text-xs font-body font-medium px-3 py-2 bg-warn-bg border border-warn/20 text-warn rounded-sm hover:opacity-90 transition-opacity"
+                      >
+                        Escalate
+                      </button>
+                    </div>
+                    <div className="text-[10px] text-muted-foreground bg-muted/40 rounded p-2 mt-1.5">
+                      Each decision appends a new <span className="font-mono">review_decision</span> event to the chain, referencing this event's id. The original event is immutable.
+                    </div>
+                  </div>
+                )}
+
               {/* Intro explainer */}
               <div className="text-[10px] text-muted-foreground bg-muted/40 rounded p-2">
                 Each event is chained to the previous one by its SHA-256 hash and individually signed (Ed25519). Any modification of a single field invalidates the entire chain — making the audit tamper-proof.
