@@ -6,12 +6,13 @@ export interface Agent {
   deniedTools: string[];
   piiMode: string;
   rateLimit: number;
-  status: 'healthy' | 'rate-limited' | 'blocked';
+  status: 'healthy' | 'rate-limited' | 'blocked' | 'pending';
   lastActive: Date;
   created: Date;
   callsToday: number;
   callsTotal: number;
   violations: number;
+  jurisdictions?: string[];
 }
 
 export interface MCPEvent {
@@ -26,6 +27,11 @@ export interface MCPEvent {
   hash: string;
   prevHash: string;
   details: Record<string, unknown>;
+  // Optional metadata for UI-originated events (agent registration, reviews).
+  eventType?: string;
+  refEventId?: string;
+  reviewer?: string;
+  reviewLabel?: 'acknowledge' | 'escalate';
 }
 
 export interface JurisdictionData {

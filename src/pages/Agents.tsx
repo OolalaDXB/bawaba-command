@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
-import { AGENTS as MOCK_AGENTS, type Agent } from '@/lib/mock-data';
+import { AGENTS as MOCK_AGENTS, TOOLS, JURISDICTIONS, type Agent } from '@/lib/mock-data';
+import { pushInjectedEvent } from '@/lib/local-audit';
 import { X } from 'lucide-react';
 import { Area, AreaChart, ResponsiveContainer } from 'recharts';
 import InfoTooltip from '@/components/InfoTooltip';
@@ -193,6 +194,218 @@ function AgentDetailPanel({ agent, onClose, apiAvailable }: { agent: Agent; onCl
   );
 }
 
+/* ── Add Agent side panel ───────────────────────── */
+type ToolMode = 'off' | 'allow' | 'deny';
+
+function generateApiKey(): string {
+  const chars = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+  let s = '';
+  for (let i = 0; i < 32; i++) s += chars[Math.floor(Math.random() * chars.length)];
+  return `baw_${s}`;
+}
+
+function AddAgentPanel({ onClose, onCreate }: { onClose: () => void; onCreate: (a: Agent) => void }) {
+  const [name, setName] = useState('');
+  const [toolModes, setToolModes] = useState<Record<string, ToolMode>>(
+    () => Object.fromEntries(TOOLS.map(t => [t, 'off'])) as Record<string, ToolMode>,
+  );
+  const [rateLimit, setRateLimit] = useState(1000);
+  const [jurisdictions, setJurisdictions] = useState<string[]>([]);
+  const [error, setError] = useState<string | null>(null);
+  const [createdKey, setCreatedKey] = useState<string | null>(null);
+
+  const cycleTool = (t: string) => {
+    const order: ToolMode[] = ['off', 'allow', 'deny'];
+    setToolModes(prev => ({ ...prev, [t]: order[(order.indexOf(prev[t]) + 1) % order.length] }));
+  };
+  const toggleJur = (c: string) =>
+    setJurisdictions(prev => (prev.includes(c) ? prev.filter(x => x !== c) : [...prev, c]));
+
+  const submit = () => {
+    if (!name.trim()) {
+      setError('Agent name is required.');
+      return;
+    }
+    const key = generateApiKey();
+    const id =
+      name.trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '') ||
+      `agent-${Math.floor(Math.random() * 1e6)}`;
+    const agent: Agent = {
+      id,
+      name: name.trim(),
+      auth: 'API Key',
+      allowedTools: TOOLS.filter(t => toolModes[t] === 'allow'),
+      deniedTools: TOOLS.filter(t => toolModes[t] === 'deny'),
+      piiMode: 'tokenize',
+      rateLimit,
+      status: 'pending',
+      lastActive: new Date(),
+      created: new Date(),
+      callsToday: 0,
+      callsTotal: 0,
+      violations: 0,
+      jurisdictions,
+    };
+    onCreate(agent);
+    setCreatedKey(key);
+  };
+
+  const TOOL_MODE_STYLE: Record<ToolMode, string> = {
+    off: 'bg-background text-muted-foreground border-border',
+    allow: 'bg-safe-bg text-safe border-safe/20',
+    deny: 'bg-danger-bg text-danger border-danger/20',
+  };
+
+  return (
+    <div className="fixed inset-y-0 right-0 w-[480px] bg-card border-l border-border z-50 overflow-y-auto shadow-card">
+      <div className="flex items-center justify-between p-5 border-b border-border">
+        <div>
+          <div className="text-lg font-heading text-foreground">{createdKey ? 'Agent created' : 'Add agent'}</div>
+          <div className="text-xs text-muted-foreground font-mono">
+            {createdKey ? 'Registered in the local demo registry' : 'Register a new agent (local demo)'}
+          </div>
+        </div>
+        <button onClick={onClose} className="text-muted-foreground hover:text-foreground transition-colors">
+          <X className="h-4 w-4" strokeWidth={1.5} />
+        </button>
+      </div>
+
+      {createdKey ? (
+        /* ── Success view: key shown once ── */
+        <div className="p-5 space-y-5">
+          <div className="text-xs text-foreground">
+            <span className="font-mono">{name.trim()}</span> is now in the registry with status{' '}
+            <span className="status-pending font-mono">pending</span>, and turns{' '}
+            <span className="status-healthy font-mono">healthy</span> once the first heartbeat lands. An{' '}
+            <span className="font-mono">agent_registered</span> event was written to the audit chain.
+          </div>
+          <div>
+            <div className="table-header mb-1.5">API key<InfoTooltip text="Shown once. It is not stored in plaintext — only a bcrypt hash is kept server-side." /></div>
+            <div className="font-mono text-xs text-foreground break-all bg-secondary/20 rounded-sm p-2 border border-border">{createdKey}</div>
+            <div className="text-[10px] text-warn bg-warn-bg border border-warn/10 rounded p-2 mt-1.5">
+              Copy this key now — it is displayed only once and cannot be retrieved later.
+            </div>
+          </div>
+          <div className="flex gap-2">
+            <button
+              onClick={() => navigator.clipboard?.writeText(createdKey)}
+              className="text-xs font-body px-3 py-2 border border-border rounded-sm text-muted-foreground hover:text-foreground transition-colors"
+            >
+              Copy key
+            </button>
+            <button
+              onClick={onClose}
+              className="text-xs font-body font-medium px-4 py-2 bg-primary text-primary-foreground rounded-sm hover:opacity-90 transition-opacity"
+            >
+              Done
+            </button>
+          </div>
+        </div>
+      ) : (
+        /* ── Form view ── */
+        <div className="p-5 space-y-6">
+          {/* Name */}
+          <div>
+            <div className="table-header mb-2">Agent name</div>
+            <input
+              value={name}
+              onChange={e => { setName(e.target.value); setError(null); }}
+              placeholder="e.g. claude-analytics"
+              className="w-full text-xs font-mono px-3 py-2 border border-border rounded-sm bg-background text-foreground placeholder:text-ink-4 focus:outline-none focus:border-primary"
+            />
+          </div>
+
+          {/* Auth method */}
+          <div>
+            <div className="table-header mb-2">Auth method</div>
+            <div className="text-xs font-mono text-foreground bg-secondary/20 border border-border rounded-sm px-3 py-2">API key (bcrypt)</div>
+            <div className="text-[10px] text-muted-foreground bg-muted/40 rounded p-2 mt-1.5">
+              A <span className="font-mono">baw_…</span> key is generated on creation and shown only once.
+            </div>
+          </div>
+
+          {/* Allowed / Denied tools */}
+          <div>
+            <div className="table-header mb-2">Tools<InfoTooltip text="Click a tool to cycle Off -> Allow -> Deny. Allow builds the allowlist, Deny the denylist. Anything left Off is denied by default." /></div>
+            <div className="space-y-1.5">
+              {TOOLS.map(t => (
+                <button
+                  key={t}
+                  onClick={() => cycleTool(t)}
+                  className="w-full flex items-center justify-between px-3 py-1.5 border border-border rounded-sm bg-background hover:bg-secondary/30 transition-colors"
+                >
+                  <span className="text-xs font-mono text-foreground">{t}</span>
+                  <span className={`text-[10px] font-mono uppercase px-2 py-0.5 rounded-sm border ${TOOL_MODE_STYLE[toolModes[t]]}`}>
+                    {toolModes[t]}
+                  </span>
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* PII mode */}
+          <div>
+            <div className="table-header mb-2">PII mode</div>
+            <div className="text-xs font-mono text-foreground bg-secondary/20 border border-border rounded-sm px-3 py-2">tokenize</div>
+            <div className="text-[10px] text-muted-foreground bg-muted/40 rounded p-2 mt-1.5">
+              Tokenize is the only implemented mode. PII is replaced with UUID tokens held in a scoped vault.
+            </div>
+          </div>
+
+          {/* Rate limit */}
+          <div>
+            <div className="table-header mb-2">Rate limit (req/h)</div>
+            <input
+              type="number"
+              min={1}
+              value={rateLimit}
+              onChange={e => setRateLimit(Math.max(1, parseInt(e.target.value) || 0))}
+              className="w-full text-xs font-mono px-3 py-2 border border-border rounded-sm bg-background text-foreground focus:outline-none focus:border-primary"
+            />
+          </div>
+
+          {/* Jurisdictions */}
+          <div>
+            <div className="table-header mb-2">Allowed jurisdictions</div>
+            <div className="flex flex-wrap gap-1.5">
+              {JURISDICTIONS.map(j => (
+                <button
+                  key={j.code}
+                  onClick={() => toggleJur(j.code)}
+                  className={`text-[10px] font-mono px-2 py-1 rounded-sm border transition-colors ${
+                    jurisdictions.includes(j.code)
+                      ? 'bg-primary/10 text-foreground border-primary/40'
+                      : 'bg-background text-muted-foreground border-border hover:text-foreground'
+                  }`}
+                >
+                  {j.code.toUpperCase()} · {j.name}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {error && <div className="text-[11px] text-danger bg-danger-bg border border-danger/10 rounded p-2">{error}</div>}
+
+          <div className="flex gap-2 pt-1">
+            <button
+              onClick={submit}
+              className="text-xs font-body font-medium px-4 py-2 bg-primary text-primary-foreground rounded-sm hover:opacity-90 transition-opacity"
+            >
+              Create agent
+            </button>
+            <button
+              onClick={onClose}
+              className="text-xs font-body px-4 py-2 border border-border rounded-sm text-muted-foreground hover:text-foreground transition-colors"
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 /* ── Table skeleton ─────────────────────────────── */
 function AgentTableSkeleton() {
   return (
@@ -218,7 +431,33 @@ export default function Agents() {
   const [loading, setLoading] = useState(true);
   const [apiAvailable, setApiAvailable] = useState(false);
   const [selectedAgent, setSelectedAgent] = useState<Agent | null>(null);
+  const [showAdd, setShowAdd] = useState(false);
   const [, setTick] = useState(0);
+
+  const handleCreateAgent = useCallback((agent: Agent) => {
+    setAgents(prev => [agent, ...prev.filter(a => a.id !== agent.id)]);
+    pushInjectedEvent({
+      eventType: 'agent_registered',
+      agent: agent.id,
+      tool: 'agent:register',
+      decision: 'allow',
+      jurisdiction: agent.jurisdictions?.[0] ?? 'default',
+      reviewer: 'mickael.thomas',
+      details: {
+        agent_id: agent.id,
+        auth: agent.auth,
+        pii_mode: agent.piiMode,
+        rate_limit: agent.rateLimit,
+        allowed_tools: agent.allowedTools,
+        denied_tools: agent.deniedTools,
+        jurisdictions: agent.jurisdictions,
+      },
+    });
+    // pending -> healthy once the first heartbeat lands (demo transition)
+    setTimeout(() => {
+      setAgents(prev => prev.map(a => (a.id === agent.id ? { ...a, status: 'healthy' } : a)));
+    }, 1400);
+  }, []);
 
   // Live timestamp updates
   useEffect(() => {
@@ -261,7 +500,10 @@ export default function Agents() {
             <div className="text-xs text-muted-foreground">{agents.length} agents connected</div>
           </div>
         </div>
-        <button className="text-xs font-body font-medium px-4 py-2 bg-primary text-primary-foreground rounded-sm hover:opacity-90 transition-opacity">
+        <button
+          onClick={() => { setSelectedAgent(null); setShowAdd(true); }}
+          className="text-xs font-body font-medium px-4 py-2 bg-primary text-primary-foreground rounded-sm hover:opacity-90 transition-opacity"
+        >
           Add agent
         </button>
       </div>
@@ -319,6 +561,14 @@ export default function Agents() {
         <>
           <div className="fixed inset-0 bg-foreground/5 z-40" onClick={() => setSelectedAgent(null)} />
           <AgentDetailPanel agent={selectedAgent} onClose={() => setSelectedAgent(null)} apiAvailable={apiAvailable} />
+        </>
+      )}
+
+      {/* Add agent panel */}
+      {showAdd && (
+        <>
+          <div className="fixed inset-0 bg-foreground/5 z-40" onClick={() => setShowAdd(false)} />
+          <AddAgentPanel onClose={() => setShowAdd(false)} onCreate={handleCreateAgent} />
         </>
       )}
     </div>
