@@ -106,7 +106,7 @@ export default function AppLayout() {
               <div className="w-7 h-7 rounded-full bg-primary flex items-center justify-center text-primary-foreground text-xs font-medium">
                 MT
               </div>
-              <span className="text-xs text-muted-foreground font-body">Mickaël Thomas</span>
+              <span className="text-xs text-muted-foreground font-body">Mickael Thomas</span>
             </div>
           </div>
         </header>

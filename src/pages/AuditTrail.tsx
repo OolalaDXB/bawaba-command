@@ -82,7 +82,7 @@ function ExplainerPanel() {
       {open && (
         <div className="px-5 pb-4 pt-0">
           <p className="text-xs font-body text-muted-foreground leading-relaxed">
-            Each event contains the previous event's hash (SHA-256) and is cryptographically signed (Ed25519). If anyone modifies a single event, the chain breaks — and Bawaba detects it immediately.
+            Every event carries the SHA-256 fingerprint of the previous one and is cryptographically signed (Ed25519). Alter a single event and the chain breaks; BAWABA detects it immediately.
           </p>
         </div>
       )}
