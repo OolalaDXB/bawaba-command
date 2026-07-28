@@ -44,7 +44,7 @@ agents:
       - git-read
       - git-write
     denied_tools: []
-    pii_mode: mask
+    pii_mode: tokenize
     rate_limit: 500/hour
     max_results: 100
     jurisdiction: ae

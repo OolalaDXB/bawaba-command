@@ -29,10 +29,10 @@ const JURISDICTION_DETAIL: Record<string, {
   cloudActStatus: string;
   dataType: string;
 }> = {
-  ma: { country: 'Morocco', law: 'Loi 09-08', city: 'Casablanca', dataPlane: 'Inwi DC', cloudActStatus: 'Outside Cloud Act', dataType: 'National ID Card (CIN)' },
-  sa: { country: 'KSA', law: 'PDPL / SAMA', city: 'Riyadh', dataPlane: 'stc cloud', cloudActStatus: 'Outside Cloud Act', dataType: 'National ID (Iqama)' },
-  ae: { country: 'UAE', law: 'DIFC / ADGM', city: 'Abu Dhabi', dataPlane: 'G42', cloudActStatus: 'Outside Cloud Act', dataType: 'Emirates ID' },
-  fr: { country: 'France', law: 'CNIL / GDPR', city: 'Paris', dataPlane: 'OVHcloud', cloudActStatus: 'Outside Cloud Act (EU)', dataType: 'National ID / Health Card' },
+  ma: { country: 'Morocco', law: 'Loi 09-08', city: 'Casablanca', dataPlane: 'Inwi DC', cloudActStatus: 'Sovereign data plane · local jurisdiction', dataType: 'National ID Card (CIN)' },
+  sa: { country: 'KSA', law: 'PDPL / SAMA', city: 'Riyadh', dataPlane: 'stc cloud', cloudActStatus: 'Sovereign data plane · local jurisdiction', dataType: 'National ID (Iqama)' },
+  ae: { country: 'UAE', law: 'DIFC / ADGM', city: 'Abu Dhabi', dataPlane: 'G42', cloudActStatus: 'Sovereign data plane · local jurisdiction', dataType: 'Emirates ID' },
+  fr: { country: 'France', law: 'CNIL / GDPR', city: 'Paris', dataPlane: 'OVHcloud', cloudActStatus: 'Sovereign data plane · local jurisdiction', dataType: 'National ID / Health Card' },
 };
 
 /** Mock routing rules as fallback. */
@@ -123,7 +123,7 @@ function RouteExplainerPanel({
           <div className="flex-1 overflow-y-auto px-5 py-5 space-y-5">
             {/* Detected data */}
             <div>
-              <div className="table-header mb-2">Detected data <InfoTooltip text="Detected personal data type that determines the applicable jurisdiction." /></div>
+              <div className="table-header mb-2">Data detected <InfoTooltip text="Detected personal data type that determines the applicable jurisdiction." /></div>
               <div className="card-surface p-3">
                 <div className="flex items-center gap-2">
                   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="text-warn shrink-0">
@@ -149,7 +149,7 @@ function RouteExplainerPanel({
 
             {/* Data plane */}
             <div>
-              <div className="table-header mb-2">Data plane <InfoTooltip text="Physical infrastructure processing the request. Outside Cloud Act scope." /></div>
+              <div className="table-header mb-2">Data plane <InfoTooltip text="Physical infrastructure processing the request. Sovereign data plane in the local jurisdiction." /></div>
               <div className="card-surface p-3">
                 <div className="text-xs font-body text-foreground">{detail.city} -- {detail.dataPlane}</div>
               </div>
@@ -181,7 +181,7 @@ function RouteExplainerPanel({
           {/* Footer */}
           <div className="px-5 py-3 border-t border-border space-y-2">
             <div className="text-[10px] text-muted-foreground font-body">
-              This routing decision is logged and cryptographically signed in the audit trail.
+              This routing decision is logged and signed.
             </div>
             <div className="text-[10px] text-muted-foreground font-body bg-muted/40 rounded p-2">
               The complete proof (canonical JSON payload + Ed25519 signature) can be exported and independently verified by an external auditor without access to Bawaba servers.
