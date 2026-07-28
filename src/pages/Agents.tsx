@@ -3,6 +3,7 @@ import { AGENTS as MOCK_AGENTS, TOOLS, JURISDICTIONS, type Agent } from '@/lib/m
 import { pushInjectedEvent } from '@/lib/local-audit';
 import { X } from 'lucide-react';
 import { Area, AreaChart, ResponsiveContainer } from 'recharts';
+import { PETROL } from '@/lib/chart-colors';
 import InfoTooltip from '@/components/InfoTooltip';
 import {
   isApiAvailable, fetchAgents, fetchAgentActivity,
@@ -150,7 +151,7 @@ function AgentDetailPanel({ agent, onClose, apiAvailable }: { agent: Agent; onCl
           <div className="h-24">
             <ResponsiveContainer width="100%" height="100%">
               <AreaChart data={activityData} margin={{ top: 0, right: 0, left: 0, bottom: 0 }}>
-                <Area type="monotone" dataKey="calls" stroke="hsl(30, 24%, 44%)" strokeWidth={1} fill="hsl(30, 24%, 44%)" fillOpacity={0.08} dot={false} />
+                <Area type="monotone" dataKey="calls" stroke={PETROL} strokeWidth={1} fill={PETROL} fillOpacity={0.1} dot={false} />
               </AreaChart>
             </ResponsiveContainer>
           </div>
