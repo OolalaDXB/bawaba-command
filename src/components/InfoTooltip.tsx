@@ -12,7 +12,7 @@ export default function InfoTooltip({ text }: { text: string }) {
           ?
         </span>
       </TooltipTrigger>
-      <TooltipContent side="top" sideOffset={6} className="max-w-[300px] text-[11.5px] leading-relaxed font-body z-[200] shadow-lg">
+      <TooltipContent side="top" className="font-body">
         {text}
       </TooltipContent>
     </Tooltip>

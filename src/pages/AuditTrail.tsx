@@ -227,7 +227,7 @@ function AuditStats({ events }: { events: MCPEvent[] }) {
 
       {/* By Jurisdiction */}
       <div className="card-surface shadow-card p-4">
-        <div className="table-header mb-3">By jurisdiction <InfoTooltip text="Event volume broken down by sovereign data zone." /></div>
+        <div className="table-header mb-3">By jurisdiction</div>
         <div className="h-28">
           <ResponsiveContainer width="100%" height="100%">
             <BarChart data={byJurisdiction} margin={{ top: 0, right: 0, left: -20, bottom: 0 }}>
@@ -241,7 +241,7 @@ function AuditStats({ events }: { events: MCPEvent[] }) {
 
       {/* By Agent */}
       <div className="card-surface shadow-card p-4">
-        <div className="table-header mb-3">By agent <InfoTooltip text="Number of calls per registered AI agent." /></div>
+        <div className="table-header mb-3">By agent</div>
         <div className="h-28">
           <ResponsiveContainer width="100%" height="100%">
             <BarChart data={byAgent} layout="vertical" margin={{ top: 0, right: 0, left: 0, bottom: 0 }}>
@@ -255,7 +255,7 @@ function AuditStats({ events }: { events: MCPEvent[] }) {
 
       {/* Latency Trend */}
       <div className="card-surface shadow-card p-4">
-        <div className="table-header mb-3">Avg latency (7d) <InfoTooltip text="Average processing time by the gateway over the last 7 days." /></div>
+        <div className="table-header mb-3">Avg latency (7d)</div>
         <div className="h-20">
           <ResponsiveContainer width="100%" height="100%">
             <LineChart data={latencyTrend} margin={{ top: 0, right: 0, left: -20, bottom: 0 }}>
@@ -493,7 +493,7 @@ export default function AuditTrail() {
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
           <div>
-            <div className="text-sm font-body font-medium text-foreground">Audit Explorer <InfoTooltip text="Complete log of all processed MCP events, with cryptographic integrity proof." /></div>
+            <div className="text-sm font-body font-medium text-foreground">Audit Explorer</div>
             <div className="text-xs text-muted-foreground">{events.length} events · Tamper-evident chain</div>
           </div>
         </div>
@@ -501,13 +501,14 @@ export default function AuditTrail() {
           <button
             onClick={handleExport}
             disabled={exporting}
-            className="text-xs font-body px-3 py-1.5 border border-border rounded-sm text-muted-foreground hover:text-foreground transition-colors disabled:opacity-50"
+            className="text-xs font-body px-3 py-1.5 border border-border rounded-sm text-muted-foreground hover:text-foreground transition-colors disabled:opacity-50 inline-flex items-center"
           >
             {exporting ? 'Exporting...' : 'Export to SIEM'}
+            <InfoTooltip text="Generates a verifiable evidence.json bundle — transmittable to Risk/Audit/Compliance." />
           </button>
-          <InfoTooltip text="Generates a verifiable evidence.json bundle — transmittable to Risk/Audit/Compliance." />
-          <button className="text-xs font-body px-3 py-1.5 border border-border rounded-sm text-muted-foreground hover:text-foreground transition-colors">
+          <button className="text-xs font-body px-3 py-1.5 border border-border rounded-sm text-muted-foreground hover:text-foreground transition-colors inline-flex items-center">
             Generate Report
+            <InfoTooltip text="Renders the current chain and its verification result as a printable evidence report." />
           </button>
         </div>
       </div>
@@ -581,11 +582,7 @@ export default function AuditTrail() {
           <div className="card-surface shadow-card overflow-hidden">
             <div className="grid grid-cols-[80px_100px_110px_70px_50px_50px_80px] gap-2 px-5 py-2 border-b border-border">
               {(['Time', 'Agent', 'Tool', 'Result', 'PII', 'Lat.', 'Hash'] as const).map(h => (
-                <span key={h} className="table-header">
-                  {h}
-                  {h === 'Hash' && <InfoTooltip text="SHA-256 fingerprint of the event. Used to verify chain integrity." />}
-                  {h === 'Result' && <InfoTooltip text="Policy engine decision: allow (authorized), deny (refused) or rate-limited." />}
-                </span>
+                <span key={h} className="table-header">{h}</span>
               ))}
             </div>
             {loading ? (
@@ -673,7 +670,7 @@ export default function AuditTrail() {
 
               {/* Signature Ed25519 */}
               <div>
-                <div className="table-header mb-1">Ed25519 Signature <InfoTooltip text="Per-event cryptographic signature. Proves no tampering has occurred since creation." /></div>
+                <div className="table-header mb-1">Ed25519 Signature</div>
                 <div className="text-xs text-safe font-mono">Signature verified ✓</div>
                 <div className="text-[10px] text-muted-foreground bg-muted/40 rounded p-2 mt-1.5">
                   The signing private key is isolated in the gateway module. An auditor can verify with the public key alone.
