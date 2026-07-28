@@ -8,7 +8,7 @@ import {
   TooltipProvider,
 } from '@/components/ui/tooltip';
 import {
-  isApiAvailable, fetchEvents, verifyChain, exportEvents,
+  isApiAvailable, fetchEvents, streamEvents, verifyChain, exportEvents,
   type ApiEvent, type ChainVerification,
 } from '@/services/api';
 import InfoTooltip from '@/components/InfoTooltip';
@@ -48,7 +48,11 @@ function mapApiEvent(apiEvt: ApiEvent): MCPEvent {
       agent_id: apiEvt.agent_id,
       tool_name: apiEvt.tool,
       policy_matched: apiEvt.matched_rule,
-      pii_entities: [],
+      pii_mode: apiEvt.pii_mode,
+      entities_detected: apiEvt.entities_detected || 0,
+      tokens_generated: apiEvt.tokens_generated || 0,
+      routing_proof: apiEvt.routing_proof || '',
+      mcp_server: apiEvt.mcp_server || '',
       jurisdiction: apiEvt.jurisdiction,
       evaluation_time_ms: apiEvt.overhead_ms?.toFixed(2) ?? '0.00',
     },
@@ -285,7 +289,7 @@ function AuditStats({ events }: { events: MCPEvent[] }) {
 
       {/* Latency Trend */}
       <div className="card-surface shadow-card p-4">
-        <div className="table-header mb-3">Avg latency (7d)</div>
+        <div className="table-header mb-3">Simulated latency shape (7d) <InfoTooltip text="Illustrative trend used only in the demonstration environment. Live event latency is shown in the audit table." /></div>
         <div className="h-20">
           <ResponsiveContainer width="100%" height="100%">
             <LineChart data={latencyTrend} margin={{ top: 0, right: 0, left: -20, bottom: 0 }}>
@@ -337,6 +341,10 @@ export default function AuditTrail() {
   /* Tamper-test state */
   const [tamperArmed, setTamperArmed] = useState(false);
   const [tamperedIndex, setTamperedIndex] = useState<number | null>(null);
+  // Tamper simulation runs entirely locally and keeps its own state, separate
+  // from the real server-side Verify integrity flow.
+  const [tamperStatuses, setTamperStatuses] = useState<BlockStatus[]>([]);
+  const [tamperMessage, setTamperMessage] = useState<string | null>(null);
 
   /* Chain verification animation state */
   const [blockStatuses, setBlockStatuses] = useState<BlockStatus[]>([]);
@@ -415,19 +423,16 @@ export default function AuditTrail() {
       setApiAvailable(available);
 
       if (available) {
+        // The backend is reachable: show only real persisted events. Never fall
+        // back to random events, which would make a demo look live when it is not.
         try {
           const resp = await fetchEvents(1, PAGE_SIZE);
           if (cancelled) return;
-          if (resp.events && resp.events.length > 0) {
-            setEvents(resp.events.map(mapApiEvent));
-            setHasMore(resp.events.length >= PAGE_SIZE);
-          } else {
-            setEvents(generateInitialEvents(50));
-            setHasMore(false);
-          }
+          setEvents((resp.events || []).map(mapApiEvent));
+          setHasMore((resp.events || []).length >= PAGE_SIZE);
         } catch {
           if (!cancelled) {
-            setEvents(generateInitialEvents(50));
+            setEvents([]);
             setHasMore(false);
           }
         }
@@ -442,6 +447,15 @@ export default function AuditTrail() {
     load();
     return () => { cancelled = true; };
   }, []);
+
+  // Stream newly persisted events while the page is open.
+  useEffect(() => {
+    if (!apiAvailable) return;
+    return streamEvents((apiEvt: ApiEvent) => {
+      const mapped = mapApiEvent(apiEvt);
+      setEvents(prev => [mapped, ...prev.filter(evt => evt.id !== mapped.id)].slice(0, 200));
+    });
+  }, [apiAvailable]);
 
   // Load more (pagination)
   const loadMore = useCallback(async () => {
@@ -494,19 +508,9 @@ export default function AuditTrail() {
       };
     }
 
-    // A tampered event forces the chain to break at that exact link.
-    if (tamperedIndex !== null && tamperedIndex < count) {
-      result = { ...result, valid: false, events: allEvents.length };
-    }
     setVerification(result);
 
-    // corruptAt: index where the chain breaks (-1 = fully valid)
-    const corruptAt =
-      tamperedIndex !== null && tamperedIndex < count
-        ? tamperedIndex
-        : result.valid
-          ? -1
-          : count - 1;
+    const corruptAt = result.valid ? -1 : count - 1;
     const stopAt = corruptAt === -1 ? count - 1 : corruptAt;
 
     // Animate blocks left-to-right with 100ms delay between each
@@ -533,10 +537,8 @@ export default function AuditTrail() {
         if (i === stopAt) {
           if (corruptAt === -1) {
             setVerifyMessage(`Chain verified — ${result.events} events — 0 tampering`);
-          } else if (tamperedIndex !== null) {
-            setVerifyMessage(`Chain broken at #${corruptAt + 1}: event hash mismatch`);
           } else {
-            setVerifyMessage(`Tampering detected at event #${corruptAt + 1}`);
+            setVerifyMessage(`Server chain check failed at event #${corruptAt + 1}`);
           }
           setVerifying(false);
         }
@@ -549,33 +551,29 @@ export default function AuditTrail() {
       setVerifying(false);
       setVerifyMessage('No events to verify');
     }
-  }, [apiAvailable, allEvents, tamperedIndex]);
+  }, [apiAvailable, allEvents]);
 
-  // Tamper test: arm selection, tamper a chosen chain block, restore.
-  const handleBlockClick = useCallback((i: number) => {
+  // ── Tamper simulation · local (separate from Verify integrity) ──────────────
+  // Arm selection, tamper a chosen chain block, run a purely local check, restore.
+  const handleTamperBlock = useCallback((i: number) => {
     if (!tamperArmed) return;
-    animTimers.current.forEach(t => clearTimeout(t));
-    animTimers.current = [];
-    setTamperedIndex(i);
     setTamperArmed(false);
-    setVerifyMessage(null);
-    setVerification(null);
+    setTamperedIndex(i);
     const count = Math.min(allEvents.length, CHAIN_SIZE);
-    setBlockStatuses(Array(count).fill('idle'));
-    setLineStatuses(Array(Math.max(0, count - 1)).fill('idle'));
+    // Local verdict: everything up to the tampered block is fine, it breaks there.
+    const statuses: BlockStatus[] = Array.from({ length: count }, (_, idx) =>
+      idx < i ? 'verified' : idx === i ? 'corrupt' : 'idle',
+    );
+    setTamperStatuses(statuses);
+    setTamperMessage(`Chain broken at #${i + 1}: event hash mismatch`);
   }, [tamperArmed, allEvents]);
 
   const handleRestore = useCallback(() => {
-    animTimers.current.forEach(t => clearTimeout(t));
-    animTimers.current = [];
     setTamperedIndex(null);
     setTamperArmed(false);
-    setVerifyMessage(null);
-    setVerification(null);
-    const count = Math.min(allEvents.length, CHAIN_SIZE);
-    setBlockStatuses(Array(count).fill('idle'));
-    setLineStatuses(Array(Math.max(0, count - 1)).fill('idle'));
-  }, [allEvents]);
+    setTamperStatuses([]);
+    setTamperMessage(null);
+  }, []);
 
   // Generate Report: download a real evidence.json bundle of the shown events.
   const handleGenerateReport = useCallback(() => {
@@ -678,54 +676,32 @@ export default function AuditTrail() {
             <div className="text-sm font-body font-medium text-foreground">Hash Chain <InfoTooltip text="Each event includes the SHA-256 hash of the previous event. Any modification breaks the chain — detectable by VerifyChain()." /></div>
             <div className="text-xs text-muted-foreground">Tamper-evident audit trail</div>
           </div>
-          <div className="flex items-center gap-2">
-            {tamperedIndex === null ? (
-              <button
-                onClick={() => setTamperArmed(a => !a)}
-                className={`text-xs font-body px-3 py-2 rounded-sm border transition-colors ${
-                  tamperArmed ? 'border-danger/40 bg-danger-bg text-danger' : 'border-border text-muted-foreground hover:text-foreground'
-                }`}
-              >
-                {tamperArmed ? 'Select a block…' : 'Simulate tampering'}
-              </button>
-            ) : (
-              <button
-                onClick={handleRestore}
-                className="text-xs font-body px-3 py-2 rounded-sm border border-border text-muted-foreground hover:text-foreground transition-colors"
-              >
-                Restore
-              </button>
-            )}
-            <button
-              onClick={handleVerify}
-              disabled={verifying}
-              className="text-xs font-body px-4 py-2 bg-safe-bg border border-safe/10 text-safe rounded-sm hover:opacity-90 transition-opacity disabled:opacity-50 flex items-center gap-2"
-            >
-              {/* Checkmark / shield icon */}
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="shrink-0">
-                <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
-              </svg>
-              {verifying ? 'Verifying...' : 'Verify integrity'}
-            </button>
-          </div>
+          <button
+            onClick={handleVerify}
+            disabled={verifying || tamperedIndex !== null}
+            title={tamperedIndex !== null ? 'Restore the tamper simulation before running the real check' : undefined}
+            className="text-xs font-body px-4 py-2 bg-safe-bg border border-safe/10 text-safe rounded-sm hover:opacity-90 transition-opacity disabled:opacity-50 flex items-center gap-2"
+          >
+            {/* Checkmark / shield icon */}
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="shrink-0">
+              <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+            </svg>
+            {verifying ? 'Verifying...' : 'Verify integrity'}
+          </button>
         </div>
-        {tamperArmed && (
-          <div className="text-[10px] text-danger bg-danger-bg border border-danger/10 rounded p-2 mb-3">
-            Tamper mode: click any event block below to alter its payload, then run Verify integrity.
-          </div>
-        )}
+        <div className="text-[10px] text-muted-foreground font-body mb-3">Verify integrity calls the live server endpoint <span className="font-mono">/api/v1/events/verify</span>.</div>
 
         <HashChainViz
           events={allEvents}
-          blockStatuses={blockStatuses}
+          blockStatuses={tamperedIndex !== null ? tamperStatuses : blockStatuses}
           lineStatuses={lineStatuses}
           tamperedIndex={tamperedIndex}
           armed={tamperArmed}
-          onBlockClick={handleBlockClick}
+          onBlockClick={handleTamperBlock}
         />
 
-        {/* Verification result message */}
-        {verifyMessage && (
+        {/* Real server-side verification result (hidden while a local tamper sim is active) */}
+        {verifyMessage && tamperedIndex === null && (
           <div className={`mt-4 flex items-center gap-3 p-3 rounded-sm ${
             verification?.valid
               ? 'bg-safe-bg border border-safe/10'
@@ -740,6 +716,45 @@ export default function AuditTrail() {
             </span>
           </div>
         )}
+
+        {/* Tamper simulation · local — separate flow, never calls the server */}
+        <div className="mt-4 border border-border rounded-sm p-3 bg-secondary/10">
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <div className="text-[11px] font-mono text-muted-foreground">Tamper simulation · local</div>
+              <div className="text-[10px] text-muted-foreground font-body">Local-only demonstration. Does not call the server or change persisted data.</div>
+            </div>
+            {tamperedIndex === null ? (
+              <button
+                onClick={() => setTamperArmed(a => !a)}
+                className={`text-xs font-body px-3 py-2 rounded-sm border transition-colors shrink-0 ${
+                  tamperArmed ? 'border-danger/40 bg-danger-bg text-danger' : 'border-border text-muted-foreground hover:text-foreground'
+                }`}
+              >
+                {tamperArmed ? 'Select a block…' : 'Simulate tampering'}
+              </button>
+            ) : (
+              <button
+                onClick={handleRestore}
+                className="text-xs font-body px-3 py-2 rounded-sm border border-border text-muted-foreground hover:text-foreground transition-colors shrink-0"
+              >
+                Restore
+              </button>
+            )}
+          </div>
+          {tamperArmed && (
+            <div className="text-[10px] text-danger bg-danger-bg border border-danger/10 rounded p-2 mt-2">
+              Click any event block above to alter its payload; the check runs locally.
+            </div>
+          )}
+          {tamperMessage && (
+            <div className="mt-2 flex items-center gap-3 p-2 rounded-sm bg-danger-bg border border-danger/10">
+              <span className="w-2 h-2 rounded-full bg-danger" />
+              <span className="text-xs font-mono text-danger">{tamperMessage}</span>
+              <span className="text-[10px] text-muted-foreground font-mono ml-auto">local check</span>
+            </div>
+          )}
+        </div>
       </div>
 
       {/* Main content + stats sidebar */}
@@ -898,7 +913,7 @@ export default function AuditTrail() {
 
               {/* Intro explainer */}
               <div className="text-[10px] text-muted-foreground bg-muted/40 rounded p-2">
-                Each event is chained to the previous one by its SHA-256 hash and individually signed (Ed25519). Any modification of a single field invalidates the entire chain — making the audit tamper-proof.
+                Each event is chained to the previous one by its SHA-256 hash and individually signed (Ed25519). Any modification of a single field invalidates the chain — making tampering detectable.
               </div>
 
               {/* Event hash */}
@@ -922,9 +937,11 @@ export default function AuditTrail() {
               {/* Signature Ed25519 */}
               <div>
                 <div className="table-header mb-1">Ed25519 Signature</div>
-                <div className="text-xs text-safe font-mono">Signature verified ✓</div>
+                <div className={`text-xs font-mono ${verification?.valid ? 'text-safe' : 'text-muted-foreground'}`}>
+                  {verification?.valid ? 'Verified by server-side chain check ✓' : 'Signature persisted · run Verify integrity'}
+                </div>
                 <div className="text-[10px] text-muted-foreground bg-muted/40 rounded p-2 mt-1.5">
-                  The signing private key is isolated in the gateway module. An auditor can verify with the public key alone.
+                  The gateway signs each event. The current console validates signatures through the server-side chain check; independent offline verification remains a current-sprint deliverable.
                 </div>
               </div>
 
@@ -967,7 +984,7 @@ export default function AuditTrail() {
                 <div className="table-header mb-1">Full payload</div>
                 <pre className="text-xs font-mono text-ink-2 whitespace-pre-wrap bg-secondary/20 rounded-sm p-2 overflow-x-auto">{JSON.stringify(selectedEvent.details, null, 2)}</pre>
                 <div className="text-[10px] text-muted-foreground bg-muted/40 rounded p-2 mt-1.5">
-                  This JSON constitutes the exportable evidence.json file — independently verifiable without server access.
+                  This is the console projection of the persisted audit event. The server can generate an evidence bundle; independent offline verification remains a current-sprint deliverable.
                 </div>
               </div>
             </div>

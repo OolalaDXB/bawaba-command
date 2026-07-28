@@ -260,7 +260,12 @@ function LiveFeed() {
               >
                 <span className="text-muted-foreground font-mono" style={{ fontSize: '11px' }}>{timeAgo(evt.timestamp)}</span>
                 <span className="text-foreground truncate font-body font-medium">{evt.agent}</span>
-                <span className="text-ink-2 truncate">{evt.tool}</span>
+                <span className="text-ink-2 truncate flex items-center gap-1">
+                  {evt.tool}
+                  {(evt.details as { simulated?: boolean })?.simulated && (
+                    <span className="text-[8px] font-mono uppercase tracking-wide px-1 py-0.5 rounded-sm bg-muted text-muted-foreground border border-border shrink-0">sim</span>
+                  )}
+                </span>
                 <span className={evt.decision === 'allow' ? 'text-safe' : evt.decision === 'deny' ? 'text-danger' : 'text-warn'}>
                   {evt.decision}
                 </span>
@@ -528,6 +533,13 @@ const STAGE_COLOR: Record<StageStatus, string> = {
   skipped: 'text-ink-4',
 };
 
+const SIM_GATEWAY_URL = import.meta.env.VITE_GATEWAY_URL || 'http://localhost:8080';
+// Demo API keys for the seeded agents; only these can post a real MCP request.
+const SIM_DEMO_KEYS: Record<string, string> = {
+  'claude-code': 'claude-key-67890',
+  'cursor-ide': 'cursor-key-11111',
+};
+
 function SimulateRequestPanel({ onClose }: { onClose: () => void }) {
   const [agentId, setAgentId] = useState(MOCK_AGENTS[0]?.id ?? '');
   const [tool, setTool] = useState(TOOLS[0]);
@@ -538,15 +550,59 @@ function SimulateRequestPanel({ onClose }: { onClose: () => void }) {
   const [running, setRunning] = useState(false);
   const [revealed, setRevealed] = useState(0);
   const [result, setResult] = useState<ReturnType<typeof computePipeline> | null>(null);
+  const [delivery, setDelivery] = useState<'real' | 'simulated' | null>(null);
   const timers = useRef<ReturnType<typeof setTimeout>[]>([]);
 
   useEffect(() => () => { timers.current.forEach(t => clearTimeout(t)); }, []);
+
+  // If the gateway is reachable, post a real MCP request and let the real event
+  // stream back into the feed. Otherwise inject a locally-simulated event.
+  const deliver = async (computed: ReturnType<typeof computePipeline>) => {
+    const key = SIM_DEMO_KEYS[agentId];
+    if (key) {
+      try {
+        const available = await isApiAvailable();
+        if (available) {
+          await fetch(`${SIM_GATEWAY_URL}/mcp`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'X-Bawaba-Key': key },
+            body: JSON.stringify({
+              jsonrpc: '2.0',
+              id: `sim-${agentId}-${tool}`,
+              method: 'tools/call',
+              params: { name: tool, arguments: { message: payload } },
+            }),
+          });
+          setDelivery('real');
+          return;
+        }
+      } catch {
+        // fall through to simulated injection
+      }
+    }
+    pushInjectedEvent({
+      eventType: computed.outcome === 'deny' ? 'policy_deny' : 'tool_call',
+      agent: agentId,
+      tool,
+      decision: computed.outcome,
+      jurisdiction,
+      piiTokens: computed.entities,
+      details: {
+        simulated: true,
+        backend: SIM_BACKENDS[jurisdiction],
+        payload_preview: payload.slice(0, 80),
+        policy: computed.stages[1].note,
+      },
+    });
+    setDelivery('simulated');
+  };
 
   const run = () => {
     timers.current.forEach(t => clearTimeout(t));
     timers.current = [];
     const computed = computePipeline(agentId, tool, jurisdiction, payload);
     setResult(computed);
+    setDelivery(null);
     setRunning(true);
     setRevealed(0);
     computed.stages.forEach((_, i) => {
@@ -554,20 +610,7 @@ function SimulateRequestPanel({ onClose }: { onClose: () => void }) {
         setRevealed(i + 1);
         if (i === computed.stages.length - 1) {
           setRunning(false);
-          pushInjectedEvent({
-            eventType: computed.outcome === 'deny' ? 'policy_deny' : 'tool_call',
-            agent: agentId,
-            tool,
-            decision: computed.outcome,
-            jurisdiction,
-            piiTokens: computed.entities,
-            details: {
-              simulated: true,
-              backend: SIM_BACKENDS[jurisdiction],
-              payload_preview: payload.slice(0, 80),
-              policy: computed.stages[1].note,
-            },
-          });
+          void deliver(computed);
         }
       }, i * 420);
       timers.current.push(t);
@@ -652,10 +695,19 @@ function SimulateRequestPanel({ onClose }: { onClose: () => void }) {
             {/* Final result */}
             {!running && revealed === result.stages.length && (
               <div className={`mt-3 p-3 rounded-sm border ${result.outcome === 'allow' ? 'bg-safe-bg border-safe/20' : result.outcome === 'deny' ? 'bg-danger-bg border-danger/20' : 'bg-warn-bg border-warn/20'}`}>
-                <div className={`text-xs font-mono font-medium ${result.outcome === 'allow' ? 'text-safe' : result.outcome === 'deny' ? 'text-danger' : 'text-warn'}`}>
-                  {result.outcome === 'allow' ? '✓ Allowed' : result.outcome === 'deny' ? '✗ Denied' : '⚠ Rate-limited'} · {totalMs.toFixed(1)}ms total
+                <div className={`text-xs font-mono font-medium flex items-center gap-2 ${result.outcome === 'allow' ? 'text-safe' : result.outcome === 'deny' ? 'text-danger' : 'text-warn'}`}>
+                  <span>{result.outcome === 'allow' ? '✓ Allowed' : result.outcome === 'deny' ? '✗ Denied' : '⚠ Rate-limited'} · {totalMs.toFixed(1)}ms total</span>
+                  {delivery === 'simulated' && (
+                    <span className="text-[9px] font-mono uppercase tracking-wide px-1.5 py-0.5 rounded-sm bg-muted text-muted-foreground border border-border">simulated</span>
+                  )}
                 </div>
-                <div className="text-[10px] text-muted-foreground mt-1">Event injected into the audit feed with {result.entities} tokenized PII entit{result.entities === 1 ? 'y' : 'ies'}.</div>
+                <div className="text-[10px] text-muted-foreground mt-1">
+                  {delivery === 'real'
+                    ? 'Posted a real MCP request to the gateway — the real event will appear in the live feed.'
+                    : delivery === 'simulated'
+                      ? `Gateway not reachable — a simulated event was injected locally with ${result.entities} tokenized PII entit${result.entities === 1 ? 'y' : 'ies'}.`
+                      : 'Delivering…'}
+                </div>
               </div>
             )}
           </div>
