@@ -33,7 +33,7 @@ function randomHash(n = 12): string {
 }
 
 export interface InjectedInput {
-  eventType: 'agent_registered' | 'review_decision';
+  eventType: 'agent_registered' | 'review_decision' | 'tool_call' | 'policy_deny';
   agent: string;
   tool: string;
   decision: MCPEvent['decision'];
