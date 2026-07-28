@@ -331,9 +331,9 @@ export default function PiiTokenizer() {
                 <InfoTooltip text="Distribution of active tokens by tenant organization." />
               </div>
               {[
-                ['Al Maghrib Bank', '3,210'],
-                ['SAMA Corp', '2,891'],
-                ['DIFC Holdings', '1,420'],
+                ['Maghreb Retail Bank', '3,210'],
+                ['Gulf Institutional Bank', '2,891'],
+                ['DIFC Demo Holdings', '1,420'],
                 ['France Branch', '900'],
               ].map(([t, c]) => (
                 <div key={t} className="flex justify-between py-1.5 text-xs">

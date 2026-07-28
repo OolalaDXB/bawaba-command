@@ -93,7 +93,7 @@ export default function AppLayout() {
 
           <div className="flex items-center gap-4">
             <select className="text-xs bg-transparent border border-border rounded px-2 py-1 text-muted-foreground font-body">
-              <option>Attijariwafa</option>
+              <option>Atlas Commercial Bank</option>
             </select>
             <button
               onClick={toggle}
@@ -110,6 +110,13 @@ export default function AppLayout() {
             </div>
           </div>
         </header>
+
+        {/* Demo environment banner */}
+        <div className="border-b border-border bg-secondary/40 px-6 py-1.5 text-center">
+          <span className="text-[10px] uppercase tracking-[0.25em] text-muted-foreground font-body">
+            Demonstration Environment · Simulated Tenants, Events and Volumes · No Customer Data
+          </span>
+        </div>
 
         {/* Page content */}
         <main className="p-6">
