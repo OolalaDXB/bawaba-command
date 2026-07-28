@@ -31,6 +31,9 @@ CREATE TABLE IF NOT EXISTS audit_events (
     latency_ms      REAL DEFAULT 0,
     overhead_ms     REAL DEFAULT 0,
 
+    -- Signed sovereign routing decision
+    routing_proof   TEXT DEFAULT '',
+
     -- Integrity (hash chain)
     event_hash      TEXT NOT NULL,
     prev_hash       TEXT NOT NULL,

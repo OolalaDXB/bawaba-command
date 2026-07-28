@@ -10,6 +10,7 @@ services:
     volumes:
       - postgres_data:/var/lib/postgresql/data
       - ./migrations/001_audit_schema.sql:/docker-entrypoint-initdb.d/001_audit_schema.sql
+      - ./migrations/002_demo_evidence.sql:/docker-entrypoint-initdb.d/002_demo_evidence.sql
       - ./migrations/999_demo_seed.sql:/docker-entrypoint-initdb.d/999_demo_seed.sql
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U bawaba -d bawaba"]
