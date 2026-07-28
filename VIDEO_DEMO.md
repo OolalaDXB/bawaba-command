@@ -72,10 +72,10 @@ corresponding page is visible.
 ### Scene 3 — Signed jurisdiction routing
 
 1. Open **Sovereign Routing**.
-2. Keep the routing-proofs table visible.
+2. Keep the signed routing-proofs table visible.
 3. Run `make video-routing`.
-4. Wait for the new `cursor-ide / git-read -> Abu Dhabi` row.
-5. Click that row to open the persisted canonical payload and Ed25519 signature.
+4. Wait for the new `claude-code / git-read → Casablanca` row (Morocco data plane).
+5. Click that row to open the persisted canonical payload and the real Ed25519 signature.
 
 ### Scene 4 — Audit-chain verification
 
