@@ -1,40 +1,12 @@
 import { useState, useEffect, useMemo } from 'react';
-import { PII_TYPES as MOCK_PII_TYPES, JURISDICTIONS, generateSparklineData } from '@/lib/mock-data';
+import { PII_TYPES as MOCK_PII_TYPES } from '@/lib/mock-data';
 import { useLiveFeed } from '@/hooks/use-live-feed';
 import { BarChart, Bar, ResponsiveContainer, XAxis, YAxis } from 'recharts';
-import { isApiAvailable, fetchPiiStats, type PiiStatEntry } from '@/services/api';
+import { isApiAvailable, fetchPiiStats } from '@/services/api';
 import { PETROL } from '@/lib/chart-colors';
 import { tokenizePii, PII_LABELS, type PiiMatch } from '@/lib/pii-detect';
 import InfoTooltip from '@/components/InfoTooltip';
 import { X } from 'lucide-react';
-
-/* ── Constants for PII types & patterns ──────────── */
-const PII_TYPE_LIST = ['IBAN', 'Phone', 'Email', 'NID', 'Card'] as const;
-const PII_PATTERNS: Record<string, string> = {
-  IBAN: '[A-Z]{2}\\d{2}[A-Z0-9]{4,}',
-  Phone: '\\+?\\d{8,15}',
-  Email: '[\\w.-]+@[\\w.-]+',
-  NID: '[A-Z]\\d{6,9}',
-  Card: '\\d{4}[\\s-]?\\d{4}[\\s-]?\\d{4}[\\s-]?\\d{4}',
-};
-
-/* ── Stable hash helper ──────────────────────────── */
-function stableHash(str: string): number {
-  let hash = 0;
-  for (let i = 0; i < str.length; i++) {
-    const ch = str.charCodeAt(i);
-    hash = ((hash << 5) - hash) + ch;
-    hash |= 0;
-  }
-  return Math.abs(hash);
-}
-
-/* ── Stable UUID from event id ───────────────────── */
-function stableUUID(id: string): string {
-  const h = stableHash(id);
-  const hex = (n: number, len: number) => n.toString(16).padStart(len, '0');
-  return `${hex(h & 0xffffffff, 8)}-${hex((h >> 4) & 0xffff, 4)}-4${hex((h >> 8) & 0xfff, 3)}-${hex(0x8000 | ((h >> 12) & 0x3fff), 4)}-${hex(h & 0xffffffffffff, 12)}`;
-}
 
 /* ── Time-ago helper ────────────────────────────── */
 function timeAgo(date: Date): string {
@@ -56,8 +28,8 @@ interface PiiTypeEntry {
 interface SelectedToken {
   id: string;
   agent: string;
-  type: string;
-  uuid: string;
+  mode: string;
+  entities: number;
   time: string;
   timestamp: Date;
 }
@@ -120,9 +92,12 @@ function PiiTryIt() {
   return (
     <div className="card-surface shadow-card p-4">
       <div className="flex items-center justify-between mb-3">
-        <div className="table-header">
-          Try it — live detection
-          <InfoTooltip text="Runs the same 7 MENA patterns as the Rust tokenizer in your browser. Nothing leaves the page." />
+        <div>
+          <div className="table-header">
+            Try it — live detection
+            <InfoTooltip text="Runs the same 7 MENA patterns as the Rust tokenizer in your browser. Nothing leaves the page." />
+          </div>
+          <div className="text-[10px] text-muted-foreground font-body mt-0.5">Client-side preview · mirrors rust/tokenizer patterns</div>
         </div>
         <div className="flex items-center gap-2">
           <span className="text-[10px] font-mono text-muted-foreground">{result.matches.length} entities</span>
@@ -240,15 +215,15 @@ export default function PiiTokenizer() {
     { range: '>5ms', count: 327 },
   ], []);
 
-  /* Precompute stable type + UUID per event */
+  // Live rows use only values persisted by the backend. The API currently
+  // exposes entity counts and tokenization mode, not individual token UUIDs or
+  // entity categories, so the UI must not fabricate either.
   const feedRows = useMemo(() =>
-    events.filter(e => e.piiTokens > 0).map(evt => {
-      const h = stableHash(evt.id);
-      const piiType = PII_TYPE_LIST[h % PII_TYPE_LIST.length];
-      const uuid = stableUUID(evt.id);
-      const processingTime = ((h % 30) / 10 + 0.1).toFixed(1);
-      return { evt, piiType, uuid, processingTime };
-    }),
+    events.filter(e => e.piiTokens > 0).map(evt => ({
+      evt,
+      mode: String(evt.details.pii_mode || 'tokenize'),
+      processingTime: Math.max(0, evt.latency).toFixed(1),
+    })),
   [events]);
 
   return (
@@ -264,7 +239,7 @@ export default function PiiTokenizer() {
               Tokenization Statistics
               <InfoTooltip text="Overview of PII detection and tokenization activity by the Rust library." />
             </div>
-            <div className="text-xs text-muted-foreground">PII detection and token vault</div>
+            <div className="text-xs text-muted-foreground">Simulated aggregate volumes · live persisted events below</div>
           </div>
         </div>
 
@@ -301,8 +276,8 @@ export default function PiiTokenizer() {
         <div className="grid grid-cols-2 gap-4">
           <div className="card-surface shadow-card p-4">
             <div className="table-header mb-3">
-              By entity type
-              <InfoTooltip text="Distribution of detected PII entities by category (IBAN, Email, Phone, etc.)." />
+              By processing mode
+              <InfoTooltip text="Distribution of persisted PII entities by configured processing mode." />
             </div>
             {loading ? (
               Array.from({ length: 5 }).map((_, i) => (
@@ -354,42 +329,42 @@ export default function PiiTokenizer() {
         <div className="col-span-8">
           <div className="flex items-center gap-3 mb-4">
             <div className="text-sm font-body font-medium text-foreground">
-              Live tokenization feed
-              <InfoTooltip text="Each row represents a sensitive data item detected and replaced by a UUID token. The actual data is never sent to the LLM." />
+              Live persisted tokenization events
+              <InfoTooltip text="Each row is a real audit event returned by the running backend. Sensitive values are not written to the audit log." />
             </div>
-            <div className="text-[10px] text-muted-foreground font-body">Click a row to see token details and the detection pattern</div>
+            <div className="text-[10px] text-muted-foreground font-body">Click a row to see the persisted tokenization event</div>
           </div>
           <div className="card-surface shadow-card overflow-hidden">
             <div className="grid grid-cols-[80px_100px_100px_70px_120px_60px] gap-2 px-5 py-2 border-b border-border">
-              {['Time', 'Agent', 'Redacted', 'Type', 'UUID', 'Duration'].map((h, idx) => (
+              {['Time', 'Agent', 'Redacted', 'Mode', 'Event ID', 'Duration'].map((h, idx) => (
                 <span key={h + idx} className="table-header">
                   {h}
-                  {h === 'Redacted' && <InfoTooltip text="The actual value is redacted. Only the type (IBAN, Email...) and UUID are kept in logs." />}
-                  {h === 'Type' && <InfoTooltip text="Detected PII category (IBAN, Phone, Email, NID, Card)." />}
-                  {h === 'UUID' && <InfoTooltip text="Unique v4 identifier replacing the sensitive data in the LLM stream." />}
+                  {h === 'Redacted' && <InfoTooltip text="Sensitive values are never written to the audit log; only the entity count is persisted." />}
+                  {h === 'Mode' && <InfoTooltip text="Configured PII action persisted with the audit event." />}
+                  {h === 'Event ID' && <InfoTooltip text="Persisted audit event identifier. Individual vault token UUIDs are not exposed by this API." />}
                   {h === 'Duration' && <InfoTooltip text="Detection + replacement time by the Rust lib." />}
                 </span>
               ))}
             </div>
             <div className="max-h-[350px] overflow-y-auto">
-              {feedRows.map(({ evt, piiType, uuid, processingTime }, i) => (
+              {feedRows.map(({ evt, mode, processingTime }, i) => (
                 <div
                   key={evt.id}
                   className={`grid grid-cols-[80px_100px_100px_70px_120px_60px] gap-2 px-5 py-2 text-xs font-mono border-b border-border cursor-pointer hover:bg-muted/50 transition-colors ${i === 0 ? 'animate-fade-in-row' : ''}`}
                   onClick={() => setSelectedToken({
                     id: evt.id,
                     agent: evt.agent,
-                    type: piiType,
-                    uuid,
+                    mode,
+                    entities: evt.piiTokens,
                     time: `${processingTime}ms`,
                     timestamp: evt.timestamp,
                   })}
                 >
                   <span className="text-muted-foreground">{timeAgo(evt.timestamp)}</span>
                   <span className="text-foreground truncate">{evt.agent}</span>
-                  <span className="text-ink-4">{'########'}</span>
-                  <span className="text-ink-2">{piiType}</span>
-                  <span className="text-ink-3 truncate">{uuid.slice(0, 18)}...</span>
+                  <span className="text-ink-4">{evt.piiTokens} field{evt.piiTokens === 1 ? '' : 's'}</span>
+                  <span className="text-ink-2">{mode}</span>
+                  <span className="text-ink-3 truncate">{evt.id.slice(0, 18)}...</span>
                   <span className="text-muted-foreground">{processingTime}ms</span>
                 </div>
               ))}
@@ -400,8 +375,8 @@ export default function PiiTokenizer() {
         <div className="col-span-4">
           <div className="flex items-center gap-3 mb-4">
             <div className="text-sm font-body font-medium text-foreground">
-              Vault status
-              <InfoTooltip text="In-memory vault state storing token ↔ real data associations." />
+              Simulated vault status
+              <InfoTooltip text="Illustrative vault volumes for the demonstration environment. The live audit feed is shown separately." />
             </div>
           </div>
           <div className="card-surface shadow-card p-4 space-y-4">
@@ -426,10 +401,10 @@ export default function PiiTokenizer() {
                 <InfoTooltip text="Distribution of active tokens by tenant organization." />
               </div>
               {[
-                ['Maghreb Retail Bank', '3,210'],
-                ['Gulf Institutional Bank', '2,891'],
-                ['DIFC Demo Holdings', '1,420'],
-                ['France Branch', '900'],
+                ['Atlas Commercial Bank', '3,210'],
+                ['Gulf Meridian Bank', '2,891'],
+                ['Oasis Markets', '1,420'],
+                ['Northern Europe Branch', '900'],
               ].map(([t, c]) => (
                 <div key={t} className="flex justify-between py-1.5 text-xs">
                   <span className="text-muted-foreground">{t}</span>
@@ -448,8 +423,8 @@ export default function PiiTokenizer() {
           <div className="fixed inset-y-0 right-0 w-[400px] bg-card border-l border-border z-50 overflow-y-auto shadow-card">
             <div className="flex items-center justify-between p-5 border-b border-border">
               <div>
-                <div className="text-lg font-heading text-foreground">PII Token Detail</div>
-                <div className="text-xs text-muted-foreground font-mono">{selectedToken.uuid}</div>
+                <div className="text-lg font-heading text-foreground">Tokenization Event</div>
+                <div className="text-xs text-muted-foreground font-mono">{selectedToken.id}</div>
               </div>
               <button
                 onClick={() => setSelectedToken(null)}
@@ -459,12 +434,12 @@ export default function PiiTokenizer() {
               </button>
             </div>
             <div className="p-5 space-y-5">
-              {/* Detected type */}
+              {/* Persisted PII result */}
               <div>
-                <div className="text-[10px] uppercase tracking-wider text-muted-foreground mb-1">Detected type</div>
-                <div className="text-sm font-mono text-foreground">{selectedToken.type}</div>
+                <div className="text-[10px] uppercase tracking-wider text-muted-foreground mb-1">Persisted result</div>
+                <div className="text-sm font-mono text-foreground">{selectedToken.entities} entities · {selectedToken.mode}</div>
                 <div className="text-[10px] text-muted-foreground bg-muted/40 rounded p-2 mt-1.5">
-                  PII category identified by the Rust detection engine. The corresponding regex pattern is shown below.
+                  The audit API persists the number of detected entities and the configured processing mode. Sensitive values and vault token UUIDs are not exposed here.
                 </div>
               </div>
 
@@ -477,32 +452,12 @@ export default function PiiTokenizer() {
                 </div>
               </div>
 
-              {/* Detection pattern */}
-              <div>
-                <div className="text-[10px] uppercase tracking-wider text-muted-foreground mb-1">Detection pattern</div>
-                <div className="text-sm font-mono text-foreground bg-muted/50 rounded px-2 py-1.5 break-all">
-                  {PII_PATTERNS[selectedToken.type] || '.*'}
-                </div>
-                <div className="text-[10px] text-muted-foreground bg-muted/40 rounded p-2 mt-1.5">
-                  Regular expression used to detect this PII type in the data stream.
-                </div>
-              </div>
-
-              {/* Token UUID */}
-              <div>
-                <div className="text-[10px] uppercase tracking-wider text-muted-foreground mb-1">Token UUID</div>
-                <div className="text-sm font-mono text-foreground break-all">{selectedToken.uuid}</div>
-                <div className="text-[10px] text-muted-foreground bg-muted/40 rounded p-2 mt-1.5">
-                  This UUID v4 replaces the actual data in the stream sent to the LLM. The reverse mapping is held in the in-memory vault.
-                </div>
-              </div>
-
               {/* Configured TTL */}
               <div>
                 <div className="text-[10px] uppercase tracking-wider text-muted-foreground mb-1">Configured TTL</div>
-                <div className="text-sm font-mono text-foreground">30 minutes</div>
+                <div className="text-sm font-mono text-foreground">60 minutes</div>
                 <div className="text-[10px] text-muted-foreground bg-muted/40 rounded p-2 mt-1.5">
-                  After TTL expiration, detokenization becomes impossible — the real data is permanently purged from memory.
+                  The running gateway initializes the in-memory vault with a 60-minute TTL. After expiration, the mapping is purged from memory.
                 </div>
               </div>
 
@@ -517,7 +472,7 @@ export default function PiiTokenizer() {
                 <div className="text-[10px] uppercase tracking-wider text-muted-foreground mb-1">Status</div>
                 <span className="inline-flex items-center gap-1.5 text-xs font-mono px-2 py-1 rounded-full bg-emerald-500/10 text-emerald-600">
                   <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
-                  Active in memory
+                  Event recorded
                 </span>
               </div>
             </div>
