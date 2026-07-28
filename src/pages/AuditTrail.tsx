@@ -334,7 +334,9 @@ export default function AuditTrail() {
   );
 
   // Append-only review: create a NEW chained event, never touch the original.
+  // Exactly one review decision per event.
   const submitReview = useCallback((origin: MCPEvent, label: 'acknowledge' | 'escalate') => {
+    if (reviewStatus[origin.id]) return;
     pushInjectedEvent({
       eventType: 'review_decision',
       agent: 'mickael.thomas',
@@ -351,7 +353,7 @@ export default function AuditTrail() {
       },
     });
     setReviewStatus(origin.id, label === 'acknowledge' ? 'reviewed' : 'escalated');
-  }, []);
+  }, [reviewStatus]);
 
   // Live timestamp updates
   useEffect(() => {
@@ -737,19 +739,23 @@ export default function AuditTrail() {
                     <div className="flex gap-2">
                       <button
                         onClick={() => submitReview(selectedEvent, 'acknowledge')}
-                        className="flex-1 text-xs font-body font-medium px-3 py-2 bg-safe-bg border border-safe/20 text-safe rounded-sm hover:opacity-90 transition-opacity"
+                        disabled={!!reviewStatus[selectedEvent.id]}
+                        className="flex-1 text-xs font-body font-medium px-3 py-2 bg-safe-bg border border-safe/20 text-safe rounded-sm hover:opacity-90 transition-opacity disabled:opacity-40 disabled:cursor-not-allowed"
                       >
                         Acknowledge
                       </button>
                       <button
                         onClick={() => submitReview(selectedEvent, 'escalate')}
-                        className="flex-1 text-xs font-body font-medium px-3 py-2 bg-warn-bg border border-warn/20 text-warn rounded-sm hover:opacity-90 transition-opacity"
+                        disabled={!!reviewStatus[selectedEvent.id]}
+                        className="flex-1 text-xs font-body font-medium px-3 py-2 bg-warn-bg border border-warn/20 text-warn rounded-sm hover:opacity-90 transition-opacity disabled:opacity-40 disabled:cursor-not-allowed"
                       >
                         Escalate
                       </button>
                     </div>
                     <div className="text-[10px] text-muted-foreground bg-muted/40 rounded p-2 mt-1.5">
-                      Each decision appends a new <span className="font-mono">review_decision</span> event to the chain, referencing this event's id. The original event is immutable.
+                      {reviewStatus[selectedEvent.id]
+                        ? 'This event has already been reviewed. Exactly one review decision is allowed per event; the decision is recorded as a chained, immutable event.'
+                        : <>Each decision appends a new <span className="font-mono">review_decision</span> event to the chain, referencing this event's id. One decision per event; the original event is immutable.</>}
                     </div>
                   </div>
                 )}

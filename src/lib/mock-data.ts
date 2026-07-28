@@ -133,9 +133,33 @@ export function generateEvent(): MCPEvent {
 export function generateInitialEvents(count: number): MCPEvent[] {
   const events: MCPEvent[] = [];
   const now = Date.now();
+  // Keep the seeded "needs review" set realistic: ~13 of 50 events are
+  // deny / rate-limited / PII-bearing, the rest are clean allows with no PII.
+  const reviewIdx = new Set(
+    [2, 6, 9, 13, 18, 22, 26, 31, 35, 39, 43, 46, 49].filter(i => i < count),
+  );
+  let r = 0;
   for (let i = 0; i < count; i++) {
     const event = generateEvent();
     event.timestamp = new Date(now - (count - i) * 3000);
+    if (reviewIdx.has(i)) {
+      const kind = r % 3;
+      r++;
+      if (kind === 0) {
+        event.decision = 'deny';
+        event.piiTokens = 0;
+        event.details.policy_matched = `deny-rule-${event.tool}`;
+      } else if (kind === 1) {
+        event.decision = 'rate-limited';
+        event.piiTokens = Math.floor(Math.random() * 3);
+      } else {
+        event.decision = 'allow';
+        event.piiTokens = Math.floor(Math.random() * 4) + 1;
+      }
+    } else {
+      event.decision = 'allow';
+      event.piiTokens = 0;
+    }
     events.push(event);
   }
   return events;
