@@ -18,6 +18,14 @@ simulated demonstration data.
   invents an entity category or a token UUID.
 - `routing_proof` is persisted in PostgreSQL and returned by REST/SSE/export.
 - The UI carries a permanent demonstration-data disclosure.
+- The hash chain and **Verify integrity** cover only persisted server events;
+  local-only events (agent registration, offline review, simulated requests)
+  are shown separately with a "Local demo"/"Simulated" badge and are excluded
+  from server verification.
+- Review decisions are persisted through the backend (`POST /api/v1/events/review`)
+  as real chained, signed events when the API is reachable.
+- An unreachable API produces an explicit status banner rather than a silent
+  fallback; server verification is disabled until the API is reachable.
 
 ## Local setup
 
