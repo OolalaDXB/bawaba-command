@@ -93,7 +93,7 @@ export default function AppLayout() {
 
           <div className="flex items-center gap-4">
             <select className="text-xs bg-transparent border border-border rounded px-2 py-1 text-muted-foreground font-body">
-              <option>Atlas Commercial Bank</option>
+              <option>Atlas Commercial Bank · Demo</option>
             </select>
             <button
               onClick={toggle}

@@ -11,10 +11,11 @@ const BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8081';
 interface ApiEnvelope<T> {
   data: T;
   meta: {
-    page: number;
-    limit: number;
-    total: number;
+    page?: number;
+    limit?: number;
+    total?: number;
     timestamp: string;
+    [key: string]: unknown;
   };
 }
 
@@ -43,6 +44,7 @@ export interface ApiEvent {
   result_count: number;
   latency_ms: number;
   overhead_ms: number;
+  routing_proof: string;
   event_hash: string;
   prev_hash: string;
   merkle_root: string;
@@ -212,7 +214,21 @@ export async function fetchEvents(
     action: filters?.action,
     jurisdiction: filters?.jurisdiction,
   });
-  return request<EventsResponse>(`/api/v1/events${query}`);
+  const url = `${BASE_URL}/api/v1/events${query}`;
+  const response = await fetch(url, { headers: { 'Content-Type': 'application/json' } });
+  if (!response.ok) {
+    throw new ApiError(
+      `API request failed: ${response.status} ${response.statusText}`,
+      response.status,
+      url,
+    );
+  }
+  const envelope: ApiEnvelope<ApiEvent[]> = await response.json();
+  return {
+    events: envelope.data || [],
+    total: envelope.meta?.total ?? envelope.data?.length ?? 0,
+    page: envelope.meta?.page ?? page,
+  };
 }
 
 /**
