@@ -3,9 +3,10 @@
 @tailwind utilities;
 
 @layer base {
+  /* institutional (default) — pierre #FAFAF7, encre #1C1917, bronze #8B7355 */
   :root {
-    --background: 36 33% 97%;
-    --foreground: 24 10% 10%;
+    --background: 50 24% 98%;
+    --foreground: 24 12% 10%;
 
     --card: 0 0% 100%;
     --card-foreground: 24 10% 10%;
@@ -38,8 +39,8 @@
        wordmark/page titles = serif · interface = sans · mono = hashes,
        ids, payloads, paths · data = numeric columns (sans by default). */
     --font-wordmark: 'Cormorant Garamond', serif;
-    --font-ui: 'DM Sans', sans-serif;
-    --font-mono: 'JetBrains Mono', monospace;
+    --font-ui: 'Hanken Grotesk', 'DM Sans', sans-serif;
+    --font-mono: 'IBM Plex Mono', ui-monospace, monospace;
     --font-data: var(--font-ui);
 
     /* Bawaba custom tokens.
@@ -71,57 +72,126 @@
     --sidebar-ring: 30 24% 44%;
   }
 
-  .dark {
-    --background: 24 8% 4%;
-    --foreground: 30 12% 89%;
+  /* All themes stay light. Only tokens change — components are untouched.
+     Semantic decision colours (safe/warn/danger + backgrounds) and the ink
+     scale carry over from :root unless a theme deliberately overrides them. */
 
-    --card: 24 6% 8%;
-    --card-foreground: 30 12% 89%;
+  /* maisons — crème chaud, accent sable #c4a882 */
+  [data-theme="maisons"] {
+    --font-wordmark: 'Playfair Display', serif;
+    --font-ui: 'Inter', sans-serif;
 
-    --popover: 24 6% 8%;
-    --popover-foreground: 30 12% 89%;
+    --background: 38 44% 95%;
+    --foreground: 30 14% 13%;
+    --card: 40 50% 99%;
+    --card-foreground: 30 14% 13%;
+    --popover: 40 50% 99%;
+    --popover-foreground: 30 14% 13%;
 
-    --primary: 30 24% 44%;
-    --primary-foreground: 30 12% 89%;
+    --primary: 35 36% 64%;
+    --primary-foreground: 30 24% 15%;
+    --accent: 35 36% 64%;
+    --accent-foreground: 30 24% 15%;
+    --accent-bg: 35 36% 64%;
 
-    --secondary: 24 4% 12%;
-    --secondary-foreground: 30 12% 89%;
+    --secondary: 38 30% 91%;
+    --secondary-foreground: 30 14% 13%;
+    --muted: 38 30% 91%;
+    --muted-foreground: 32 8% 33%;
 
-    --muted: 24 4% 12%;
-    --muted-foreground: 28 6% 58%;
+    --border: 36 26% 86%;
+    --input: 36 26% 80%;
+    --ring: 35 36% 64%;
 
-    --accent: 30 24% 44%;
-    --accent-foreground: 30 12% 89%;
+    --ink-2: 30 8% 24%;
+    --ink-3: 32 8% 33%;
+    --ink-4: 34 20% 66%;
+    --ink-5: 36 26% 86%;
+    --row-alt: 38 34% 97%;
 
-    --destructive: 343 78% 40%;
-    --destructive-foreground: 30 12% 89%;
+    --sidebar-background: 40 50% 99%;
+    --sidebar-foreground: 30 14% 13%;
+    --sidebar-border: 36 26% 86%;
+  }
 
-    --border: 30 4% 12%;
-    --input: 30 4% 18%;
-    --ring: 30 24% 44%;
+  /* ludography — light with slightly distinct surface, terracotta accent,
+     very fine hairlines, 2px radii, micro-labels in small caps */
+  [data-theme="ludography"] {
+    --font-wordmark: 'Cormorant Garamond', serif;
+    --font-ui: 'DM Sans', sans-serif;
+    --radius: 2px;
 
-    --ink-2: 30 8% 75%;
-    --ink-3: 28 6% 58%;
-    --ink-4: 28 5% 42%;
-    --ink-5: 30 4% 20%;
+    --background: 40 14% 96%;
+    --foreground: 20 10% 12%;
+    --card: 40 24% 99%;
+    --card-foreground: 20 10% 12%;
+    --popover: 40 24% 99%;
+    --popover-foreground: 20 10% 12%;
 
-    --safe: 148 59% 34%;
-    --safe-foreground: 30 12% 89%;
-    --safe-bg: 148 30% 8%;
-    --warn: 28 84% 41%;
-    --warn-foreground: 30 12% 89%;
-    --warn-bg: 28 40% 8%;
-    --danger: 343 78% 42%;
-    --danger-bg: 343 40% 8%;
+    --primary: 15 55% 48%;
+    --primary-foreground: 40 30% 98%;
+    --accent: 15 55% 48%;
+    --accent-foreground: 40 30% 98%;
+    --accent-bg: 15 55% 48%;
 
-    --sidebar-background: 24 6% 8%;
-    --sidebar-foreground: 30 12% 89%;
-    --sidebar-primary: 30 24% 44%;
-    --sidebar-primary-foreground: 30 12% 89%;
-    --sidebar-accent: 24 4% 12%;
-    --sidebar-accent-foreground: 30 12% 89%;
-    --sidebar-border: 30 4% 12%;
-    --sidebar-ring: 30 24% 44%;
+    --secondary: 30 12% 93%;
+    --secondary-foreground: 20 10% 12%;
+    --muted: 30 12% 93%;
+    --muted-foreground: 24 6% 33%;
+
+    --border: 28 10% 91%;
+    --input: 28 10% 85%;
+    --ring: 15 55% 48%;
+
+    --ink-2: 20 8% 23%;
+    --ink-3: 24 6% 33%;
+    --ink-4: 24 9% 66%;
+    --ink-5: 28 10% 91%;
+    --row-alt: 36 14% 98%;
+
+    --sidebar-background: 40 24% 99%;
+    --sidebar-foreground: 20 10% 12%;
+    --sidebar-border: 28 10% 91%;
+  }
+
+  /* beau — light beau.capital palette, deep-green accent, IBM Plex Mono
+     for numeric data and hashes */
+  [data-theme="beau"] {
+    --font-wordmark: 'Cormorant Garamond', serif;
+    --font-ui: 'Inter', sans-serif;
+    --font-data: var(--font-mono);
+
+    --background: 60 14% 96%;
+    --foreground: 180 10% 10%;
+    --card: 60 24% 99%;
+    --card-foreground: 180 10% 10%;
+    --popover: 60 24% 99%;
+    --popover-foreground: 180 10% 10%;
+
+    --primary: 150 40% 22%;
+    --primary-foreground: 60 24% 98%;
+    --accent: 150 40% 22%;
+    --accent-foreground: 60 24% 98%;
+    --accent-bg: 150 40% 22%;
+
+    --secondary: 150 12% 92%;
+    --secondary-foreground: 180 10% 10%;
+    --muted: 150 12% 92%;
+    --muted-foreground: 180 6% 31%;
+
+    --border: 150 10% 88%;
+    --input: 150 10% 82%;
+    --ring: 150 40% 22%;
+
+    --ink-2: 180 8% 21%;
+    --ink-3: 180 6% 31%;
+    --ink-4: 160 8% 64%;
+    --ink-5: 150 10% 88%;
+    --row-alt: 150 14% 97%;
+
+    --sidebar-background: 60 24% 99%;
+    --sidebar-foreground: 180 10% 10%;
+    --sidebar-border: 150 10% 88%;
   }
 }
 
@@ -219,6 +289,14 @@
   .pill-rate { background: hsl(var(--warn-bg)); color: hsl(var(--warn)); }
   .pill-review { background: hsl(var(--muted)); color: hsl(var(--ink-2)); }
   .pill-neutral { background: hsl(var(--muted)); color: hsl(var(--ink-3)); }
+
+  /* ludography renders micro-labels as small caps rather than full uppercase. */
+  [data-theme="ludography"] .table-header,
+  [data-theme="ludography"] .micro-label {
+    text-transform: lowercase;
+    font-variant: small-caps;
+    letter-spacing: 0.05em;
+  }
 
   .card-surface {
     background: hsl(var(--card));
