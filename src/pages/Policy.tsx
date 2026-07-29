@@ -173,16 +173,16 @@ export default function Policy() {
                 {rules.map((rule, i) => (
                   <div
                     key={i}
-                    className="flex items-center justify-between py-2 px-2 border-b border-border last:border-0 text-xs cursor-pointer hover:bg-muted/50 transition-colors"
+                    className="data-row flex items-center justify-between py-2 px-2 border-b border-border last:border-0 text-sm cursor-pointer hover:bg-muted/50 transition-colors"
                     onClick={() => setSelectedRule({ type: 'rule', rule, index: i })}
                   >
-                    <div>
-                      <span className="font-mono text-foreground">{rule.agent}</span>
+                    <div className="min-w-0 truncate">
+                      <span className="text-foreground">{rule.agent}</span>
                       <span className="text-ink-4 mx-1">{'->'}</span>
-                      <span className="font-mono text-ink-2">{rule.tool}</span>
+                      <span className="text-ink-2">{rule.tool}</span>
                     </div>
-                    <div className="flex items-center gap-2">
-                      <span className={`font-mono text-[10px] ${rule.action === 'allow' ? 'text-safe' : 'text-danger'}`}>
+                    <div className="flex items-center gap-2 shrink-0">
+                      <span className={`pill ${rule.action === 'allow' ? 'pill-allow' : 'pill-deny'}`}>
                         {rule.action}
                       </span>
                       <InfoTooltip
@@ -192,7 +192,7 @@ export default function Policy() {
                             : 'Request systematically denied for this agent/tool.'
                         }
                       />
-                      <span className="text-[9px] text-ink-4 font-mono">{rule.matched}</span>
+                      <span className="text-xs text-ink-3 font-data tabular-nums">{rule.matched}</span>
                     </div>
                   </div>
                 ))}
@@ -234,7 +234,7 @@ export default function Policy() {
           <div className="text-[10px] text-muted-foreground font-body">Click an evaluation to inspect the persisted matched-rule identifier</div>
         </div>
         <div className="card-surface shadow-card overflow-hidden">
-          <div className="grid grid-cols-[80px_100px_110px_70px_1fr_60px] gap-2 px-5 py-2 border-b border-border">
+          <div className="grid grid-cols-[76px_100px_120px_104px_1fr_64px] gap-2 px-5 py-2 border-b border-border">
             <span className="table-header">Time</span>
             <span className="table-header">Agent</span>
             <span className="table-header">Tool</span>
@@ -251,20 +251,22 @@ export default function Policy() {
               <InfoTooltip text="Policy evaluation time in milliseconds." />
             </span>
           </div>
-          <div className="max-h-[300px] overflow-y-auto">
+          <div className="max-h-[300px] overflow-y-auto zebra">
             {events.slice(0, 15).map(evt => (
               <div
                 key={evt.id}
-                className="grid grid-cols-[80px_100px_110px_70px_1fr_60px] gap-2 px-5 py-2 text-xs font-mono border-b border-border cursor-pointer hover:bg-muted/50 transition-colors"
+                className="data-row grid grid-cols-[76px_100px_120px_104px_1fr_64px] gap-2 px-5 py-2 text-sm font-data tabular-nums border-b border-border cursor-pointer hover:bg-muted/50 transition-colors"
                 onClick={() => setSelectedRule({ type: 'eval', evt })}
               >
                 <span className="text-muted-foreground">{timeAgo(evt.timestamp)}</span>
                 <span className="text-foreground truncate">{evt.agent}</span>
                 <span className="text-ink-2 truncate">{evt.tool}</span>
-                <span className={evt.decision === 'allow' ? 'text-safe' : evt.decision === 'deny' ? 'text-danger' : 'text-warn'}>
-                  {evt.decision}
+                <span>
+                  <span className={`pill ${evt.decision === 'allow' ? 'pill-allow' : evt.decision === 'deny' ? 'pill-deny' : 'pill-rate'}`}>
+                    {evt.decision}
+                  </span>
                 </span>
-                <span className="text-ink-3 truncate">{String(evt.details.policy_matched)}</span>
+                <span className="text-ink-3 truncate mono-cell text-xs self-center">{String(evt.details.policy_matched)}</span>
                 <span className="text-muted-foreground">{String(evt.details.evaluation_time_ms)}ms</span>
               </div>
             ))}
@@ -291,54 +293,54 @@ export default function Policy() {
               {selectedRule.type === 'rule' ? (
                 <>
                   <div>
-                    <div className="text-[10px] uppercase tracking-wider text-muted-foreground mb-1">Agent</div>
+                    <div className="table-header mb-1">Agent</div>
                     <div className="text-sm font-mono text-foreground">{selectedRule.rule.agent}</div>
                   </div>
                   <div>
-                    <div className="text-[10px] uppercase tracking-wider text-muted-foreground mb-1">Tool</div>
+                    <div className="table-header mb-1">Tool</div>
                     <div className="text-sm font-mono text-foreground">{selectedRule.rule.tool}</div>
                   </div>
                   <div>
-                    <div className="text-[10px] uppercase tracking-wider text-muted-foreground mb-1">Action</div>
-                    <div className={`text-sm font-mono ${selectedRule.rule.action === 'allow' ? 'text-safe' : 'text-danger'}`}>
-                      {selectedRule.rule.action === 'allow' ? 'Allowed' : 'Denied'} ({selectedRule.rule.action})
-                    </div>
+                    <div className="table-header mb-1">Action</div>
+                    <span className={`pill ${selectedRule.rule.action === 'allow' ? 'pill-allow' : 'pill-deny'}`}>
+                      {selectedRule.rule.action === 'allow' ? 'Allowed' : 'Denied'}
+                    </span>
                   </div>
                   <div>
-                    <div className="text-[10px] uppercase tracking-wider text-muted-foreground mb-1">Conditions</div>
+                    <div className="table-header mb-1">Conditions</div>
                     <div className="text-sm font-mono text-ink-2">{selectedRule.rule.conditions === 'always' ? 'None' : selectedRule.rule.conditions}</div>
                   </div>
                   <div>
-                    <div className="text-[10px] uppercase tracking-wider text-muted-foreground mb-1">Matches</div>
+                    <div className="table-header mb-1">Matches</div>
                     <div className="text-sm font-mono text-foreground">{selectedRule.rule.matched}</div>
                   </div>
                 </>
               ) : (
                 <>
                   <div>
-                    <div className="text-[10px] uppercase tracking-wider text-muted-foreground mb-1">Agent</div>
+                    <div className="table-header mb-1">Agent</div>
                     <div className="text-sm font-mono text-foreground">{selectedRule.evt.agent}</div>
                   </div>
                   <div>
-                    <div className="text-[10px] uppercase tracking-wider text-muted-foreground mb-1">Tool</div>
+                    <div className="table-header mb-1">Tool</div>
                     <div className="text-sm font-mono text-foreground">{selectedRule.evt.tool}</div>
                   </div>
                   <div>
-                    <div className="text-[10px] uppercase tracking-wider text-muted-foreground mb-1">Decision</div>
-                    <div className={`text-sm font-mono ${selectedRule.evt.decision === 'allow' ? 'text-safe' : selectedRule.evt.decision === 'deny' ? 'text-danger' : 'text-warn'}`}>
-                      {selectedRule.evt.decision === 'allow' ? 'Allowed' : selectedRule.evt.decision === 'deny' ? 'Denied' : selectedRule.evt.decision} ({selectedRule.evt.decision})
-                    </div>
+                    <div className="table-header mb-1">Decision</div>
+                    <span className={`pill ${selectedRule.evt.decision === 'allow' ? 'pill-allow' : selectedRule.evt.decision === 'deny' ? 'pill-deny' : 'pill-rate'}`}>
+                      {selectedRule.evt.decision === 'allow' ? 'Allowed' : selectedRule.evt.decision === 'deny' ? 'Denied' : selectedRule.evt.decision}
+                    </span>
                   </div>
                   <div>
-                    <div className="text-[10px] uppercase tracking-wider text-muted-foreground mb-1">Matched rule</div>
+                    <div className="table-header mb-1">Matched rule</div>
                     <div className="text-sm font-mono text-ink-2">{String(selectedRule.evt.details.policy_matched)}</div>
                   </div>
                   <div>
-                    <div className="text-[10px] uppercase tracking-wider text-muted-foreground mb-1">Evaluation time</div>
+                    <div className="table-header mb-1">Evaluation time</div>
                     <div className="text-sm font-mono text-foreground">{String(selectedRule.evt.details.evaluation_time_ms)}ms</div>
                   </div>
                   <div>
-                    <div className="text-[10px] uppercase tracking-wider text-muted-foreground mb-1">Timestamp</div>
+                    <div className="table-header mb-1">Timestamp</div>
                     <div className="text-sm font-mono text-foreground">{selectedRule.evt.timestamp.toLocaleString('en-GB')}</div>
                   </div>
                 </>

@@ -20,7 +20,7 @@
     --secondary-foreground: 24 10% 10%;
 
     --muted: 30 6% 93%;
-    --muted-foreground: 39 6% 58%;
+    --muted-foreground: 33 5% 32%;
 
     --accent: 33 24% 44%;
     --accent-foreground: 0 0% 100%;
@@ -34,21 +34,32 @@
 
     --radius: 2px;
 
-    /* Bawaba custom tokens */
-    --ink-2: 30 6% 25%;
-    --ink-3: 39 6% 58%;
-    --ink-4: 30 5% 64%;
-    --ink-5: 30 6% 83%;
+    /* Typography roles — swapped per theme, never per component.
+       wordmark/page titles = serif · interface = sans · mono = hashes,
+       ids, payloads, paths · data = numeric columns (sans by default). */
+    --font-wordmark: 'Cormorant Garamond', serif;
+    --font-ui: 'DM Sans', sans-serif;
+    --font-mono: 'JetBrains Mono', monospace;
+    --font-data: var(--font-ui);
+
+    /* Bawaba custom tokens.
+       Contrast floor: secondary text never lighter than #57534E (ink-3 /
+       muted-foreground). ink-4 (#A8A29E) is reserved for rules and icons. */
+    --ink-2: 30 6% 25%;   /* #44403C — emphasised secondary data */
+    --ink-3: 33 5% 32%;   /* #57534E — secondary text floor */
+    --ink-4: 30 5% 64%;   /* #A8A29E — rules & icons only, never text */
+    --ink-5: 30 6% 83%;   /* #D6D3D1 — hairline rules */
+    --row-alt: 30 7% 97%; /* discreet zebra tint */
 
     --accent-bg: 33 24% 44%;
     --safe: 143 64% 24%;
     --safe-foreground: 0 0% 100%;
-    --safe-bg: 143 64% 97%;
-    --warn: 28 84% 31%;
+    --safe-bg: 143 48% 94%;
+    --warn: 28 84% 26%;
     --warn-foreground: 0 0% 100%;
-    --warn-bg: 28 84% 97%;
-    --danger: 343 80% 35%;
-    --danger-bg: 343 80% 97%;
+    --warn-bg: 34 78% 92%;
+    --danger: 343 74% 33%;
+    --danger-bg: 343 60% 95%;
 
     --sidebar-background: 0 0% 100%;
     --sidebar-foreground: 24 10% 10%;
@@ -121,7 +132,7 @@
 
   body {
     @apply bg-background text-foreground;
-    font-family: 'DM Sans', sans-serif;
+    font-family: var(--font-ui);
     font-weight: 400;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
@@ -131,13 +142,14 @@
     transition: background-color 0.3s ease, border-color 0.3s ease, color 0.2s ease, box-shadow 0.3s ease;
   }
 
+  /* Serif is reserved for the wordmark and page titles only. */
   h1, h2, h3, h4, h5, h6 {
-    font-family: 'Cormorant Garamond', serif;
+    font-family: var(--font-wordmark);
     font-weight: 300;
   }
 
   code, pre, .font-mono {
-    font-family: 'JetBrains Mono', monospace;
+    font-family: var(--font-mono);
     font-weight: 300;
   }
 }
@@ -151,14 +163,62 @@
     color: hsl(var(--ink-5));
   }
 
-  .table-header {
+  /* Micro-labels: column headers, statuses captions, panel labels. */
+  .table-header,
+  .micro-label {
     text-transform: uppercase;
-    letter-spacing: 0.8px;
-    font-size: 10px;
+    letter-spacing: 0.08em;
+    font-size: 11px;
     font-weight: 600;
+    line-height: 1.2;
     color: hsl(var(--ink-3));
-    font-family: 'DM Sans', sans-serif;
+    font-family: var(--font-ui);
+    font-feature-settings: normal;
   }
+
+  /* Numeric / textual data columns: 14px, interface (or theme data) font,
+     tabular figures so digits align across rows. Serif and mono stay out. */
+  .data-cell {
+    font-size: 14px;
+    font-family: var(--font-data);
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* Mono is reserved for hashes, event ids, payloads, paths, command output. */
+  .mono-cell {
+    font-family: var(--font-mono);
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* Table rows: ≥40px, vertically centred, discreet zebra alternation. */
+  .data-row {
+    min-height: 40px;
+    align-items: center;
+  }
+
+  .zebra > :nth-child(even):not(.row-deny):not(.row-rate-limited) {
+    background: hsl(var(--row-alt));
+  }
+
+  /* Status pills — tinted background, dark text (allow/deny/rate/review). */
+  .pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.375rem;
+    padding: 0.1875rem 0.5rem;
+    border-radius: var(--radius);
+    font-family: var(--font-ui);
+    font-size: 11px;
+    font-weight: 600;
+    line-height: 1;
+    letter-spacing: 0.01em;
+    white-space: nowrap;
+  }
+  .pill-allow { background: hsl(var(--safe-bg)); color: hsl(var(--safe)); }
+  .pill-deny { background: hsl(var(--danger-bg)); color: hsl(var(--danger)); }
+  .pill-rate { background: hsl(var(--warn-bg)); color: hsl(var(--warn)); }
+  .pill-review { background: hsl(var(--muted)); color: hsl(var(--ink-2)); }
+  .pill-neutral { background: hsl(var(--muted)); color: hsl(var(--ink-3)); }
 
   .card-surface {
     background: hsl(var(--card));

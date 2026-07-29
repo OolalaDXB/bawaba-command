@@ -163,10 +163,10 @@ function AgentDetailPanel({ agent, onClose, apiAvailable }: { agent: Agent; onCl
             <div className="table-header mb-3">Recent activity</div>
             <div className="space-y-0 border border-border rounded-sm overflow-hidden">
               {activity.slice(0, 10).map(entry => (
-                <div key={entry.event_id} className="flex items-center justify-between px-3 py-2 text-xs font-mono border-b border-border last:border-0">
+                <div key={entry.event_id} className="data-row flex items-center justify-between px-3 py-2 text-sm font-data tabular-nums border-b border-border last:border-0">
                   <span className="text-muted-foreground">{timeAgo(new Date(entry.timestamp))}</span>
                   <span className="text-ink-2 truncate mx-2">{entry.tool}</span>
-                  <span className={entry.policy_result === 'allow' ? 'text-safe' : 'text-danger'}>{entry.policy_result}</span>
+                  <span className={`pill ${entry.policy_result === 'allow' ? 'pill-allow' : 'pill-deny'}`}>{entry.policy_result}</span>
                   <span className="text-muted-foreground">{entry.latency_ms}ms</span>
                 </div>
               ))}
@@ -184,8 +184,8 @@ function AgentDetailPanel({ agent, onClose, apiAvailable }: { agent: Agent; onCl
               ['Violations', agent.violations.toString()],
             ].map(([label, val]) => (
               <div key={label} className="p-3 bg-background border border-border rounded-sm text-center">
-                <div className="text-lg font-mono font-light text-foreground">{val}</div>
-                <div className="text-[10px] text-muted-foreground mt-1">{label}</div>
+                <div className="text-xl font-data tabular-nums font-normal text-foreground">{val}</div>
+                <div className="text-[11px] text-muted-foreground mt-1">{label}</div>
               </div>
             ))}
           </div>
@@ -412,7 +412,7 @@ function AgentTableSkeleton() {
   return (
     <>
       {Array.from({ length: 4 }).map((_, i) => (
-        <div key={i} className="grid grid-cols-[160px_100px_1fr_1fr_80px_80px_80px_120px] gap-2 px-5 py-3 border-b border-border">
+        <div key={i} className="data-row grid grid-cols-[150px_92px_1fr_1fr_76px_76px_108px_100px] gap-2 px-5 py-3 border-b border-border">
           <div className="animate-pulse bg-muted rounded h-4 w-full" />
           <div className="animate-pulse bg-muted rounded h-4 w-full" />
           <div className="animate-pulse bg-muted rounded h-4 w-full" />
@@ -511,9 +511,9 @@ export default function Agents() {
 
       <div className="text-[10px] text-muted-foreground font-body mb-2">Click an agent to see its full configuration, allowed tools, and activity history</div>
 
-      <div className="card-surface shadow-card overflow-hidden">
+      <div className="card-surface shadow-card overflow-hidden zebra">
         {/* Table header */}
-        <div className="grid grid-cols-[160px_100px_1fr_1fr_80px_80px_80px_120px] gap-2 px-5 py-3 border-b border-border">
+        <div className="grid grid-cols-[150px_92px_1fr_1fr_76px_76px_108px_100px] gap-2 px-5 py-3 border-b border-border">
           <span className="table-header">Agent</span>
           <span className="table-header">Auth<InfoTooltip text="Authentication method: API key (bcrypt), Bearer (shared secret, pilot mode) or mTLS. OIDC/JWT planned P2." /></span>
           <span className="table-header">Allowed tools<InfoTooltip text="Allowlist of MCP tools this agent can call. Any off-list call → 403." /></span>
@@ -532,24 +532,26 @@ export default function Agents() {
             <div
               key={agent.id}
               onClick={() => setSelectedAgent(agent)}
-              className="grid grid-cols-[160px_100px_1fr_1fr_80px_80px_80px_120px] gap-2 px-5 py-3 border-b border-border last:border-0 cursor-pointer hover:bg-secondary/30 transition-colors"
+              className="data-row grid grid-cols-[150px_92px_1fr_1fr_76px_76px_108px_100px] gap-2 px-5 py-3 border-b border-border last:border-0 cursor-pointer hover:bg-secondary/30 transition-colors"
             >
-              <span className="text-xs font-mono text-foreground">{agent.name}</span>
-              <span className="text-xs text-muted-foreground">{agent.auth}</span>
-              <div className="flex flex-wrap gap-1">
+              <span className="text-sm text-foreground truncate">{agent.name}</span>
+              <span className="text-sm text-muted-foreground">{agent.auth}</span>
+              <div className="flex flex-wrap gap-1 items-center">
                 {agent.allowedTools.map(t => (
-                  <span key={t} className="text-[9px] font-mono px-1.5 py-0.5 bg-safe-bg text-safe rounded-sm">{t}</span>
+                  <span key={t} className="text-[11px] font-data px-1.5 py-0.5 bg-safe-bg text-safe rounded-sm">{t}</span>
                 ))}
               </div>
-              <div className="flex flex-wrap gap-1">
+              <div className="flex flex-wrap gap-1 items-center">
                 {agent.deniedTools.map(t => (
-                  <span key={t} className="text-[9px] font-mono px-1.5 py-0.5 bg-danger-bg text-danger rounded-sm">{t}</span>
+                  <span key={t} className="text-[11px] font-data px-1.5 py-0.5 bg-danger-bg text-danger rounded-sm">{t}</span>
                 ))}
               </div>
-              <span className="text-xs font-mono text-muted-foreground">{agent.piiMode}</span>
-              <span className="text-xs font-mono text-muted-foreground">{agent.rateLimit}/hr</span>
-              <span className={`text-xs font-mono status-${agent.status}`}>{agent.status}</span>
-              <span className="text-xs text-muted-foreground">
+              <span className="text-sm font-data tabular-nums text-muted-foreground">{agent.piiMode}</span>
+              <span className="text-sm font-data tabular-nums text-muted-foreground">{agent.rateLimit}/hr</span>
+              <span>
+                <span className={`pill ${agent.status === 'healthy' ? 'pill-allow' : agent.status === 'rate-limited' ? 'pill-rate' : agent.status === 'blocked' ? 'pill-deny' : 'pill-neutral'}`}>{agent.status}</span>
+              </span>
+              <span className="text-sm text-muted-foreground">
                 {timeAgo(agent.lastActive)}
               </span>
             </div>

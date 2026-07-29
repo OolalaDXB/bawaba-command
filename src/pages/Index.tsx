@@ -111,10 +111,10 @@ function MetricCard({ label, value, sparkData, sparkColor, subtitle }: {
 
   return (
     <div className="bg-background border border-border rounded-sm p-5 animate-fade-in">
-      <div className="table-header mb-3 font-body" style={{ fontSize: '12px' }}>{label}</div>
+      <div className="table-header mb-3">{label}</div>
       <div className="flex items-end justify-between">
         <div>
-          <div className="font-heading font-light tracking-tight text-foreground" style={{ fontSize: '32px', lineHeight: 1 }}>{display}</div>
+          <div className="font-data tabular-nums font-normal tracking-tight text-foreground" style={{ fontSize: '32px', lineHeight: 1 }}>{display}</div>
           {subtitle && <div className="mt-1 text-xs">{subtitle}</div>}
         </div>
         <div className={done ? 'animate-fade-in' : 'opacity-0'}>
@@ -229,7 +229,7 @@ function LiveFeed() {
         </div>
         <button
           onClick={toggleLive}
-          className={`flex items-center gap-2 text-xs font-mono px-3 py-1.5 border rounded transition-colors ${
+          className={`flex items-center gap-2 micro-label px-3 py-1.5 border rounded transition-colors ${
             isLive ? 'border-safe/30 text-safe bg-safe-bg' : 'border-border text-muted-foreground'
           }`}
         >
@@ -239,14 +239,14 @@ function LiveFeed() {
       </div>
 
       {/* Table header */}
-      <div className="grid grid-cols-[90px_100px_120px_70px_50px_50px_40px] gap-2 px-5 py-2 border-b border-border">
+      <div className="grid grid-cols-[90px_100px_1fr_104px_44px_56px_44px] gap-2 px-5 py-2 border-b border-border">
         {['Time', 'Agent', 'Tool', 'Decision', 'PII', 'Lat.', 'Jur.'].map(h => (
           <span key={h} className="table-header">{h}</span>
         ))}
       </div>
 
       {/* Events */}
-      <div className="flex-1 overflow-y-auto">
+      <div className="flex-1 overflow-y-auto zebra">
         {allEvents.map((evt, i) => {
           const isNew = newEventIds.has(evt.id);
           return (
@@ -254,22 +254,24 @@ function LiveFeed() {
               <div
                 onClick={() => setExpandedId(expandedId === evt.id ? null : evt.id)}
                 style={{ opacity: getRowOpacity(i) }}
-                className={`grid grid-cols-[90px_100px_120px_70px_50px_50px_40px] gap-2 px-5 py-2 text-xs font-mono cursor-pointer transition-colors hover:bg-secondary/50 ${
+                className={`data-row grid grid-cols-[90px_100px_1fr_104px_44px_56px_44px] gap-2 px-5 py-2 text-sm font-data tabular-nums cursor-pointer transition-colors hover:bg-secondary/50 ${
                   getRowAnimClass(evt, i)
                 } ${evt.decision === 'deny' && !isNew ? 'row-deny' : evt.decision === 'rate-limited' ? 'row-rate-limited' : ''}`}
               >
-                <span className="text-muted-foreground font-mono" style={{ fontSize: '11px' }}>{timeAgo(evt.timestamp)}</span>
-                <span className="text-foreground truncate font-body font-medium">{evt.agent}</span>
+                <span className="text-muted-foreground">{timeAgo(evt.timestamp)}</span>
+                <span className="text-foreground truncate font-medium">{evt.agent}</span>
                 <span className="text-ink-2 truncate flex items-center gap-1">
                   {evt.tool}
                   {evt.id.startsWith('loc-') && (
-                    <span className="text-[8px] font-mono uppercase tracking-wide px-1 py-0.5 rounded-sm bg-muted text-muted-foreground border border-border shrink-0">
+                    <span className="pill pill-neutral shrink-0" style={{ fontSize: '10px', padding: '2px 5px' }}>
                       {(evt.details as { simulated?: boolean })?.simulated ? 'sim' : 'local'}
                     </span>
                   )}
                 </span>
-                <span className={evt.decision === 'allow' ? 'text-safe' : evt.decision === 'deny' ? 'text-danger' : 'text-warn'}>
-                  {evt.decision}
+                <span className="min-w-0">
+                  <span className={`pill ${evt.decision === 'allow' ? 'pill-allow' : evt.decision === 'deny' ? 'pill-deny' : 'pill-rate'}`}>
+                    {evt.decision}
+                  </span>
                 </span>
                 <PiiCount value={evt.piiTokens} isNew={isNew} />
                 <span className="text-muted-foreground">{evt.latency}ms</span>
@@ -351,10 +353,10 @@ function JurisdictionPanel({ jurisdictions, loading }: { jurisdictions: Jurisdic
           jurisdictions.map(j => (
             <div key={j.code} className="flex items-center justify-between py-2 border-b border-border last:border-0">
               <div className="flex items-center gap-2">
-                <span className="text-xs font-mono text-ink-3 w-6">{getJurisdictionFlag(j.code)}</span>
-                <span className="text-xs text-foreground">{j.name}</span>
+                <span className="text-base text-ink-3 w-6">{getJurisdictionFlag(j.code)}</span>
+                <span className="text-sm text-foreground">{j.name}</span>
               </div>
-              <div className="flex gap-4 text-xs font-mono">
+              <div className="flex gap-4 text-sm font-data tabular-nums">
                 <span className="text-muted-foreground">{j.callsToday.toLocaleString()}</span>
                 <span className="text-safe">{j.piiTokenized.toLocaleString()}</span>
                 <span className="text-danger">{j.denials}</span>
@@ -368,7 +370,7 @@ function JurisdictionPanel({ jurisdictions, loading }: { jurisdictions: Jurisdic
             { label: 'PII', cls: 'text-safe' },
             { label: 'Denials', cls: 'text-danger' },
           ].map(l => (
-            <span key={l.label} className={`text-[9px] ${l.cls}`}>{l.label}</span>
+            <span key={l.label} className={`text-[11px] ${l.cls}`}>{l.label}</span>
           ))}
         </div>
       </div>
@@ -406,15 +408,13 @@ function ComplianceBar({ jurisdictions, loading }: { jurisdictions: Jurisdiction
         <div key={j.code} className="bg-background border border-border rounded-sm p-4">
           <div className="flex items-center justify-between mb-3">
             <span className="text-xs font-body font-medium text-foreground">{j.name}</span>
-            <span className={`text-[10px] font-mono px-2 py-0.5 rounded-sm ${
-              j.status === 'compliant' ? 'bg-safe-bg text-safe' : 'bg-warn-bg text-warn'
-            }`}>
-              {j.status === 'compliant' ? 'COMPLIANT' : 'REVIEW'}
+            <span className={`pill ${j.status === 'compliant' ? 'pill-allow' : 'pill-rate'}`}>
+              {j.status === 'compliant' ? 'Compliant' : 'Review'}
             </span>
           </div>
           <div className="text-xs text-muted-foreground mb-2">{j.regulation}</div>
           <div className="flex items-end gap-1 mb-3">
-            <span className="text-xl font-heading font-light text-foreground">{j.complianceScore}</span>
+            <span className="text-2xl font-data tabular-nums font-normal text-foreground">{j.complianceScore}</span>
             <span className="text-xs text-muted-foreground mb-0.5">%</span>
           </div>
           <div className="w-full h-1 bg-secondary rounded-full overflow-hidden mb-3">
@@ -532,7 +532,7 @@ const STAGE_COLOR: Record<StageStatus, string> = {
   pass: 'text-safe',
   deny: 'text-danger',
   'rate-limited': 'text-warn',
-  skipped: 'text-ink-4',
+  skipped: 'text-ink-3',
 };
 
 const SIM_GATEWAY_URL = import.meta.env.VITE_GATEWAY_URL || 'http://localhost:8080';
@@ -685,7 +685,7 @@ function SimulateRequestPanel({ onClose }: { onClose: () => void }) {
                       <span className="text-[10px] font-mono text-muted-foreground ml-auto">{st.ms > 0 ? `${st.ms}ms` : '—'}</span>
                     </>
                   ) : (
-                    <span className="text-[10px] font-mono text-ink-4 ml-auto">pending</span>
+                    <span className="text-[11px] text-ink-3 ml-auto">pending</span>
                   )}
                 </div>
               );

@@ -282,11 +282,11 @@ export default function SovereignRouting() {
             {loading ? <RulesSkeleton /> : routingRules.map(rule => (
               <div key={rule.jurisdiction} className="py-3 border-b border-border last:border-0">
                 <div className="flex items-center justify-between">
-                  <div className="text-xs font-body font-medium text-foreground mb-1">{rule.jurisdiction}</div>
-                  <span className="text-[10px] font-mono text-muted-foreground">{rule.eventCount.toLocaleString()} events</span>
+                  <div className="text-sm font-body font-medium text-foreground mb-1">{rule.jurisdiction}</div>
+                  <span className="text-xs font-data tabular-nums text-muted-foreground">{rule.eventCount.toLocaleString()} events</span>
                 </div>
-                <div className="text-[10px] font-mono text-ink-2">{rule.backend}</div>
-                <div className="text-[10px] text-muted-foreground mt-0.5">{rule.compliance}</div>
+                <div className="text-sm text-ink-2">{rule.backend}</div>
+                <div className="text-xs text-muted-foreground mt-0.5">{rule.compliance}</div>
               </div>
             ))}
           </div>
@@ -301,34 +301,34 @@ export default function SovereignRouting() {
             <div className="text-[10px] text-muted-foreground font-body">Click a row to inspect the persisted proof</div>
           </div>
           <div className="card-surface shadow-card overflow-hidden">
-            <div className="grid grid-cols-[80px_120px_150px_1fr_60px] gap-2 px-5 py-2 border-b border-border">
+            <div className="grid grid-cols-[80px_120px_150px_1fr_64px] gap-2 px-5 py-2 border-b border-border">
               <span className="table-header">Time</span>
               <span className="table-header">Request</span>
               <span className="table-header">Decision</span>
               <span className="table-header">Signature</span>
               <span className="table-header">Inspect</span>
             </div>
-            <div className="max-h-[350px] overflow-y-auto">
+            <div className="max-h-[350px] overflow-y-auto zebra">
               {routingProofs.length === 0 ? (
-                <div className="px-5 py-8 text-xs text-muted-foreground text-center">
+                <div className="px-5 py-8 text-sm text-muted-foreground text-center">
                   No persisted routing proofs yet. Run the deterministic routing scenario.
                 </div>
               ) : routingProofs.map(proof => (
                 <div
                   key={proof.id}
                   onClick={() => setSelectedProof(proof)}
-                  className={`grid grid-cols-[80px_120px_150px_1fr_60px] gap-2 px-5 py-2 text-xs font-mono border-b border-border cursor-pointer hover:bg-secondary/30 transition-colors ${selectedProof?.id === proof.id ? 'bg-secondary/20' : ''}`}
+                  className={`data-row grid grid-cols-[80px_120px_150px_1fr_64px] gap-2 px-5 py-2 text-sm font-data tabular-nums border-b border-border cursor-pointer hover:bg-secondary/30 transition-colors ${selectedProof?.id === proof.id ? 'bg-secondary/20' : ''}`}
                 >
                   <span className="text-muted-foreground">{proof.time}</span>
                   <span className="text-foreground truncate">{proof.request}</span>
                   <span className="text-safe truncate">{proof.decision}</span>
-                  <span className="text-ink-4 truncate">{proof.signature.slice(0, 16)}…</span>
+                  <span className="text-ink-3 truncate mono-cell text-xs self-center">{proof.signature.slice(0, 16)}…</span>
                   <button
                     onClick={(event) => {
                       event.stopPropagation();
                       setSelectedProof(proof);
                     }}
-                    className="text-[10px] text-primary hover:underline text-left"
+                    className="text-xs text-primary hover:underline text-left"
                   >
                     inspect
                   </button>
