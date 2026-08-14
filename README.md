@@ -1,6 +1,6 @@
 # BAWABA بوابة
 
-**Sovereign AI Control Plane for Regulated Industries**
+**Control and evidence plane for AI gateways and enterprise AI agents**
 
 Bawaba is a security gateway that sits between AI agents (Claude, ChatGPT, Copilot, Gemini) and enterprise systems. Every MCP (Model Context Protocol) call passes through a 6-stage fail-closed pipeline — authentication, policy enforcement, PII tokenization, sovereign routing, rate limiting, and tamper-evident audit — before reaching any backend.
 
@@ -211,14 +211,14 @@ quotas:
 
 ## Deployment
 
-Bawaba deploys inside the client's perimeter (VPC or on-premises). It is **not** a SaaS — data never leaves the institution's infrastructure.
+Bawaba is offered in **two deployment modes**: self-hosted inside the client's perimeter (VPC or on-premises — data never leaves the institution's infrastructure), or as a managed deployment operated for the client. Current status, honestly: self-hosted runs in local development (Docker Compose + PostgreSQL); the managed path exists in code and is not yet a live service.
 
 ```bash
 # Deploy to OVHcloud VPS (European, non-US jurisdiction)
 ./scripts/deploy-ovh.sh <VPS_IP>
 
 # Deploy with HTTPS (Let's Encrypt)
-./scripts/deploy-ovh.sh <VPS_IP> demo.bawaba.io
+./scripts/deploy-ovh.sh <VPS_IP> demo.bawaba.systems
 ```
 
 Production deployment: Docker Compose on a single server. No external dependencies. No phone-home. Air-gapped mode planned for P3.
@@ -279,4 +279,4 @@ Proprietary — Oolala Next FZ-LLC. All rights reserved.
 ## Contact
 
 **Oolala Next FZ-LLC** — Dubai, UAE
-contact@bawaba.io
+contact@bawaba.systems
