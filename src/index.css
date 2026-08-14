@@ -39,7 +39,7 @@
        wordmark/page titles = serif · interface = sans · mono = hashes,
        ids, payloads, paths · data = numeric columns (sans by default). */
     --font-wordmark: 'Cormorant Garamond', serif;
-    --font-ui: 'Hanken Grotesk', 'DM Sans', sans-serif;
+    --font-ui: 'Inter', 'Hanken Grotesk', 'DM Sans', sans-serif;
     --font-mono: 'IBM Plex Mono', ui-monospace, monospace;
     --font-data: var(--font-ui);
 

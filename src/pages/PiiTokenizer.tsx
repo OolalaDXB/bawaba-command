@@ -316,7 +316,7 @@ export default function PiiTokenizer() {
                 <BarChart data={processingDist} margin={{ top: 0, right: 0, left: -10, bottom: 0 }}>
                   <XAxis dataKey="range" tick={{ fontSize: 10, fontFamily: 'JetBrains Mono' }} axisLine={false} tickLine={false} />
                   <YAxis tick={{ fontSize: 9 }} axisLine={false} tickLine={false} />
-                  <Bar dataKey="count" fill={PETROL} radius={[1, 1, 0, 0]} />
+                  <Bar dataKey="count" fill={PETROL} radius={[3, 3, 0, 0]} />
                 </BarChart>
               </ResponsiveContainer>
             </div>

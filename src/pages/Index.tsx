@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
-import { Area, AreaChart, CartesianGrid, ReferenceLine, ResponsiveContainer, YAxis } from 'recharts';
+import { Area, AreaChart, ResponsiveContainer, YAxis } from 'recharts';
 import { X } from 'lucide-react';
 import { useLiveFeed } from '@/hooks/use-live-feed';
 import { AGENTS as MOCK_AGENTS, JURISDICTIONS as MOCK_JURISDICTIONS, TOOLS, generateSparklineData, getJurisdictionFlag, type JurisdictionData } from '@/lib/mock-data';
@@ -37,20 +37,36 @@ function MetricSkeleton() {
   );
 }
 
-/* ── Sparkline ──────────────────────────────────── */
+/* ── Sparkline — Stripe-style: bare smooth line over a soft gradient fill,
+      no grid, no axes, no reference line. ─────────── */
+let sparklineSeq = 0;
 function Sparkline({ data, color }: { data: number[]; color: string }) {
   const chartData = data.map((v, i) => ({ i, v }));
   const min = Math.min(...data);
   const max = Math.max(...data);
   const padding = (max - min) * 0.15;
+  const gradId = useMemo(() => `spark-grad-${++sparklineSeq}`, []);
   return (
-    <div className="h-10 w-24">
+    <div className="h-10 w-28">
       <ResponsiveContainer width="100%" height="100%">
         <AreaChart data={chartData} margin={{ top: 2, right: 0, left: 0, bottom: 0 }}>
+          <defs>
+            <linearGradient id={gradId} x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stopColor={color} stopOpacity={0.16} />
+              <stop offset="100%" stopColor={color} stopOpacity={0} />
+            </linearGradient>
+          </defs>
           <YAxis domain={[Math.max(0, min - padding), max + padding]} hide />
-          <CartesianGrid horizontal verticalPoints={[]} stroke="hsl(var(--border))" strokeDasharray="3 3" horizontalPoints={[0]} />
-          <ReferenceLine y={0} stroke="hsl(var(--muted-foreground))" strokeWidth={0.5} />
-          <Area type="monotone" dataKey="v" stroke={color} strokeWidth={1.5} fill="none" dot={false} />
+          <Area
+            type="monotone"
+            dataKey="v"
+            stroke={color}
+            strokeWidth={1.75}
+            strokeLinecap="round"
+            fill={`url(#${gradId})`}
+            dot={false}
+            isAnimationActive={false}
+          />
         </AreaChart>
       </ResponsiveContainer>
     </div>

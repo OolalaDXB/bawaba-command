@@ -270,7 +270,7 @@ function AuditStats({ events }: { events: MCPEvent[] }) {
             <BarChart data={byJurisdiction} margin={{ top: 0, right: 0, left: -20, bottom: 0 }}>
               <XAxis dataKey="name" tick={{ fontSize: 9 }} axisLine={false} tickLine={false} />
               <YAxis tick={{ fontSize: 9 }} axisLine={false} tickLine={false} />
-              <Bar dataKey="value" fill={PETROL} radius={[1, 1, 0, 0]} />
+              <Bar dataKey="value" fill={PETROL} radius={[3, 3, 0, 0]} />
             </BarChart>
           </ResponsiveContainer>
         </div>
@@ -284,7 +284,7 @@ function AuditStats({ events }: { events: MCPEvent[] }) {
             <BarChart data={byAgent} layout="vertical" margin={{ top: 0, right: 0, left: 0, bottom: 0 }}>
               <XAxis type="number" tick={{ fontSize: 9 }} axisLine={false} tickLine={false} />
               <YAxis type="category" dataKey="name" tick={{ fontSize: 9, fontFamily: 'JetBrains Mono' }} axisLine={false} tickLine={false} width={90} />
-              <Bar dataKey="value" radius={[0, 1, 1, 0]}>
+              <Bar dataKey="value" radius={[0, 3, 3, 0]}>
                 {byAgent.map((_, i) => <Cell key={i} fill={PETROL_SERIES[i % PETROL_SERIES.length]} />)}
               </Bar>
             </BarChart>
