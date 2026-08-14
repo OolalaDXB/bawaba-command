@@ -194,7 +194,7 @@ func main() {
 		fmt.Sscanf(p, "%d", &apiPort)
 	}
 
-	apiSrv := api.NewServer(db, cfg, configPath, trail, logger)
+	apiSrv := api.NewServer(db, cfg, configPath, trail, policyEngine, logger)
 	apiSrv.Start() // Start SSE hub
 
 	apiServer := &http.Server{

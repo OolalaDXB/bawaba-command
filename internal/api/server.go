@@ -17,6 +17,7 @@ import (
 
 	"github.com/OolalaDXB/bawaba-command/internal/audit"
 	"github.com/OolalaDXB/bawaba-command/internal/config"
+	"github.com/OolalaDXB/bawaba-command/internal/policy"
 )
 
 // Version is set at build time or defaults to dev.
@@ -39,6 +40,7 @@ type Server struct {
 	cfg        *config.Config
 	configPath string
 	trail      *audit.Trail
+	policies   *policy.Engine
 	pubKey     ed25519.PublicKey
 	logger     *slog.Logger
 	startTime  time.Time
@@ -47,12 +49,13 @@ type Server struct {
 }
 
 // NewServer creates a new API server.
-func NewServer(db *sql.DB, cfg *config.Config, configPath string, trail *audit.Trail, logger *slog.Logger) *Server {
+func NewServer(db *sql.DB, cfg *config.Config, configPath string, trail *audit.Trail, policies *policy.Engine, logger *slog.Logger) *Server {
 	s := &Server{
 		db:         db,
 		cfg:        cfg,
 		configPath: configPath,
 		trail:      trail,
+		policies:   policies,
 		pubKey:     trail.PublicKey(),
 		logger:     logger,
 		startTime:  time.Now(),
@@ -92,6 +95,7 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("GET /api/v1/agents/{id}/quota", s.handleAgentQuota)
 	mux.HandleFunc("GET /api/v1/agents", s.handleAgents)
 	mux.HandleFunc("GET /api/v1/policies", s.handlePolicies)
+	mux.HandleFunc("PATCH /api/v1/policies/{id}", s.handlePolicyUpdate)
 	mux.HandleFunc("GET /api/v1/jurisdictions", s.handleJurisdictions)
 	mux.HandleFunc("GET /api/v1/siem/status", s.handleSIEMStatus)
 
@@ -797,6 +801,95 @@ func (s *Server) handlePolicies(w http.ResponseWriter, r *http.Request) {
 		Meta: map[string]interface{}{
 			"count":     len(policies),
 			"timestamp": time.Now().UTC().Format(time.RFC3339),
+		},
+	})
+}
+
+// handlePolicyUpdate is the ONE P0 mutation (demo mandate §5/§9): edit an
+// EXISTING agent's allowed/denied tool lists. No creation, no deletion. The
+// change applies atomically to the live policy engine (proxy decisions) and
+// to cfg.Agents (GET /policies), and is itself recorded as a REAL signed
+// audit event — the policy edit becomes part of the tamper-evident chain.
+// Process-memory only: a restart reloads the YAML (durable policies = P1).
+func (s *Server) handlePolicyUpdate(w http.ResponseWriter, r *http.Request) {
+	id := r.PathValue("id")
+	agentCfg, ok := s.cfg.Agents[id]
+	if !ok {
+		writeError(w, http.StatusNotFound, fmt.Sprintf("agent %q not found (P0 edits existing policies only)", id))
+		return
+	}
+	if s.policies == nil {
+		writeError(w, http.StatusServiceUnavailable, "policy engine not attached")
+		return
+	}
+
+	var body struct {
+		AllowedTools []string `json:"allowed_tools"`
+		DeniedTools  []string `json:"denied_tools"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid JSON body")
+		return
+	}
+	if body.AllowedTools == nil || body.DeniedTools == nil {
+		writeError(w, http.StatusBadRequest, "allowed_tools and denied_tools are both required (send [] for empty)")
+		return
+	}
+	seen := map[string]bool{}
+	for _, t := range append(append([]string{}, body.AllowedTools...), body.DeniedTools...) {
+		if strings.TrimSpace(t) == "" {
+			writeError(w, http.StatusBadRequest, "tool names must be non-empty")
+			return
+		}
+	}
+	for _, t := range body.AllowedTools {
+		seen[t] = true
+	}
+	for _, t := range body.DeniedTools {
+		if seen[t] {
+			writeError(w, http.StatusBadRequest, fmt.Sprintf("tool %q cannot be both allowed and denied", t))
+			return
+		}
+	}
+
+	newVersion, err := s.policies.UpdateToolLists(id, body.AllowedTools, body.DeniedTools)
+	if err != nil {
+		writeError(w, http.StatusNotFound, err.Error())
+		return
+	}
+	// Keep cfg.Agents (GET /policies) in sync with the engine.
+	agentCfg.AllowedTools = append([]string(nil), body.AllowedTools...)
+	agentCfg.DeniedTools = append([]string(nil), body.DeniedTools...)
+	s.cfg.Agents[id] = agentCfg
+
+	// The edit itself is a real, signed, chained audit event.
+	payload, _ := json.Marshal(map[string]interface{}{"allowed_tools": body.AllowedTools, "denied_tools": body.DeniedTools})
+	sum := sha256.Sum256(payload)
+	if _, err := s.trail.Append(audit.Event{
+		EventType:     "policy_change",
+		AgentID:       id,
+		TenantID:      "demo",
+		Jurisdiction:  agentCfg.Jurisdiction,
+		Tool:          "policy_edit",
+		ParamsHash:    hex.EncodeToString(sum[:]),
+		PolicyResult:  "allow",
+		PolicyVersion: newVersion,
+		MatchedRule:   "manual_policy_edit",
+		PIIMode:       "none",
+	}); err != nil {
+		s.logger.Error("policy_change audit append failed", "error", err)
+	}
+
+	writeJSON(w, http.StatusOK, envelope{
+		Data: map[string]interface{}{
+			"agent_id":       id,
+			"allowed_tools":  body.AllowedTools,
+			"denied_tools":   body.DeniedTools,
+			"policy_version": newVersion,
+		},
+		Meta: map[string]interface{}{
+			"persistence": "in-memory — a gateway restart reloads the YAML config (durable policies are P1)",
+			"timestamp":   time.Now().UTC().Format(time.RFC3339),
 		},
 	})
 }

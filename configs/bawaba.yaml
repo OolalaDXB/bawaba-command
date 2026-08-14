@@ -24,6 +24,18 @@ agents:
     max_results: 50
     jurisdiction: ma
 
+  # Guided Demo (P0) seeded agent — the DENY→edit→ALLOW scenario.
+  payment-assistant:
+    auth: api_key
+    allowed_tools:
+      - read_invoice
+    denied_tools:
+      - execute_payment
+    pii_mode: none
+    rate_limit: 1000/hour
+    max_results: 50
+    jurisdiction: eu
+
   claude-code:
     auth: api_key
     allowed_tools:

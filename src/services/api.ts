@@ -390,6 +390,48 @@ export async function fetchPolicies(): Promise<PolicyEntry[]> {
 /**
  * GET /api/v1/jurisdictions
  */
+
+/**
+ * PATCH /api/v1/policies/:agentId — the ONE P0 mutation: edit an EXISTING
+ * policy's tool lists (Guided Demo step 6). BAWABA validates, applies to the
+ * live engine and records a signed policy_change audit event.
+ */
+export async function patchPolicy(
+  agentId: string,
+  allowedTools: string[],
+  deniedTools: string[],
+): Promise<PolicyEntry> {
+  return request<PolicyEntry>(`/api/v1/policies/${encodeURIComponent(agentId)}`, {
+    method: 'PATCH',
+    body: JSON.stringify({ allowed_tools: allowedTools, denied_tools: deniedTools }),
+  });
+}
+
+/**
+ * POST a REAL MCP tools/call to the gateway (:8080). Returns the raw JSON-RPC
+ * response. The decision, signature and audit event happen server-side; the
+ * Guided Demo then reads the REAL event back from /api/v1/events.
+ */
+const GATEWAY_URL = import.meta.env.VITE_GATEWAY_URL || 'http://localhost:8080';
+export async function runMcpToolCall(
+  agentKey: string,
+  tool: string,
+  args: Record<string, unknown>,
+): Promise<unknown> {
+  const response = await fetch(`${GATEWAY_URL}/mcp`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'X-Bawaba-Key': agentKey },
+    body: JSON.stringify({
+      jsonrpc: '2.0',
+      id: `demo-${tool}-${Date.now()}`,
+      method: 'tools/call',
+      params: { name: tool, arguments: args },
+    }),
+  });
+  if (!response.ok) throw new ApiError(`gateway request failed: ${response.status}`, response.status, `${GATEWAY_URL}/mcp`);
+  return response.json();
+}
+
 export async function fetchJurisdictions(): Promise<JurisdictionEntry[]> {
   return request<JurisdictionEntry[]>('/api/v1/jurisdictions');
 }

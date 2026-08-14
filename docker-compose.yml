@@ -47,6 +47,7 @@ services:
       BAWABA_AGENT_KEY_test-agent: ${BAWABA_AGENT_KEY_test_agent:-test-key-12345}
       BAWABA_AGENT_KEY_claude-code: ${BAWABA_AGENT_KEY_claude_code:-claude-key-67890}
       BAWABA_AGENT_KEY_cursor-ide: ${BAWABA_AGENT_KEY_cursor_ide:-cursor-key-11111}
+      BAWABA_AGENT_KEY_payment-assistant: ${BAWABA_AGENT_KEY_payment_assistant:-payment-key-33333}
     volumes:
       - gateway_keys:/app/keys
     healthcheck:

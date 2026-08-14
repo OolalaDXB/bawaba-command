@@ -1,6 +1,7 @@
 package policy
 
 import (
+	"context"
 	"testing"
 
 	"github.com/OolalaDXB/bawaba-command/internal/config"
@@ -107,5 +108,47 @@ func TestWildcardMatch(t *testing.T) {
 	d := engine.Evaluate(nil, "admin", "anything")
 	if !d.Allow {
 		t.Error("expected allow with wildcard")
+	}
+}
+
+func TestUpdateToolListsMutatesDecisions(t *testing.T) {
+	agents := map[string]config.AgentConfig{
+		"payment-assistant": {AllowedTools: []string{"read_invoice"}, DeniedTools: []string{"execute_payment"}},
+	}
+	e := NewEngine(agents)
+
+	before := e.Evaluate(context.Background(), "payment-assistant", "execute_payment")
+	if before.Allow {
+		t.Fatal("expected DENY before the edit")
+	}
+	if before.MatchedRule != "denied_tools.execute_payment" {
+		t.Fatalf("unexpected matched_rule: %s", before.MatchedRule)
+	}
+
+	v0 := before.PolicyVersion
+	v1, err := e.UpdateToolLists("payment-assistant", []string{"read_invoice", "execute_payment"}, []string{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if v1 == v0 {
+		t.Fatal("policy version must bump on edit")
+	}
+
+	after := e.Evaluate(context.Background(), "payment-assistant", "execute_payment")
+	if !after.Allow {
+		t.Fatal("expected ALLOW after the edit")
+	}
+	if after.MatchedRule != "allowed_tools.execute_payment" {
+		t.Fatalf("unexpected matched_rule: %s", after.MatchedRule)
+	}
+	if after.PolicyVersion != v1 {
+		t.Fatalf("decision must carry the new version %s, got %s", v1, after.PolicyVersion)
+	}
+}
+
+func TestUpdateToolListsUnknownAgent(t *testing.T) {
+	e := NewEngine(map[string]config.AgentConfig{})
+	if _, err := e.UpdateToolLists("ghost", []string{"x"}, nil); err == nil {
+		t.Fatal("expected error for unknown agent (P0 edits existing policies only)")
 	}
 }

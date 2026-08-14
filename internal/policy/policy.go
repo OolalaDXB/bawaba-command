@@ -91,6 +91,41 @@ func (e *Engine) Evaluate(_ context.Context, agentID, tool string) *Decision {
 	}
 }
 
+// ToolLists returns a copy of an agent's current allow/deny lists and the
+// engine's policy version. ok is false when the agent is unknown.
+func (e *Engine) ToolLists(agentID string) (allowed, denied []string, version string, ok bool) {
+	e.mu.RLock()
+	defer e.mu.RUnlock()
+	agentCfg, found := e.agents[agentID]
+	if !found {
+		return nil, nil, e.policyVersion, false
+	}
+	return append([]string(nil), agentCfg.AllowedTools...),
+		append([]string(nil), agentCfg.DeniedTools...),
+		e.policyVersion, true
+}
+
+// UpdateToolLists replaces an EXISTING agent's allow/deny lists (the P0 demo
+// mutation — no agent creation here) and bumps the policy version. The
+// change is process-memory only: a restart reloads the YAML config (durable
+// policies are P1).
+func (e *Engine) UpdateToolLists(agentID string, allowed, denied []string) (string, error) {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	agentCfg, ok := e.agents[agentID]
+	if !ok {
+		return e.policyVersion, fmt.Errorf("policy: agent %q not found", agentID)
+	}
+	agentCfg.AllowedTools = append([]string(nil), allowed...)
+	agentCfg.DeniedTools = append([]string(nil), denied...)
+	e.agents[agentID] = agentCfg
+	parts := strings.Split(e.policyVersion, ".")
+	if len(parts) == 3 {
+		e.policyVersion = fmt.Sprintf("%s.%s.%d", parts[0], parts[1], mustAtoi(parts[2])+1)
+	}
+	return e.policyVersion, nil
+}
+
 // Reload updates the policy engine with new agent configs.
 func (e *Engine) Reload(agents map[string]config.AgentConfig) {
 	e.mu.Lock()

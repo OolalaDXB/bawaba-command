@@ -16,6 +16,7 @@ import (
 
 	"github.com/OolalaDXB/bawaba-command/internal/audit"
 	"github.com/OolalaDXB/bawaba-command/internal/config"
+	"github.com/OolalaDXB/bawaba-command/internal/policy"
 )
 
 // testDB returns a *sql.DB connected to the test database, or skips the test.
@@ -90,7 +91,7 @@ func testServer(t *testing.T) (*Server, *httptest.Server) {
 	if err != nil {
 		t.Fatalf("audit trail: %v", err)
 	}
-	srv := NewServer(db, cfg, "", trail, defaultLogger())
+	srv := NewServer(db, cfg, "", trail, policy.NewEngine(cfg.Agents), defaultLogger())
 	ts := httptest.NewServer(srv.Handler())
 	t.Cleanup(func() { ts.Close() })
 	return srv, ts
@@ -422,8 +423,8 @@ func TestAgentQuotaEndpoint(t *testing.T) {
 
 	var body struct {
 		Data struct {
-			Agent   string `json:"agent"`
-			Quota   struct {
+			Agent string `json:"agent"`
+			Quota struct {
 				Limit     int    `json:"limit"`
 				Period    string `json:"period"`
 				Used      int    `json:"used"`
@@ -574,5 +575,65 @@ func TestRecoveryMiddleware(t *testing.T) {
 
 	if rr.Code != 500 {
 		t.Errorf("expected 500 after panic, got %d", rr.Code)
+	}
+}
+
+func TestPolicyUpdateP0(t *testing.T) {
+	_, ts := testServer(t)
+
+	patch := func(id, body string) (*http.Response, map[string]interface{}) {
+		req, _ := http.NewRequest(http.MethodPatch, ts.URL+"/api/v1/policies/"+id, strings.NewReader(body))
+		req.Header.Set("Content-Type", "application/json")
+		resp, err := http.DefaultClient.Do(req)
+		if err != nil {
+			t.Fatal(err)
+		}
+		var out map[string]interface{}
+		_ = json.NewDecoder(resp.Body).Decode(&out)
+		resp.Body.Close()
+		return resp, out
+	}
+
+	// Unknown agent → 404 (P0 edits existing policies only, no creation).
+	resp, _ := patch("ghost", `{"allowed_tools":[],"denied_tools":[]}`)
+	if resp.StatusCode != http.StatusNotFound {
+		t.Fatalf("expected 404 for unknown agent, got %d", resp.StatusCode)
+	}
+
+	// Overlapping lists → 400.
+	resp, _ = patch("claude-code", `{"allowed_tools":["x"],"denied_tools":["x"]}`)
+	if resp.StatusCode != http.StatusBadRequest {
+		t.Fatalf("expected 400 for overlap, got %d", resp.StatusCode)
+	}
+
+	// The real P0 move: denied → allowed.
+	resp, out := patch("claude-code", `{"allowed_tools":["database-query","git-read","database-write"],"denied_tools":[]}`)
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("expected 200, got %d (%v)", resp.StatusCode, out)
+	}
+	data := out["data"].(map[string]interface{})
+	if data["policy_version"] == "v1.0.0" {
+		t.Fatal("policy version must bump")
+	}
+
+	// GET /policies must reflect the edit (cfg and engine stay in sync).
+	getResp, err := http.Get(ts.URL + "/api/v1/policies")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer getResp.Body.Close()
+	var listOut struct {
+		Data []struct {
+			AgentID     string   `json:"agent_id"`
+			DeniedTools []string `json:"denied_tools"`
+		} `json:"data"`
+	}
+	if err := json.NewDecoder(getResp.Body).Decode(&listOut); err != nil {
+		t.Fatal(err)
+	}
+	for _, p := range listOut.Data {
+		if p.AgentID == "claude-code" && len(p.DeniedTools) != 0 {
+			t.Fatalf("GET /policies still shows denied tools after the edit: %v", p.DeniedTools)
+		}
 	}
 }

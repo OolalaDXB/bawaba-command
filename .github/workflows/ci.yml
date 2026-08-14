@@ -58,7 +58,7 @@ jobs:
       - name: Go Test
         env:
           BAWABA_TEST_DB_URL: postgres://bawaba:bawaba_secret@localhost:5432/bawaba?sslmode=disable
-        run: go test ./internal/api/... ./internal/siem/... -v -race
+        run: go test ./internal/api/... ./internal/siem/... ./internal/config/... ./internal/auth/... ./internal/policy/... ./internal/ratelimit/... ./internal/audit/... ./internal/router/... -v -race
 
   build-docker:
     name: Docker Build

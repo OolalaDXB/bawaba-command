@@ -5,6 +5,8 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import AppLayout from "./components/layout/AppLayout";
 import Dashboard from "./pages/Index";
+import GuidedDemo from "./pages/GuidedDemo";
+import Chooser from "./pages/Chooser";
 import Agents from "./pages/Agents";
 import Policy from "./pages/Policy";
 import AuditTrail from "./pages/AuditTrail";
@@ -23,8 +25,10 @@ const App = () => (
       <Sonner />
       <BrowserRouter>
         <Routes>
+          <Route path="/" element={<Chooser />} />
           <Route element={<AppLayout />}>
-            <Route path="/" element={<Dashboard />} />
+            <Route path="/dashboard" element={<Dashboard />} />
+            <Route path="/demo" element={<GuidedDemo />} />
             <Route path="/agents" element={<Agents />} />
             <Route path="/policy" element={<Policy />} />
             <Route path="/audit" element={<AuditTrail />} />
