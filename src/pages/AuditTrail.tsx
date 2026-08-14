@@ -314,7 +314,7 @@ function TableSkeleton() {
   return (
     <div className="max-h-[400px] overflow-y-auto">
       {Array.from({ length: 10 }).map((_, i) => (
-        <div key={i} className="grid grid-cols-[80px_100px_110px_70px_50px_50px_80px] gap-2 px-5 py-2 border-b border-border">
+        <div key={i} className="data-row grid grid-cols-[76px_96px_1fr_112px_44px_56px_92px] gap-2 px-5 py-2 border-b border-border">
           <div className="animate-pulse bg-muted rounded h-4 w-full" />
           <div className="animate-pulse bg-muted rounded h-4 w-full" />
           <div className="animate-pulse bg-muted rounded h-4 w-full" />
@@ -689,7 +689,7 @@ export default function AuditTrail() {
             <div className="text-sm font-body font-medium text-foreground">Audit Explorer</div>
             <div className="text-xs text-muted-foreground">
               {events.length} persisted events · Tamper-evident chain
-              {localEvents.length > 0 && <span className="text-ink-4"> · {localEvents.length} local/simulated (separate)</span>}
+              {localEvents.length > 0 && <span className="text-ink-3"> · {localEvents.length} local/simulated (separate)</span>}
             </div>
           </div>
         </div>
@@ -823,13 +823,13 @@ export default function AuditTrail() {
               <button
                 key={f}
                 onClick={() => setFilterDecision(f)}
-                className={`text-xs font-mono px-3 py-1.5 rounded-sm border transition-colors ${
+                className={`text-xs font-body px-3 py-1.5 rounded-sm border transition-colors ${
                   filterDecision === f ? 'border-primary bg-primary/5 text-foreground' : 'border-border text-muted-foreground hover:text-foreground'
                 } ${f === 'needs-review' ? 'inline-flex items-center gap-1.5' : ''}`}
               >
                 {f === 'all' ? 'All' : f === 'needs-review' ? 'needs review' : f}
                 {f === 'needs-review' && needsReviewCount > 0 && (
-                  <span className="text-[9px] font-mono px-1.5 py-0.5 rounded-full bg-warn-bg text-warn border border-warn/20">{needsReviewCount}</span>
+                  <span className="text-[11px] font-data tabular-nums px-1.5 py-0.5 rounded-full bg-warn-bg text-warn border border-warn/20">{needsReviewCount}</span>
                 )}
               </button>
             ))}
@@ -840,7 +840,7 @@ export default function AuditTrail() {
 
           {/* Table */}
           <div className="card-surface shadow-card overflow-hidden">
-            <div className="grid grid-cols-[80px_100px_110px_70px_50px_50px_80px] gap-2 px-5 py-2 border-b border-border">
+            <div className="grid grid-cols-[76px_96px_1fr_112px_44px_56px_92px] gap-2 px-5 py-2 border-b border-border">
               {(['Time', 'Agent', 'Tool', 'Result', 'PII', 'Lat.', 'Hash'] as const).map(h => (
                 <span key={h} className="table-header">{h}</span>
               ))}
@@ -848,7 +848,7 @@ export default function AuditTrail() {
             {loading ? (
               <TableSkeleton />
             ) : (
-              <div className="max-h-[400px] overflow-y-auto">
+              <div className="max-h-[400px] overflow-y-auto zebra">
                 {filtered.map(evt => {
                   const isReview = evt.eventType === 'review_decision';
                   const badge = reviewStatusMap[evt.id];
@@ -856,26 +856,26 @@ export default function AuditTrail() {
                     <div key={evt.id}>
                       <div
                         onClick={() => setSelectedEvent(selectedEvent?.id === evt.id ? null : evt)}
-                        className={`grid grid-cols-[80px_100px_110px_70px_50px_50px_80px] gap-2 px-5 py-2 text-xs font-mono cursor-pointer hover:bg-secondary/30 transition-colors border-b border-border ${
+                        className={`data-row grid grid-cols-[76px_96px_1fr_112px_44px_56px_92px] gap-2 px-5 py-2 text-sm font-data tabular-nums cursor-pointer hover:bg-secondary/30 transition-colors border-b border-border ${
                           isReview ? 'bg-secondary/20' : evt.decision === 'deny' ? 'row-deny' : evt.decision === 'rate-limited' ? 'row-rate-limited' : ''
                         }`}
                       >
                         <span className="text-muted-foreground">{timeAgo(evt.timestamp)}</span>
                         <span className="text-foreground truncate">{evt.agent}</span>
                         <span className="text-ink-2 truncate">{evt.tool}</span>
-                        <span className="flex flex-col gap-0.5 min-w-0">
+                        <span className="flex items-center gap-1.5 min-w-0">
                           {isReview ? (
-                            <span className={evt.reviewLabel === 'escalate' ? 'text-warn' : 'text-safe'}>{evt.reviewLabel}</span>
+                            <span className={`pill ${evt.reviewLabel === 'escalate' ? 'pill-rate' : 'pill-allow'}`}>{evt.reviewLabel}</span>
                           ) : (
-                            <span className={evt.decision === 'allow' ? 'text-safe' : evt.decision === 'deny' ? 'text-danger' : 'text-warn'}>{evt.decision}</span>
+                            <span className={`pill ${evt.decision === 'allow' ? 'pill-allow' : evt.decision === 'deny' ? 'pill-deny' : 'pill-rate'}`}>{evt.decision}</span>
                           )}
                           {badge && (
-                            <span className={`text-[8px] uppercase tracking-wide ${badge === 'escalated' ? 'text-warn' : 'text-safe'}`}>{badge}</span>
+                            <span className={`micro-label ${badge === 'escalated' ? 'text-warn' : 'text-safe'}`} style={{ fontSize: '9px' }}>{badge}</span>
                           )}
                         </span>
                         <span className="text-muted-foreground">{evt.piiTokens}</span>
                         <span className="text-muted-foreground">{evt.latency}ms</span>
-                        <span className="text-ink-4 truncate">{evt.hash.slice(0, 8)}{evt.hash.length > 8 ? '...' : ''}</span>
+                        <span className="text-ink-3 truncate mono-cell text-xs">{evt.hash.slice(0, 8)}{evt.hash.length > 8 ? '...' : ''}</span>
                       </div>
                     </div>
                   );
@@ -912,15 +912,15 @@ export default function AuditTrail() {
               Generated in this browser session (agent registration, offline review, simulated requests). Not part of the persisted chain and excluded from server verification.
             </div>
           </div>
-          <div className="max-h-[220px] overflow-y-auto">
+          <div className="max-h-[220px] overflow-y-auto zebra">
             {localEvents.map(evt => {
               const simulated = (evt.details as { simulated?: boolean })?.simulated === true;
               return (
-                <div key={evt.id} className="grid grid-cols-[80px_120px_1fr_90px] gap-2 px-5 py-2 text-xs font-mono border-b border-border last:border-0 border-l-2 border-l-ink-4/40">
+                <div key={evt.id} className="data-row grid grid-cols-[80px_120px_1fr_110px] gap-2 px-5 py-2 text-sm font-data tabular-nums border-b border-border last:border-0 border-l-2 border-l-ink-4/40">
                   <span className="text-muted-foreground">{timeAgo(evt.timestamp)}</span>
                   <span className="text-foreground truncate">{evt.agent}</span>
                   <span className="text-ink-2 truncate">{evt.eventType === 'review_decision' ? `${evt.reviewLabel} → ${evt.refEventId?.slice(0, 8)}` : evt.tool}</span>
-                  <span className={`text-[9px] font-mono uppercase tracking-wide px-1.5 py-0.5 rounded-sm justify-self-end self-center border ${simulated ? 'bg-muted text-muted-foreground border-border' : 'bg-warn-bg text-warn border-warn/20'}`}>
+                  <span className={`pill justify-self-end self-center ${simulated ? 'pill-neutral' : 'pill-rate'}`}>
                     {simulated ? 'Simulated' : 'Local demo'}
                   </span>
                 </div>
@@ -1046,11 +1046,11 @@ export default function AuditTrail() {
               {/* Decision */}
               <div>
                 <div className="table-header mb-1">Decision</div>
-                <div className={`text-xs font-mono ${
-                  selectedEvent.decision === 'allow' ? 'text-safe' : selectedEvent.decision === 'deny' ? 'text-danger' : 'text-warn'
+                <span className={`pill ${
+                  selectedEvent.decision === 'allow' ? 'pill-allow' : selectedEvent.decision === 'deny' ? 'pill-deny' : 'pill-rate'
                 }`}>
-                  {selectedEvent.decision === 'allow' ? '✓ Allowed' : selectedEvent.decision === 'deny' ? '✗ Denied' : '⚠ Rate-limited'} ({selectedEvent.decision})
-                </div>
+                  {selectedEvent.decision === 'allow' ? '✓ Allowed' : selectedEvent.decision === 'deny' ? '✗ Denied' : '⚠ Rate-limited'}
+                </span>
               </div>
 
               {/* PII detected */}

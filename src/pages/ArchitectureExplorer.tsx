@@ -232,11 +232,11 @@ export default function ArchitectureExplorer() {
             >
               <div className="flex items-baseline gap-2 mb-1">
                 <span className="text-xs font-mono text-muted-foreground">{stage.id}</span>
-                <span className="text-sm font-heading font-medium text-foreground">{stage.name}</span>
-                <span className={`ml-auto text-[10px] font-mono px-1.5 py-0.5 rounded ${LANG_COLORS[stage.lang]}`}>{stage.lang}</span>
+                <span className="text-sm font-body font-medium text-foreground">{stage.name}</span>
+                <span className={`ml-auto text-[11px] font-data px-1.5 py-0.5 rounded ${LANG_COLORS[stage.lang]}`}>{stage.lang}</span>
               </div>
               <p className="text-xs text-muted-foreground leading-relaxed">{stage.tagline}</p>
-              <div className="text-[10px] font-mono text-ink-4 mt-2">{stage.loc} LOC</div>
+              <div className="text-[11px] font-data tabular-nums text-ink-3 mt-2">{stage.loc} LOC</div>
               {i < PIPELINE.length - 1 && (
                 <span className="hidden xl:block absolute -right-2 top-1/2 -translate-y-1/2 text-ink-4 text-xs">→</span>
               )}
@@ -256,11 +256,11 @@ export default function ArchitectureExplorer() {
               className="card-surface shadow-card p-4 text-left hover:bg-secondary/30 transition-colors"
             >
               <div className="flex items-center justify-between mb-2">
-                <span className="text-sm font-heading font-medium text-foreground truncate">{mod.pkg}</span>
-                <span className={`text-[10px] font-mono px-1.5 py-0.5 rounded shrink-0 ${LANG_COLORS[mod.lang]}`}>{mod.lang}</span>
+                <span className="text-sm font-body font-medium text-foreground truncate">{mod.pkg}</span>
+                <span className={`text-[11px] font-data px-1.5 py-0.5 rounded shrink-0 ${LANG_COLORS[mod.lang]}`}>{mod.lang}</span>
               </div>
               <div className="text-[11px] font-mono text-muted-foreground mb-2 truncate">{mod.path}</div>
-              <span className="text-[10px] text-muted-foreground">{mod.loc.toLocaleString()} LOC</span>
+              <span className="text-[11px] font-data tabular-nums text-muted-foreground">{mod.loc.toLocaleString()} LOC</span>
             </button>
           ))}
         </div>

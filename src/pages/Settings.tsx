@@ -19,7 +19,7 @@ function SectionHeader({ icon: Icon, title, subtitle, tooltip }: {
     <div className="flex items-center gap-3 mb-4">
       <Icon className="h-4 w-4 text-muted-foreground" strokeWidth={1.5} />
       <div>
-        <div className="text-sm font-heading font-medium text-foreground">{title}{tooltip && <InfoTooltip text={tooltip} />}</div>
+        <div className="text-sm font-body font-medium text-foreground">{title}{tooltip && <InfoTooltip text={tooltip} />}</div>
         <div className="text-xs text-muted-foreground">{subtitle}</div>
       </div>
     </div>
@@ -29,9 +29,7 @@ function SectionHeader({ icon: Icon, title, subtitle, tooltip }: {
 /* ── Status badge ───────────────────────────────── */
 function StatusBadge({ ok }: { ok: boolean }) {
   return (
-    <span className={`inline-flex items-center gap-1.5 text-[10px] font-mono px-2 py-0.5 rounded-sm ${
-      ok ? 'bg-safe-bg text-safe' : 'bg-danger-bg text-danger'
-    }`}>
+    <span className={`pill ${ok ? 'pill-allow' : 'pill-deny'}`}>
       <span className={`w-1.5 h-1.5 rounded-full ${ok ? 'bg-safe animate-pulse-dot' : 'bg-danger'}`} />
       {ok ? 'Connected' : 'Offline'}
     </span>
@@ -84,9 +82,7 @@ function GatewaySection({ health, loading }: { health: HealthResponse | null; lo
       moduleRows.push({
         label: mod,
         value: (
-          <span className={`inline-flex items-center gap-1.5 text-[10px] font-mono px-2 py-0.5 rounded-sm ${
-            status === 'healthy' || status === 'ok' ? 'bg-safe-bg text-safe' : 'bg-danger-bg text-danger'
-          }`}>
+          <span className={`pill ${status === 'healthy' || status === 'ok' ? 'pill-allow' : 'pill-deny'}`}>
             <span className={`w-1.5 h-1.5 rounded-full ${
               status === 'healthy' || status === 'ok' ? 'bg-safe' : 'bg-danger'
             }`} />
@@ -104,7 +100,7 @@ function GatewaySection({ health, loading }: { health: HealthResponse | null; lo
       <SectionHeader icon={Server} title="Gateway" subtitle="Main gateway configuration" tooltip="Core Bawaba gateway component. Manages the proxy, control API, and security modules." />
       <div className="space-y-0">
         {allRows.map((row, idx) => (
-          <div key={idx} className="flex items-center justify-between py-2.5 border-b border-border last:border-0">
+          <div key={idx} className="data-row flex items-center justify-between py-2.5 border-b border-border last:border-0">
             {loading ? (
               <>
                 <Shimmer className="h-3 w-24" />
@@ -112,8 +108,8 @@ function GatewaySection({ health, loading }: { health: HealthResponse | null; lo
               </>
             ) : (
               <>
-                <span className="text-xs text-muted-foreground font-body">{row.label}</span>
-                <span className="text-xs font-mono text-foreground">{row.value}</span>
+                <span className="text-sm text-muted-foreground font-body">{row.label}</span>
+                <span className="text-sm font-data tabular-nums text-foreground">{row.value}</span>
               </>
             )}
           </div>
@@ -139,7 +135,7 @@ function AgentsSection({ agents, recentAgents, loading }: {
       <SectionHeader icon={Users} title="Registered agents" subtitle={`${agents.length} agents configured`} tooltip="List of configured AI agents with their API keys and permissions." />
 
       {/* Table header */}
-      <div className="grid grid-cols-[1fr_100px_1fr_80px] gap-3 mb-2">
+      <div className="grid grid-cols-[1fr_110px_1fr_92px] gap-3 mb-2">
         {headers.map(h => (
           <span key={h.label} className="table-header">{h.label}{h.tooltip && <InfoTooltip text={h.tooltip} />}</span>
         ))}
@@ -148,7 +144,7 @@ function AgentsSection({ agents, recentAgents, loading }: {
       {/* Rows */}
       {loading ? (
         Array.from({ length: 3 }).map((_, i) => (
-          <div key={i} className="grid grid-cols-[1fr_100px_1fr_80px] gap-3 py-2.5 border-b border-border last:border-0">
+          <div key={i} className="grid grid-cols-[1fr_110px_1fr_92px] gap-3 py-2.5 border-b border-border last:border-0">
             <Shimmer className="h-3 w-24" />
             <Shimmer className="h-3 w-16" />
             <Shimmer className="h-3 w-40" />
@@ -157,23 +153,21 @@ function AgentsSection({ agents, recentAgents, loading }: {
         ))
       ) : (
         agents.map(agent => (
-          <div key={agent.id} className="grid grid-cols-[1fr_100px_1fr_80px] gap-3 py-2.5 border-b border-border last:border-0 items-center">
-            <span className="text-xs font-mono text-foreground">{agent.id}</span>
-            <span className="text-xs font-mono text-muted-foreground">{maskAgentKey(agent.id)}</span>
-            <div className="flex flex-wrap gap-1">
+          <div key={agent.id} className="data-row grid grid-cols-[1fr_110px_1fr_92px] gap-3 py-2.5 border-b border-border last:border-0 items-center">
+            <span className="mono-cell text-xs text-foreground truncate">{agent.id}</span>
+            <span className="text-xs mono-cell text-muted-foreground">{maskAgentKey(agent.id)}</span>
+            <div className="flex flex-wrap gap-1 items-center">
               {agent.allowed_tools.slice(0, 3).map(t => (
-                <span key={t} className="text-[10px] font-mono px-1.5 py-0.5 bg-safe-bg text-safe rounded-sm">{t}</span>
+                <span key={t} className="text-[11px] font-data px-1.5 py-0.5 bg-safe-bg text-safe rounded-sm">{t}</span>
               ))}
               {agent.denied_tools.slice(0, 2).map(t => (
-                <span key={t} className="text-[10px] font-mono px-1.5 py-0.5 bg-danger-bg text-danger rounded-sm line-through">{t}</span>
+                <span key={t} className="text-[11px] font-data px-1.5 py-0.5 bg-danger-bg text-danger rounded-sm line-through">{t}</span>
               ))}
               {(agent.allowed_tools.length + agent.denied_tools.length) > 5 && (
-                <span className="text-[10px] text-muted-foreground">+{agent.allowed_tools.length + agent.denied_tools.length - 5}</span>
+                <span className="text-[11px] text-muted-foreground">+{agent.allowed_tools.length + agent.denied_tools.length - 5}</span>
               )}
             </div>
-            <span className={`inline-flex items-center gap-1.5 text-[10px] font-mono ${
-              recentAgents.has(agent.id) ? 'text-safe' : 'text-muted-foreground'
-            }`}>
+            <span className={`pill ${recentAgents.has(agent.id) ? 'pill-allow' : 'pill-neutral'}`}>
               <span className={`w-1.5 h-1.5 rounded-full ${recentAgents.has(agent.id) ? 'bg-safe' : 'bg-ink-4'}`} />
               {recentAgents.has(agent.id) ? 'Active' : 'Inactive'}
             </span>
@@ -295,13 +289,13 @@ function JurisdictionsSection({ jurisdictions, loading }: {
           const pct = maxEvents > 0 ? (j.event_count / maxEvents) * 100 : 0;
           return (
             <div key={j.code} className="border-b border-border last:border-0">
-              <div className="grid grid-cols-[60px_1fr_1fr_80px] gap-3 py-2.5 items-center">
-                <span className="text-xs font-mono text-foreground uppercase">
+              <div className="data-row grid grid-cols-[60px_1fr_1fr_80px] gap-3 py-2.5 items-center">
+                <span className="text-sm mono-cell text-foreground uppercase">
                   {flag && <span className="mr-1">{flag}</span>}{j.code}
                 </span>
-                <span className="text-xs font-body text-foreground">{meta.name}</span>
-                <span className="text-xs text-muted-foreground">{meta.plane}</span>
-                <span className="text-xs font-mono text-foreground">{j.event_count.toLocaleString()}</span>
+                <span className="text-sm font-body text-foreground">{meta.name}</span>
+                <span className="text-sm text-muted-foreground">{meta.plane}</span>
+                <span className="text-sm font-data tabular-nums text-foreground">{j.event_count.toLocaleString()}</span>
               </div>
               <div className="h-[3px] w-full bg-border rounded-sm overflow-hidden mb-1">
                 <div

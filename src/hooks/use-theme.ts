@@ -1,22 +1,32 @@
 import { useState, useEffect } from 'react';
 
-type Theme = 'light' | 'dark';
+export const THEMES = ['institutional', 'maisons', 'ludography', 'beau'] as const;
+export type Theme = (typeof THEMES)[number];
+
+export const THEME_LABELS: Record<Theme, string> = {
+  institutional: 'Institutional',
+  maisons: 'Maisons',
+  ludography: 'Ludography',
+  beau: 'Beau',
+};
+
+const STORAGE_KEY = 'bawaba-theme';
+
+function readTheme(): Theme {
+  if (typeof window === 'undefined') return 'institutional';
+  const stored = localStorage.getItem(STORAGE_KEY) as Theme | null;
+  return stored && (THEMES as readonly string[]).includes(stored) ? stored : 'institutional';
+}
 
 export function useTheme() {
-  const [theme, setTheme] = useState<Theme>(() => {
-    if (typeof window !== 'undefined') {
-      return (localStorage.getItem('bawaba-theme') as Theme) || 'light';
-    }
-    return 'light';
-  });
+  const [theme, setThemeState] = useState<Theme>(readTheme);
 
   useEffect(() => {
-    const root = document.documentElement;
-    root.classList.toggle('dark', theme === 'dark');
-    localStorage.setItem('bawaba-theme', theme);
+    document.documentElement.setAttribute('data-theme', theme);
+    localStorage.setItem(STORAGE_KEY, theme);
   }, [theme]);
 
-  const toggle = () => setTheme(t => (t === 'light' ? 'dark' : 'light'));
+  const setTheme = (next: Theme) => setThemeState(next);
 
-  return { theme, toggle };
+  return { theme, setTheme, themes: THEMES };
 }

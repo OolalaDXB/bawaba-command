@@ -62,7 +62,7 @@ const TRY_IT_SAMPLE =
 
 function Highlighted({ text, matches }: { text: string; matches: PiiMatch[] }) {
   if (!text) {
-    return <span className="text-ink-4">Paste text containing an IBAN, email, phone, card, Emirates ID, KSA ID or Morocco CIN…</span>;
+    return <span className="text-muted-foreground">Paste text containing an IBAN, email, phone, card, Emirates ID, KSA ID or Morocco CIN…</span>;
   }
   if (!matches.length) return <span>{text}</span>;
   const parts: React.ReactNode[] = [];
@@ -252,22 +252,22 @@ export default function PiiTokenizer() {
                 All time
                 <InfoTooltip text="Total PII entities detected since system start." />
               </div>
-              <div className="text-2xl font-mono font-light text-foreground">{totalAll.toLocaleString()}</div>
+              <div className="text-3xl font-data tabular-nums font-normal text-foreground">{totalAll.toLocaleString()}</div>
             </div>
             <div className="card-surface shadow-card p-4">
               <div className="table-header mb-2">Today</div>
-              <div className="text-2xl font-mono font-light text-foreground">{totalToday.toLocaleString()}</div>
+              <div className="text-3xl font-data tabular-nums font-normal text-foreground">{totalToday.toLocaleString()}</div>
             </div>
             <div className="card-surface shadow-card p-4">
               <div className="table-header mb-2">This hour</div>
-              <div className="text-2xl font-mono font-light text-foreground">{Math.floor(totalToday / 8)}</div>
+              <div className="text-3xl font-data tabular-nums font-normal text-foreground">{Math.floor(totalToday / 8)}</div>
             </div>
             <div className="card-surface shadow-card p-4">
               <div className="table-header mb-2">
                 Active tokens
                 <InfoTooltip text="Number of PII tokens currently in the vault. Expires after TTL." />
               </div>
-              <div className="text-2xl font-mono font-light text-foreground">8,421</div>
+              <div className="text-3xl font-data tabular-nums font-normal text-foreground">8,421</div>
             </div>
           </div>
         )}
@@ -292,14 +292,14 @@ export default function PiiTokenizer() {
               ))
             ) : (
               piiTypes.map(p => (
-                <div key={p.type} className="flex items-center justify-between py-2 border-b border-border last:border-0">
-                  <span className="text-xs text-foreground">{p.type}</span>
+                <div key={p.type} className="data-row flex items-center justify-between py-2 border-b border-border last:border-0">
+                  <span className="text-sm text-foreground">{p.type}</span>
                   <div className="flex items-center gap-4">
                     <div className="w-24 h-1.5 bg-secondary rounded-full overflow-hidden">
                       <div className="h-full" style={{ background: PETROL, width: `${totalAll > 0 ? (p.count / totalAll) * 100 : 0}%` }} />
                     </div>
-                    <span className="text-xs font-mono text-muted-foreground w-12 text-right">{p.count.toLocaleString()}</span>
-                    <span className="text-[10px] font-mono text-ink-4 w-8 text-right">+{p.today}</span>
+                    <span className="text-sm font-data tabular-nums text-muted-foreground w-14 text-right">{p.count.toLocaleString()}</span>
+                    <span className="text-xs font-data tabular-nums text-ink-3 w-8 text-right">+{p.today}</span>
                   </div>
                 </div>
               ))
@@ -335,7 +335,7 @@ export default function PiiTokenizer() {
             <div className="text-[10px] text-muted-foreground font-body">Click a row to see the persisted tokenization event</div>
           </div>
           <div className="card-surface shadow-card overflow-hidden">
-            <div className="grid grid-cols-[80px_100px_100px_70px_120px_60px] gap-2 px-5 py-2 border-b border-border">
+            <div className="grid grid-cols-[80px_100px_100px_72px_1fr_64px] gap-2 px-5 py-2 border-b border-border">
               {['Time', 'Agent', 'Redacted', 'Mode', 'Event ID', 'Duration'].map((h, idx) => (
                 <span key={h + idx} className="table-header">
                   {h}
@@ -346,11 +346,11 @@ export default function PiiTokenizer() {
                 </span>
               ))}
             </div>
-            <div className="max-h-[350px] overflow-y-auto">
+            <div className="max-h-[350px] overflow-y-auto zebra">
               {feedRows.map(({ evt, mode, processingTime }, i) => (
                 <div
                   key={evt.id}
-                  className={`grid grid-cols-[80px_100px_100px_70px_120px_60px] gap-2 px-5 py-2 text-xs font-mono border-b border-border cursor-pointer hover:bg-muted/50 transition-colors ${i === 0 ? 'animate-fade-in-row' : ''}`}
+                  className={`data-row grid grid-cols-[80px_100px_100px_72px_1fr_64px] gap-2 px-5 py-2 text-sm font-data tabular-nums border-b border-border cursor-pointer hover:bg-muted/50 transition-colors ${i === 0 ? 'animate-fade-in-row' : ''}`}
                   onClick={() => setSelectedToken({
                     id: evt.id,
                     agent: evt.agent,
@@ -362,9 +362,9 @@ export default function PiiTokenizer() {
                 >
                   <span className="text-muted-foreground">{timeAgo(evt.timestamp)}</span>
                   <span className="text-foreground truncate">{evt.agent}</span>
-                  <span className="text-ink-4">{evt.piiTokens} field{evt.piiTokens === 1 ? '' : 's'}</span>
+                  <span className="text-ink-3">{evt.piiTokens} field{evt.piiTokens === 1 ? '' : 's'}</span>
                   <span className="text-ink-2">{mode}</span>
-                  <span className="text-ink-3 truncate">{evt.id.slice(0, 18)}...</span>
+                  <span className="text-ink-3 truncate mono-cell text-xs self-center">{evt.id.slice(0, 18)}...</span>
                   <span className="text-muted-foreground">{processingTime}ms</span>
                 </div>
               ))}
@@ -387,11 +387,11 @@ export default function PiiTokenizer() {
               ['Memory usage', '142 MB'],
             ] as const).map(([label, val]) => (
               <div key={label} className="flex justify-between py-2 border-b border-border last:border-0">
-                <span className="text-xs text-muted-foreground">
+                <span className="text-sm text-muted-foreground">
                   {label}
                   {VAULT_TOOLTIPS[label] && <InfoTooltip text={VAULT_TOOLTIPS[label]} />}
                 </span>
-                <span className="text-xs font-mono text-foreground">{val}</span>
+                <span className="text-sm font-data tabular-nums text-foreground">{val}</span>
               </div>
             ))}
 
@@ -406,9 +406,9 @@ export default function PiiTokenizer() {
                 ['Oasis Markets', '1,420'],
                 ['Northern Europe Branch', '900'],
               ].map(([t, c]) => (
-                <div key={t} className="flex justify-between py-1.5 text-xs">
+                <div key={t} className="flex justify-between py-1.5 text-sm">
                   <span className="text-muted-foreground">{t}</span>
-                  <span className="font-mono text-foreground">{c}</span>
+                  <span className="font-data tabular-nums text-foreground">{c}</span>
                 </div>
               ))}
             </div>
@@ -436,7 +436,7 @@ export default function PiiTokenizer() {
             <div className="p-5 space-y-5">
               {/* Persisted PII result */}
               <div>
-                <div className="text-[10px] uppercase tracking-wider text-muted-foreground mb-1">Persisted result</div>
+                <div className="table-header mb-1">Persisted result</div>
                 <div className="text-sm font-mono text-foreground">{selectedToken.entities} entities · {selectedToken.mode}</div>
                 <div className="text-[10px] text-muted-foreground bg-muted/40 rounded p-2 mt-1.5">
                   The audit API persists the number of detected entities and the configured processing mode. Sensitive values and vault token UUIDs are not exposed here.
@@ -445,7 +445,7 @@ export default function PiiTokenizer() {
 
               {/* Source agent */}
               <div>
-                <div className="text-[10px] uppercase tracking-wider text-muted-foreground mb-1">Source agent</div>
+                <div className="table-header mb-1">Source agent</div>
                 <div className="text-sm font-mono text-foreground">{selectedToken.agent}</div>
                 <div className="text-[10px] text-muted-foreground bg-muted/40 rounded p-2 mt-1.5">
                   The AI agent that sent the request containing this sensitive data.
@@ -454,7 +454,7 @@ export default function PiiTokenizer() {
 
               {/* Configured TTL */}
               <div>
-                <div className="text-[10px] uppercase tracking-wider text-muted-foreground mb-1">Configured TTL</div>
+                <div className="table-header mb-1">Configured TTL</div>
                 <div className="text-sm font-mono text-foreground">60 minutes</div>
                 <div className="text-[10px] text-muted-foreground bg-muted/40 rounded p-2 mt-1.5">
                   The running gateway initializes the in-memory vault with a 60-minute TTL. After expiration, the mapping is purged from memory.
@@ -463,15 +463,15 @@ export default function PiiTokenizer() {
 
               {/* Processing time */}
               <div>
-                <div className="text-[10px] uppercase tracking-wider text-muted-foreground mb-1">Processing time</div>
+                <div className="table-header mb-1">Processing time</div>
                 <div className="text-sm font-mono text-foreground">{selectedToken.time}</div>
               </div>
 
               {/* Status */}
               <div>
-                <div className="text-[10px] uppercase tracking-wider text-muted-foreground mb-1">Status</div>
-                <span className="inline-flex items-center gap-1.5 text-xs font-mono px-2 py-1 rounded-full bg-emerald-500/10 text-emerald-600">
-                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+                <div className="table-header mb-1">Status</div>
+                <span className="pill pill-allow">
+                  <span className="w-1.5 h-1.5 rounded-full bg-safe" />
                   Event recorded
                 </span>
               </div>
