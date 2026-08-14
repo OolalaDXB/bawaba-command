@@ -14,10 +14,10 @@ import (
 )
 
 var (
-	ErrUnauthorized   = errors.New("auth: unauthorized")
-	ErrUnknownAgent   = errors.New("auth: unknown agent")
-	ErrExpiredKey      = errors.New("auth: api key expired")
-	ErrInvalidMethod   = errors.New("auth: invalid auth method")
+	ErrUnauthorized  = errors.New("auth: unauthorized")
+	ErrUnknownAgent  = errors.New("auth: unknown agent")
+	ErrExpiredKey    = errors.New("auth: api key expired")
+	ErrInvalidMethod = errors.New("auth: invalid auth method")
 )
 
 // AgentIdentity represents an authenticated agent.
@@ -30,9 +30,9 @@ type AgentIdentity struct {
 
 // Engine handles authentication for all supported methods.
 type Engine struct {
-	mu       sync.RWMutex
-	apiKeys  map[string]*APIKeyRecord // hashed_key -> record
-	agents   map[string]*AgentRecord  // agent_id -> record
+	mu      sync.RWMutex
+	apiKeys map[string]*APIKeyRecord // hashed_key -> record
+	agents  map[string]*AgentRecord  // agent_id -> record
 }
 
 type AgentRecord struct {
@@ -96,6 +96,28 @@ func (e *Engine) RegisterAPIKey(agentID, tenantID, plainKey string, expiresAt *t
 		Active:    true,
 	}
 	return nil
+}
+
+// RegisterAPIKeyHash registers an agent whose bcrypt key hash was persisted
+// (P1 control plane: created agents survive restarts via the store).
+func (e *Engine) RegisterAPIKeyHash(agentID, tenantID string, keyHash []byte) {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	e.apiKeys[agentID] = &APIKeyRecord{
+		AgentID:   agentID,
+		TenantID:  tenantID,
+		KeyHash:   keyHash,
+		CreatedAt: time.Now(),
+		Active:    true,
+	}
+}
+
+// Deactivate removes an agent's credentials (P1 delete — fail closed).
+func (e *Engine) Deactivate(agentID string) {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	delete(e.apiKeys, agentID)
+	delete(e.agents, agentID)
 }
 
 // Authenticate authenticates an incoming HTTP request and returns the agent identity.

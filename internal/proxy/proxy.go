@@ -52,17 +52,17 @@ type ToolCallParams struct {
 
 // Gateway is the main MCP reverse proxy.
 type Gateway struct {
-	authEngine               *auth.Engine
-	policyEngine             *policy.Engine
-	rateLimiter              *ratelimit.Limiter
-	anomaly                  *ratelimit.AnomalyDetector
-	auditTrail               *audit.Trail
-	routerEngine             *router.Engine
-	agentConfigs             map[string]config.AgentConfig
-	logger                   *slog.Logger
-	piiEnabled               bool
-	allowHeaderJurisdiction  bool
-	validJurisdictions       map[string]bool
+	authEngine              *auth.Engine
+	policyEngine            *policy.Engine
+	rateLimiter             *ratelimit.Limiter
+	anomaly                 *ratelimit.AnomalyDetector
+	auditTrail              *audit.Trail
+	routerEngine            *router.Engine
+	agentConfigs            map[string]config.AgentConfig
+	logger                  *slog.Logger
+	piiEnabled              bool
+	allowHeaderJurisdiction bool
+	validJurisdictions      map[string]bool
 }
 
 // NewGateway creates a new MCP gateway proxy.
@@ -270,8 +270,11 @@ func (g *Gateway) handleToolsCall(w http.ResponseWriter, r *http.Request, req *J
 	agentCfg := g.agentConfigs[identity.AgentID]
 	scope := fmt.Sprintf("%s:%s", identity.TenantID, identity.AgentID)
 
-	// Step 3: Policy evaluation
-	decision := g.policyEngine.Evaluate(context.Background(), identity.AgentID, params.Name)
+	// Step 3: Policy evaluation — attribute-aware (P1): conditional rules see
+	// the REAL call arguments; tool lists remain the fallback.
+	var callArgs map[string]interface{}
+	_ = json.Unmarshal(params.Arguments, &callArgs)
+	decision := g.policyEngine.EvaluateCall(context.Background(), identity.AgentID, params.Name, callArgs, agentCfg.Jurisdiction)
 	if !decision.Allow {
 		g.logger.Warn("policy denied", "agent", identity.AgentID, "tool", params.Name, "reason", decision.Reason)
 		g.logAuditEvent(audit.Event{

@@ -4,6 +4,7 @@ import { useTheme, THEME_LABELS, type Theme } from '@/hooks/use-theme';
 
 const navItems = [
   { path: '/dashboard', label: 'Dashboard', icon: BarChart3 },
+  { path: '/scenarios', label: 'Scenarios', icon: BarChart3 },
   { path: '/agents', label: 'Agents', icon: Shield },
   { path: '/policy', label: 'Policy', icon: Scale },
   { path: '/audit', label: 'Audit Trail', icon: ScrollText },

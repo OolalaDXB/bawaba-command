@@ -15,8 +15,10 @@ import (
 	_ "github.com/lib/pq"
 
 	"github.com/OolalaDXB/bawaba-command/internal/audit"
+	"github.com/OolalaDXB/bawaba-command/internal/auth"
 	"github.com/OolalaDXB/bawaba-command/internal/config"
 	"github.com/OolalaDXB/bawaba-command/internal/policy"
+	"github.com/OolalaDXB/bawaba-command/internal/store"
 )
 
 // testDB returns a *sql.DB connected to the test database, or skips the test.
@@ -91,7 +93,7 @@ func testServer(t *testing.T) (*Server, *httptest.Server) {
 	if err != nil {
 		t.Fatalf("audit trail: %v", err)
 	}
-	srv := NewServer(db, cfg, "", trail, policy.NewEngine(cfg.Agents), defaultLogger())
+	srv := NewServer(db, cfg, "", trail, policy.NewEngine(cfg.Agents), store.New(db), auth.NewEngine(), defaultLogger())
 	ts := httptest.NewServer(srv.Handler())
 	t.Cleanup(func() { ts.Close() })
 	return srv, ts
@@ -635,5 +637,65 @@ func TestPolicyUpdateP0(t *testing.T) {
 		if p.AgentID == "claude-code" && len(p.DeniedTools) != 0 {
 			t.Fatalf("GET /policies still shows denied tools after the edit: %v", p.DeniedTools)
 		}
+	}
+}
+
+func TestControlPlaneCRUD(t *testing.T) {
+	_, ts := testServer(t)
+
+	do := func(method, path, body string) (*http.Response, map[string]interface{}) {
+		req, _ := http.NewRequest(method, ts.URL+path, strings.NewReader(body))
+		req.Header.Set("Content-Type", "application/json")
+		resp, err := http.DefaultClient.Do(req)
+		if err != nil {
+			t.Fatal(err)
+		}
+		var out map[string]interface{}
+		_ = json.NewDecoder(resp.Body).Decode(&out)
+		resp.Body.Close()
+		return resp, out
+	}
+
+	// Create — returns the plaintext key exactly once.
+	resp, out := do(http.MethodPost, "/api/v1/agents",
+		`{"agent_id":"demo-writer","allowed_tools":["echo"],"denied_tools":["shell"],"jurisdiction":"ma"}`)
+	if resp.StatusCode != http.StatusCreated {
+		t.Fatalf("create: expected 201, got %d (%v)", resp.StatusCode, out)
+	}
+	data := out["data"].(map[string]interface{})
+	if key, _ := data["api_key"].(string); !strings.HasPrefix(key, "bwbk_") {
+		t.Fatalf("expected generated api key, got %v", data["api_key"])
+	}
+
+	// Duplicate id → 409.
+	resp, _ = do(http.MethodPost, "/api/v1/agents", `{"agent_id":"demo-writer","allowed_tools":[],"denied_tools":[]}`)
+	if resp.StatusCode != http.StatusConflict {
+		t.Fatalf("expected 409, got %d", resp.StatusCode)
+	}
+
+	// Patch with a conditional rule (the REAL P1 engine).
+	resp, _ = do(http.MethodPatch, "/api/v1/agents/demo-writer",
+		`{"conditional_rules":[{"tool":"execute_payment","effect":"allow","amount_lte":10000,"currencies":["EUR"]}]}`)
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("patch: expected 200, got %d", resp.StatusCode)
+	}
+
+	// Version history is append-only and populated.
+	resp, out = do(http.MethodGet, "/api/v1/policies/demo-writer/versions", "")
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("versions: expected 200, got %d", resp.StatusCode)
+	}
+	if versions, _ := out["data"].([]interface{}); len(versions) < 2 {
+		t.Fatalf("expected >=2 version rows (create + patch), got %d", len(out["data"].([]interface{})))
+	}
+
+	// Delete — soft, fail-closed.
+	resp, _ = do(http.MethodDelete, "/api/v1/agents/demo-writer", "")
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("delete: expected 200, got %d", resp.StatusCode)
+	}
+	resp, _ = do(http.MethodPatch, "/api/v1/agents/demo-writer", `{}`)
+	if resp.StatusCode != http.StatusNotFound {
+		t.Fatalf("post-delete patch: expected 404, got %d", resp.StatusCode)
 	}
 }

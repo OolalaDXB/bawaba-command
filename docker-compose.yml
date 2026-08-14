@@ -11,6 +11,7 @@ services:
       - postgres_data:/var/lib/postgresql/data
       - ./migrations/001_audit_schema.sql:/docker-entrypoint-initdb.d/001_audit_schema.sql
       - ./migrations/002_demo_evidence.sql:/docker-entrypoint-initdb.d/002_demo_evidence.sql
+      - ./migrations/003_control_plane.sql:/docker-entrypoint-initdb.d/003_control_plane.sql
       - ./migrations/999_demo_seed.sql:/docker-entrypoint-initdb.d/999_demo_seed.sql
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U bawaba -d bawaba"]
@@ -48,6 +49,9 @@ services:
       BAWABA_AGENT_KEY_claude-code: ${BAWABA_AGENT_KEY_claude_code:-claude-key-67890}
       BAWABA_AGENT_KEY_cursor-ide: ${BAWABA_AGENT_KEY_cursor_ide:-cursor-key-11111}
       BAWABA_AGENT_KEY_payment-assistant: ${BAWABA_AGENT_KEY_payment_assistant:-payment-key-33333}
+      BAWABA_AGENT_KEY_finance-analyst-eu: ${BAWABA_AGENT_KEY_finance_analyst_eu:-finance-key-44444}
+      BAWABA_AGENT_KEY_burst-agent: ${BAWABA_AGENT_KEY_burst_agent:-burst-key-55555}
+      BAWABA_AGENT_KEY_apac-analyst: ${BAWABA_AGENT_KEY_apac_analyst:-apac-key-66666}
     volumes:
       - gateway_keys:/app/keys
     healthcheck:

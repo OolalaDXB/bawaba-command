@@ -90,6 +90,9 @@ export default function GuidedDemo() {
   const [allowEvent, setAllowEvent] = useState<ApiEvent | null>(null);
   const [verification, setVerification] = useState<ChainVerification | null>(null);
   const [reviewed, setReviewed] = useState<string | null>(null);
+  const [overEvent, setOverEvent] = useState<ApiEvent | null>(null);
+  const [withinEvent, setWithinEvent] = useState<ApiEvent | null>(null);
+  const [ch2Verify, setCh2Verify] = useState<ChainVerification | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -163,6 +166,30 @@ export default function GuidedDemo() {
       setReviewed(decision);
       steps.advance();
     });
+
+  const FIN_AGENT_KEY = 'finance-key-44444';
+  const awaitFinanceEvent = async (notBefore: string) => {
+    for (let i = 0; i < 20; i++) {
+      const res = await fetchEvents(1, 5, { agent: 'finance-analyst-eu' });
+      const hit = res.events.find(e => e.tool === 'execute_payment' && e.timestamp > notBefore);
+      if (hit) return hit;
+      await new Promise(r => setTimeout(r, 400));
+    }
+    throw new Error('No event surfaced within 8s.');
+  };
+  const runOver = () =>
+    guard(async () => {
+      const t = new Date().toISOString();
+      await runMcpToolCall(FIN_AGENT_KEY, 'execute_payment', { amount: 25000, currency: 'EUR' });
+      setOverEvent(await awaitFinanceEvent(t));
+    });
+  const runWithin = () =>
+    guard(async () => {
+      const t = new Date().toISOString();
+      await runMcpToolCall(FIN_AGENT_KEY, 'execute_payment', { amount: 9000, currency: 'EUR' });
+      setWithinEvent(await awaitFinanceEvent(t));
+    });
+  const ch2DoVerify = () => guard(async () => setCh2Verify(await verifyChain()));
 
   if (stackUp === null) {
     return <div className="p-10 text-sm text-ink-3">Checking the gateway…</div>;
@@ -315,6 +342,32 @@ export default function GuidedDemo() {
           </div>
         )}
       </Step>
+
+      {reviewed && (
+        <div className="mt-4 border-t border-border pt-8">
+          <div className="text-xs font-mono uppercase tracking-widest text-ink-3 mb-1">Chapter 2 · Conditional policy (real attribute engine)</div>
+          <h2 className="text-base font-medium text-foreground mb-2">Beyond allow/deny: a payment limit</h2>
+          <p className="text-sm text-ink-2 leading-relaxed mb-3">
+            <b>Finance Analyst EU</b> may execute payments only inside a real conditional envelope:
+            amount ≤ 10 000, currency EUR, jurisdiction EU. The engine evaluates the ACTUAL call
+            arguments — the failed condition is named in <code className="font-mono">matched_rule</code>.
+          </p>
+          <div className="flex gap-2 mb-4">
+            <Button onClick={runOver} disabled={busy}>Try 25 000 EUR</Button>
+            <Button onClick={runWithin} disabled={busy || !overEvent}>Try 9 000 EUR</Button>
+            {withinEvent && <Button variant="outline" onClick={ch2DoVerify} disabled={busy}>Verify chain</Button>}
+          </div>
+          <div className="grid md:grid-cols-2 gap-3">
+            {overEvent && <EventCard title="25 000 EUR — outside the envelope" event={overEvent} />}
+            {withinEvent && <EventCard title="9 000 EUR — inside the envelope" event={withinEvent} />}
+          </div>
+          {ch2Verify && (
+            <div className={`mt-3 border rounded-[6px] p-3 text-sm font-mono ${ch2Verify.valid ? 'border-safe bg-safe-bg text-safe' : 'border-danger bg-danger-bg text-danger'}`}>
+              {ch2Verify.valid ? `CHAIN VALID — ${ch2Verify.events} events` : `CHAIN INVALID — ${ch2Verify.error}`}
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }

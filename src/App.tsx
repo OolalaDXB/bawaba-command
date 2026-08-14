@@ -7,6 +7,7 @@ import AppLayout from "./components/layout/AppLayout";
 import Dashboard from "./pages/Index";
 import GuidedDemo from "./pages/GuidedDemo";
 import Chooser from "./pages/Chooser";
+import Scenarios from "./pages/Scenarios";
 import Agents from "./pages/Agents";
 import Policy from "./pages/Policy";
 import AuditTrail from "./pages/AuditTrail";
@@ -29,6 +30,7 @@ const App = () => (
           <Route element={<AppLayout />}>
             <Route path="/dashboard" element={<Dashboard />} />
             <Route path="/demo" element={<GuidedDemo />} />
+            <Route path="/scenarios" element={<Scenarios />} />
             <Route path="/agents" element={<Agents />} />
             <Route path="/policy" element={<Policy />} />
             <Route path="/audit" element={<AuditTrail />} />

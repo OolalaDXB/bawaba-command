@@ -22,6 +22,7 @@ import (
 	"github.com/OolalaDXB/bawaba-command/internal/ratelimit"
 	"github.com/OolalaDXB/bawaba-command/internal/router"
 	"github.com/OolalaDXB/bawaba-command/internal/siem"
+	"github.com/OolalaDXB/bawaba-command/internal/store"
 	"github.com/OolalaDXB/bawaba-command/internal/tokenizer"
 )
 
@@ -112,6 +113,23 @@ func main() {
 	}
 
 	// Init policy engine
+	// P1 control plane: overlay persisted agents/policies over the YAML seed
+	// (DB wins), and restore persisted API-key hashes into the auth engine.
+	controlPlane := store.New(db)
+	if dbAgents, keyHashes, err := controlPlane.LoadAgents(); err != nil {
+		logger.Warn("control-plane overlay unavailable (run migrations 003)", "error", err)
+	} else {
+		for id, a := range dbAgents {
+			cfg.Agents[id] = a
+		}
+		for id, h := range keyHashes {
+			authEngine.RegisterAPIKeyHash(id, "demo", []byte(h))
+		}
+		if len(dbAgents) > 0 {
+			logger.Info("control-plane overlay applied", "agents", len(dbAgents))
+		}
+	}
+
 	policyEngine := policy.NewEngine(cfg.Agents)
 	logger.Info("policy engine initialized")
 
@@ -194,7 +212,7 @@ func main() {
 		fmt.Sscanf(p, "%d", &apiPort)
 	}
 
-	apiSrv := api.NewServer(db, cfg, configPath, trail, policyEngine, logger)
+	apiSrv := api.NewServer(db, cfg, configPath, trail, policyEngine, controlPlane, authEngine, logger)
 	apiSrv.Start() // Start SSE hub
 
 	apiServer := &http.Server{

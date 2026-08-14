@@ -16,8 +16,10 @@ import (
 	"time"
 
 	"github.com/OolalaDXB/bawaba-command/internal/audit"
+	"github.com/OolalaDXB/bawaba-command/internal/auth"
 	"github.com/OolalaDXB/bawaba-command/internal/config"
 	"github.com/OolalaDXB/bawaba-command/internal/policy"
+	"github.com/OolalaDXB/bawaba-command/internal/store"
 )
 
 // Version is set at build time or defaults to dev.
@@ -41,6 +43,8 @@ type Server struct {
 	configPath string
 	trail      *audit.Trail
 	policies   *policy.Engine
+	cp         *store.Store
+	authEng    *auth.Engine
 	pubKey     ed25519.PublicKey
 	logger     *slog.Logger
 	startTime  time.Time
@@ -49,13 +53,15 @@ type Server struct {
 }
 
 // NewServer creates a new API server.
-func NewServer(db *sql.DB, cfg *config.Config, configPath string, trail *audit.Trail, policies *policy.Engine, logger *slog.Logger) *Server {
+func NewServer(db *sql.DB, cfg *config.Config, configPath string, trail *audit.Trail, policies *policy.Engine, cp *store.Store, authEng *auth.Engine, logger *slog.Logger) *Server {
 	s := &Server{
 		db:         db,
 		cfg:        cfg,
 		configPath: configPath,
 		trail:      trail,
 		policies:   policies,
+		cp:         cp,
+		authEng:    authEng,
 		pubKey:     trail.PublicKey(),
 		logger:     logger,
 		startTime:  time.Now(),
@@ -96,6 +102,10 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("GET /api/v1/agents", s.handleAgents)
 	mux.HandleFunc("GET /api/v1/policies", s.handlePolicies)
 	mux.HandleFunc("PATCH /api/v1/policies/{id}", s.handlePolicyUpdate)
+	mux.HandleFunc("GET /api/v1/policies/{id}/versions", s.handlePolicyVersions)
+	mux.HandleFunc("POST /api/v1/agents", s.handleAgentCreate)
+	mux.HandleFunc("PATCH /api/v1/agents/{id}", s.handleAgentPatch)
+	mux.HandleFunc("DELETE /api/v1/agents/{id}", s.handleAgentDelete)
 	mux.HandleFunc("GET /api/v1/jurisdictions", s.handleJurisdictions)
 	mux.HandleFunc("GET /api/v1/siem/status", s.handleSIEMStatus)
 
@@ -778,21 +788,23 @@ func (s *Server) handleSIEMStatus(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) handlePolicies(w http.ResponseWriter, r *http.Request) {
 	type policyInfo struct {
-		AgentID      string   `json:"agent_id"`
-		AllowedTools []string `json:"allowed_tools"`
-		DeniedTools  []string `json:"denied_tools"`
-		PIIMode      string   `json:"pii_mode"`
-		RateLimit    string   `json:"rate_limit"`
+		AgentID          string                   `json:"agent_id"`
+		AllowedTools     []string                 `json:"allowed_tools"`
+		DeniedTools      []string                 `json:"denied_tools"`
+		PIIMode          string                   `json:"pii_mode"`
+		RateLimit        string                   `json:"rate_limit"`
+		ConditionalRules []config.ConditionalRule `json:"conditional_rules,omitempty"`
 	}
 
 	var policies []policyInfo
 	for id, a := range s.cfg.Agents {
 		policies = append(policies, policyInfo{
-			AgentID:      id,
-			AllowedTools: a.AllowedTools,
-			DeniedTools:  a.DeniedTools,
-			PIIMode:      a.PIIMode,
-			RateLimit:    a.RateLimit,
+			AgentID:          id,
+			AllowedTools:     a.AllowedTools,
+			DeniedTools:      a.DeniedTools,
+			PIIMode:          a.PIIMode,
+			RateLimit:        a.RateLimit,
+			ConditionalRules: a.ConditionalRules,
 		})
 	}
 
@@ -862,6 +874,16 @@ func (s *Server) handlePolicyUpdate(w http.ResponseWriter, r *http.Request) {
 	agentCfg.DeniedTools = append([]string(nil), body.DeniedTools...)
 	s.cfg.Agents[id] = agentCfg
 
+	// P1: durable — persist the agent row + an append-only version entry.
+	if s.cp != nil {
+		if err := s.cp.UpsertAgent(id, agentCfg, ""); err != nil {
+			s.logger.Error("policy persist failed", "agent", id, "error", err)
+		}
+		if err := s.cp.AppendPolicyVersion(id, newVersion, agentCfg, r.Header.Get("X-Demo-Actor")+"|patch"); err != nil {
+			s.logger.Error("policy version append failed", "agent", id, "error", err)
+		}
+	}
+
 	// The edit itself is a real, signed, chained audit event.
 	payload, _ := json.Marshal(map[string]interface{}{"allowed_tools": body.AllowedTools, "denied_tools": body.DeniedTools})
 	sum := sha256.Sum256(payload)
@@ -888,7 +910,7 @@ func (s *Server) handlePolicyUpdate(w http.ResponseWriter, r *http.Request) {
 			"policy_version": newVersion,
 		},
 		Meta: map[string]interface{}{
-			"persistence": "in-memory — a gateway restart reloads the YAML config (durable policies are P1)",
+			"persistence": "durable — persisted to agent_policies + append-only policy_versions (P1)",
 			"timestamp":   time.Now().UTC().Format(time.RFC3339),
 		},
 	})

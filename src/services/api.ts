@@ -432,6 +432,45 @@ export async function runMcpToolCall(
   return response.json();
 }
 
+
+// ── P1 control plane ───────────────────────────────────────────────────────
+export interface ConditionalRule {
+  tool: string;
+  effect: 'allow' | 'deny';
+  amount_lte?: number;
+  currencies?: string[];
+  jurisdictions?: string[];
+}
+
+export interface PolicyVersionEntry {
+  version: string;
+  allowed_tools: string[];
+  denied_tools: string[];
+  conditional_rules: unknown;
+  actor: string;
+  changed_at: string;
+}
+
+export async function createAgent(body: {
+  agent_id: string;
+  allowed_tools: string[];
+  denied_tools: string[];
+  conditional_rules?: ConditionalRule[];
+  pii_mode?: string;
+  rate_limit?: string;
+  jurisdiction?: string;
+}): Promise<{ agent_id: string; api_key: string; policy_version: string }> {
+  return request(`/api/v1/agents`, { method: 'POST', body: JSON.stringify(body) });
+}
+
+export async function deleteAgent(agentId: string): Promise<{ agent_id: string; deleted: boolean }> {
+  return request(`/api/v1/agents/${encodeURIComponent(agentId)}`, { method: 'DELETE' });
+}
+
+export async function fetchPolicyVersions(agentId: string): Promise<PolicyVersionEntry[]> {
+  return request(`/api/v1/policies/${encodeURIComponent(agentId)}/versions`);
+}
+
 export async function fetchJurisdictions(): Promise<JurisdictionEntry[]> {
   return request<JurisdictionEntry[]>('/api/v1/jurisdictions');
 }

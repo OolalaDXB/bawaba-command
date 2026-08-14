@@ -91,6 +91,106 @@ func (e *Engine) Evaluate(_ context.Context, agentID, tool string) *Decision {
 	}
 }
 
+// EvaluateCall is the P1 attribute-aware evaluation: conditional rules are
+// checked FIRST on the real call arguments; tool allow/deny lists remain the
+// fallback. Deterministic, no LLM. args may be nil (list-only evaluation).
+func (e *Engine) EvaluateCall(ctx context.Context, agentID, tool string, args map[string]interface{}, jurisdiction string) *Decision {
+	e.mu.RLock()
+	agentCfg, ok := e.agents[agentID]
+	version := e.policyVersion
+	e.mu.RUnlock()
+	if ok {
+		for _, rule := range agentCfg.ConditionalRules {
+			if !matchTool(rule.Tool, tool) {
+				continue
+			}
+			if failed := failedCondition(rule, args, jurisdiction); failed != "" {
+				return &Decision{
+					Allow:         false,
+					Reason:        fmt.Sprintf("%s.%s: outside conditional envelope: %s", agentID, tool, failed),
+					PolicyVersion: version,
+					MatchedRule:   fmt.Sprintf("conditional.%s.outside[%s]", rule.Tool, failed),
+				}
+			}
+			return &Decision{
+				Allow:         rule.Effect != "deny",
+				Reason:        fmt.Sprintf("%s.%s: within conditional envelope", agentID, tool),
+				PolicyVersion: version,
+				MatchedRule:   fmt.Sprintf("conditional.%s[%s]", rule.Tool, envelopeDesc(rule)),
+			}
+		}
+	}
+	return e.Evaluate(ctx, agentID, tool)
+}
+
+// failedCondition returns "" when every present condition holds, else a
+// human-readable description of the FIRST failed condition (it becomes part
+// of matched_rule — real reasons, never paraphrased downstream).
+func failedCondition(rule config.ConditionalRule, args map[string]interface{}, jurisdiction string) string {
+	if rule.AmountLTE != nil {
+		amount, ok := numericArg(args, "amount")
+		if !ok {
+			return "amount missing"
+		}
+		if amount > *rule.AmountLTE {
+			return fmt.Sprintf("amount %.0f > limit %.0f", amount, *rule.AmountLTE)
+		}
+	}
+	if len(rule.Currencies) > 0 {
+		cur, _ := args["currency"].(string)
+		if !containsFold(rule.Currencies, cur) {
+			return fmt.Sprintf("currency %q not in %v", cur, rule.Currencies)
+		}
+	}
+	if len(rule.Jurisdictions) > 0 {
+		if !containsFold(rule.Jurisdictions, jurisdiction) {
+			return fmt.Sprintf("jurisdiction %q not in %v", jurisdiction, rule.Jurisdictions)
+		}
+	}
+	return ""
+}
+
+func envelopeDesc(rule config.ConditionalRule) string {
+	parts := []string{}
+	if rule.AmountLTE != nil {
+		parts = append(parts, fmt.Sprintf("amount<=%.0f", *rule.AmountLTE))
+	}
+	if len(rule.Currencies) > 0 {
+		parts = append(parts, fmt.Sprintf("currency in %v", rule.Currencies))
+	}
+	if len(rule.Jurisdictions) > 0 {
+		parts = append(parts, fmt.Sprintf("jurisdiction in %v", rule.Jurisdictions))
+	}
+	return strings.Join(parts, " ")
+}
+
+func numericArg(args map[string]interface{}, key string) (float64, bool) {
+	if args == nil {
+		return 0, false
+	}
+	switch v := args[key].(type) {
+	case float64:
+		return v, true
+	case int:
+		return float64(v), true
+	case string:
+		var f float64
+		if _, err := fmt.Sscanf(v, "%f", &f); err == nil {
+			return f, true
+		}
+	}
+	return 0, false
+}
+
+func containsFold(xs []string, s string) bool {
+	for _, x := range xs {
+		if strings.EqualFold(x, s) {
+			return true
+		}
+	}
+	return false
+}
+
 // ToolLists returns a copy of an agent's current allow/deny lists and the
 // engine's policy version. ok is false when the agent is unknown.
 func (e *Engine) ToolLists(agentID string) (allowed, denied []string, version string, ok bool) {

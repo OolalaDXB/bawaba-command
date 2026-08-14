@@ -9,14 +9,14 @@ import (
 
 // Config is the top-level bawaba.yaml configuration.
 type Config struct {
-	Server   ServerConfig              `yaml:"server"`
-	Database DatabaseConfig            `yaml:"database"`
-	Agents   map[string]AgentConfig    `yaml:"agents"`
-	Routing  RoutingConfig             `yaml:"routing"`
-	Audit    AuditConfig               `yaml:"audit"`
-	Signing  SigningConfig             `yaml:"signing"`
-	Quotas   QuotaConfig               `yaml:"quotas"`
-	SIEM     SIEMForwarderConfig       `yaml:"siem"`
+	Server   ServerConfig           `yaml:"server"`
+	Database DatabaseConfig         `yaml:"database"`
+	Agents   map[string]AgentConfig `yaml:"agents"`
+	Routing  RoutingConfig          `yaml:"routing"`
+	Audit    AuditConfig            `yaml:"audit"`
+	Signing  SigningConfig          `yaml:"signing"`
+	Quotas   QuotaConfig            `yaml:"quotas"`
+	SIEM     SIEMForwarderConfig    `yaml:"siem"`
 }
 
 // QuotaConfig controls per-agent call quotas.
@@ -29,7 +29,7 @@ type QuotaConfig struct {
 // SIEMForwarderConfig controls the SIEM event forwarding.
 type SIEMForwarderConfig struct {
 	Enabled  bool   `yaml:"enabled"`
-	Type     string `yaml:"type"`     // "webhook" or "noop"
+	Type     string `yaml:"type"` // "webhook" or "noop"
 	Endpoint string `yaml:"endpoint"`
 	Token    string `yaml:"token"`
 	Format   string `yaml:"format"` // "json"
@@ -48,14 +48,28 @@ type DatabaseConfig struct {
 	ConnMaxLifetime string `yaml:"conn_max_lifetime"`
 }
 
+// ConditionalRule is a REAL attribute-based policy rule (P1): it scopes a
+// tool to an envelope of call-argument conditions. Inside the envelope →
+// Effect; outside → the inverse, with the failed condition named in the
+// decision. This is the honest version of "amount <= 10 000" — evaluated on
+// the actual MCP call arguments, never simulated.
+type ConditionalRule struct {
+	Tool          string   `yaml:"tool" json:"tool"`
+	Effect        string   `yaml:"effect" json:"effect"` // "allow" (P1 supports allow envelopes)
+	AmountLTE     *float64 `yaml:"amount_lte" json:"amount_lte,omitempty"`
+	Currencies    []string `yaml:"currencies" json:"currencies,omitempty"`
+	Jurisdictions []string `yaml:"jurisdictions" json:"jurisdictions,omitempty"`
+}
+
 type AgentConfig struct {
-	Auth         string   `yaml:"auth"`
-	AllowedTools []string `yaml:"allowed_tools"`
-	DeniedTools  []string `yaml:"denied_tools"`
-	PIIMode      string   `yaml:"pii_mode"`
-	RateLimit    string   `yaml:"rate_limit"`
-	MaxResults   int      `yaml:"max_results"`
-	Jurisdiction string   `yaml:"jurisdiction"`
+	Auth             string            `yaml:"auth"`
+	AllowedTools     []string          `yaml:"allowed_tools"`
+	DeniedTools      []string          `yaml:"denied_tools"`
+	PIIMode          string            `yaml:"pii_mode"`
+	RateLimit        string            `yaml:"rate_limit"`
+	MaxResults       int               `yaml:"max_results"`
+	Jurisdiction     string            `yaml:"jurisdiction"`
+	ConditionalRules []ConditionalRule `yaml:"conditional_rules" json:"conditional_rules,omitempty"`
 }
 
 type RoutingConfig struct {
@@ -70,9 +84,9 @@ type RoutingRule struct {
 }
 
 type AuditConfig struct {
-	MerkleWindowHours int           `yaml:"merkle_window_hours"` // TODO P2: Merkle window
-	SIEMExport        SIEMConfig    `yaml:"siem_export"`
-	RetentionDays     int           `yaml:"retention_days"`
+	MerkleWindowHours int        `yaml:"merkle_window_hours"` // TODO P2: Merkle window
+	SIEMExport        SIEMConfig `yaml:"siem_export"`
+	RetentionDays     int        `yaml:"retention_days"`
 }
 
 type SIEMConfig struct {

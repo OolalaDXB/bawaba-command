@@ -152,3 +152,56 @@ func TestUpdateToolListsUnknownAgent(t *testing.T) {
 		t.Fatal("expected error for unknown agent (P0 edits existing policies only)")
 	}
 }
+
+func TestConditionalEnvelope(t *testing.T) {
+	limit := 10000.0
+	agents := map[string]config.AgentConfig{
+		"finance-analyst-eu": {
+			AllowedTools: []string{"read_invoice"},
+			ConditionalRules: []config.ConditionalRule{{
+				Tool: "execute_payment", Effect: "allow",
+				AmountLTE: &limit, Currencies: []string{"EUR"}, Jurisdictions: []string{"eu"},
+			}},
+		},
+	}
+	e := NewEngine(agents)
+	ctx := context.Background()
+
+	over := e.EvaluateCall(ctx, "finance-analyst-eu", "execute_payment",
+		map[string]interface{}{"amount": 25000.0, "currency": "EUR"}, "eu")
+	if over.Allow {
+		t.Fatal("25000 EUR must be DENIED (limit 10000)")
+	}
+	if want := "conditional.execute_payment.outside[amount 25000 > limit 10000]"; over.MatchedRule != want {
+		t.Fatalf("matched_rule = %s, want %s", over.MatchedRule, want)
+	}
+
+	within := e.EvaluateCall(ctx, "finance-analyst-eu", "execute_payment",
+		map[string]interface{}{"amount": 9000.0, "currency": "EUR"}, "eu")
+	if !within.Allow {
+		t.Fatalf("9000 EUR in envelope must be ALLOWED, got %s", within.MatchedRule)
+	}
+
+	badCurrency := e.EvaluateCall(ctx, "finance-analyst-eu", "execute_payment",
+		map[string]interface{}{"amount": 9000.0, "currency": "USD"}, "eu")
+	if badCurrency.Allow {
+		t.Fatal("USD must be DENIED (envelope is EUR)")
+	}
+
+	badJur := e.EvaluateCall(ctx, "finance-analyst-eu", "execute_payment",
+		map[string]interface{}{"amount": 9000.0, "currency": "EUR"}, "ae")
+	if badJur.Allow {
+		t.Fatal("jurisdiction ae must be DENIED (envelope is eu)")
+	}
+
+	missing := e.EvaluateCall(ctx, "finance-analyst-eu", "execute_payment", nil, "eu")
+	if missing.Allow {
+		t.Fatal("missing amount must be DENIED (fail-closed)")
+	}
+
+	// Tools without a conditional rule fall back to the lists.
+	fallback := e.EvaluateCall(ctx, "finance-analyst-eu", "read_invoice", nil, "eu")
+	if !fallback.Allow {
+		t.Fatal("read_invoice must still be allowed via allowed_tools")
+	}
+}
