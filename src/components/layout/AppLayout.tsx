@@ -87,15 +87,10 @@ export default function AppLayout() {
     <div className="flex min-h-screen bg-background" style={{ minWidth: 1280 }}>
       {/* Sidebar */}
       <nav className={`group/sidebar fixed left-0 top-0 h-full transition-all duration-300 ease-in-out bg-card border-r border-border z-50 flex flex-col overflow-hidden ${pinned ? 'w-56' : 'w-14 hover:w-56'}`}>
-        {/* Logo — only in unpinned (rail/overlay) mode; when pinned, the top
-            bar's "BAWABA · بوابة" wordmark is visible right next to it, so the
-            sidebar one is dropped to avoid showing it twice. */}
         <div className="h-14 flex items-center px-4 border-b border-border shrink-0">
-          {!pinned && (
-            <span className="font-heading text-xl font-light whitespace-nowrap" style={{ letterSpacing: '3px' }}>
-              B<span className={`inline transition-opacity duration-300 ${labelCls}`}>AWABA</span>
-            </span>
-          )}
+          <span className="font-heading text-xl font-light whitespace-nowrap" style={{ letterSpacing: '3px' }}>
+            B<span className={`inline transition-opacity duration-300 ${labelCls}`}>AWABA</span>
+          </span>
         </div>
 
         {/* Nav items */}
@@ -166,17 +161,11 @@ export default function AppLayout() {
       <div className={`flex-1 transition-[margin] duration-300 ${pinned ? 'ml-56' : 'ml-14'}`}>
         {/* Top bar */}
         <header className="h-14 border-b border-border flex items-center px-6 bg-card sticky top-0 z-40">
-          <div className="flex items-center gap-2">
-            <span className="font-heading text-xl font-light text-foreground" style={{ letterSpacing: '3px' }}>BAWABA</span>
-            <span className="text-ink-4 text-xs">·</span>
-            <span className="font-heading text-xl font-light" style={{ direction: 'rtl', letterSpacing: '2px' }}>بوابة</span>
-          </div>
+          <span className="text-xs tracking-widest uppercase text-muted-foreground font-body font-medium">
+            {currentPage}
+          </span>
 
-          <div className="flex-1 flex justify-center">
-            <span className="text-xs tracking-widest uppercase text-muted-foreground font-body font-medium">
-              {currentPage}
-            </span>
-          </div>
+          <div className="flex-1" />
 
           <div className="flex items-center gap-4">
             <select className="text-xs bg-transparent border border-border rounded px-2 py-1 text-muted-foreground font-body">
