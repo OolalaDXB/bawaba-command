@@ -1,4 +1,4 @@
-package copilot
+package souffleur
 
 import (
 	"context"
@@ -70,7 +70,7 @@ func TestExplainWithoutProviderRefusesHonestly(t *testing.T) {
 
 func setEnv(t *testing.T, kv map[string]string) {
 	t.Helper()
-	for _, k := range []string{"BAWABA_COPILOT_PROVIDER", "BAWABA_COPILOT_API_KEY", "BAWABA_COPILOT_MODEL", "BAWABA_COPILOT_BASE_URL"} {
+	for _, k := range []string{"BAWABA_SOUFFLEUR_PROVIDER", "BAWABA_SOUFFLEUR_API_KEY", "BAWABA_SOUFFLEUR_MODEL", "BAWABA_SOUFFLEUR_BASE_URL"} {
 		t.Setenv(k, "")
 		os.Unsetenv(k)
 	}
@@ -86,35 +86,35 @@ func TestFromEnvSelection(t *testing.T) {
 		t.Fatalf("unset env must yield (nil, nil), got (%v, %v)", p, err)
 	}
 
-	setEnv(t, map[string]string{"BAWABA_COPILOT_PROVIDER": "anthropic", "BAWABA_COPILOT_API_KEY": "sk-test"})
+	setEnv(t, map[string]string{"BAWABA_SOUFFLEUR_PROVIDER": "anthropic", "BAWABA_SOUFFLEUR_API_KEY": "sk-test"})
 	p, err = FromEnv()
 	if err != nil || p == nil || p.Name() != "anthropic" || p.Model() != "claude-opus-5" {
 		t.Fatalf("anthropic selection failed: p=%v err=%v", p, err)
 	}
 
-	setEnv(t, map[string]string{"BAWABA_COPILOT_PROVIDER": "anthropic"})
+	setEnv(t, map[string]string{"BAWABA_SOUFFLEUR_PROVIDER": "anthropic"})
 	if _, err = FromEnv(); err == nil {
 		t.Fatal("anthropic without API key must error")
 	}
 
-	setEnv(t, map[string]string{"BAWABA_COPILOT_PROVIDER": "mistral", "BAWABA_COPILOT_API_KEY": "mk-test"})
+	setEnv(t, map[string]string{"BAWABA_SOUFFLEUR_PROVIDER": "mistral", "BAWABA_SOUFFLEUR_API_KEY": "mk-test"})
 	p, err = FromEnv()
 	if err != nil || p == nil || p.Name() != "mistral" || p.Model() != "mistral-large-latest" {
 		t.Fatalf("mistral selection failed: p=%v err=%v", p, err)
 	}
 
-	setEnv(t, map[string]string{"BAWABA_COPILOT_PROVIDER": "openai-compatible", "BAWABA_COPILOT_MODEL": "qwen3", "BAWABA_COPILOT_BASE_URL": "http://vllm.local/v1"})
+	setEnv(t, map[string]string{"BAWABA_SOUFFLEUR_PROVIDER": "openai-compatible", "BAWABA_SOUFFLEUR_MODEL": "qwen3", "BAWABA_SOUFFLEUR_BASE_URL": "http://vllm.local/v1"})
 	p, err = FromEnv()
 	if err != nil || p == nil || p.Name() != "openai-compatible" {
 		t.Fatalf("self-hosted selection failed: p=%v err=%v", p, err)
 	}
 
-	setEnv(t, map[string]string{"BAWABA_COPILOT_PROVIDER": "openai-compatible", "BAWABA_COPILOT_MODEL": "qwen3"})
+	setEnv(t, map[string]string{"BAWABA_SOUFFLEUR_PROVIDER": "openai-compatible", "BAWABA_SOUFFLEUR_MODEL": "qwen3"})
 	if _, err = FromEnv(); err == nil {
 		t.Fatal("openai-compatible without base URL must error")
 	}
 
-	setEnv(t, map[string]string{"BAWABA_COPILOT_PROVIDER": "bard"})
+	setEnv(t, map[string]string{"BAWABA_SOUFFLEUR_PROVIDER": "bard"})
 	if _, err = FromEnv(); err == nil {
 		t.Fatal("unknown provider must error")
 	}

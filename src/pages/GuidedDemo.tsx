@@ -14,7 +14,7 @@ import {
 } from '@/services/api';
 import { Button } from '@/components/ui/button';
 import { resolveAgent, activeWorkspace } from '@/lib/demoWorkspace';
-import { CopilotExplain } from '@/components/CopilotExplain';
+import { SouffleurExplain } from '@/components/SouffleurExplain';
 
 /**
  * Guided Demo (P0) — a narrated path over the REAL engine (demo mandate §3).
@@ -66,7 +66,7 @@ function EventCard({ title, event }: { title: string; event: ApiEvent }) {
         <dt className="text-ink-3">prev_hash</dt><dd className="font-mono break-all">{(event.prev_hash || 'genesis').slice(0, 32)}…</dd>
         <dt className="text-ink-3">signature</dt><dd className="font-mono break-all">{event.signature.slice(0, 32)}…</dd>
       </dl>
-      <CopilotExplain eventId={event.event_id} />
+      <SouffleurExplain eventId={event.event_id} />
     </div>
   );
 }

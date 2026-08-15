@@ -65,7 +65,7 @@ limitation is known and recorded).
   laptop (flag unset) nothing changes.
 - The "Demonstration environment" banner stays on every page.
 
-## 5. P3 — shareable workspace URL + Copilot
+## 5. P3 — shareable workspace URL + Souffleur
 
 - **Share link**: an active Private Workspace exposes "Copy shareable link"
   on the entrance page. The link is `…/join#<payload>`; the payload (session
@@ -73,14 +73,14 @@ limitation is known and recorded).
   browser — no server or access log sees the keys. `/join` validates the
   session against the gateway (expired/torn-down → honest message, nothing
   recreated silently) before adopting it.
-- **Copilot** (translation-only, mandate §7): set on the gateway host —
+- **Souffleur** (translation-only, mandate §7; from the French for a theater prompter — it whispers what the script says, it never acts): set on the gateway host —
   ```bash
-  BAWABA_COPILOT_PROVIDER=anthropic   # or: mistral | openai | openai-compatible
-  BAWABA_COPILOT_API_KEY=…            # provider credential
-  BAWABA_COPILOT_MODEL=…              # default: claude-opus-5 / mistral-large-latest
-  BAWABA_COPILOT_BASE_URL=…           # self-hosted vLLM/Ollama (openai-compatible)
+  BAWABA_SOUFFLEUR_PROVIDER=anthropic   # or: mistral | openai | openai-compatible
+  BAWABA_SOUFFLEUR_API_KEY=…            # provider credential
+  BAWABA_SOUFFLEUR_MODEL=…              # default: claude-opus-5 / mistral-large-latest
+  BAWABA_SOUFFLEUR_BASE_URL=…           # self-hosted vLLM/Ollama (openai-compatible)
   ```
-  `POST /api/v1/copilot/explain {event_id}` loads the REAL audit event and
+  `POST /api/v1/souffleur/explain {event_id}` loads the REAL audit event and
   returns a plain-language translation of its decision fields plus the exact
-  source fields used. Unset → 503 ("the Copilot never invents"). The
+  source fields used. Unset → 503 ("the Souffleur never invents"). The
   sovereign option is `openai-compatible` + a self-hosted endpoint.

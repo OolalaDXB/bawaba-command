@@ -1,12 +1,12 @@
-// Package copilot implements the P3 Copilot (demo mandate §7/§9): a strict
+// Package souffleur implements the P3 Souffleur (demo mandate §7/§9): a strict
 // TRANSLATION layer over decision records produced by the deterministic
 // policy engine. The invariant is non-negotiable:
 //
 //	BAWABA decision record (reason_code, matched_rule, policy_version, …)
-//	    ↓ Copilot
+//	    ↓ Souffleur
 //	natural-language explanation
 //
-// The Copilot never decides, never guesses why an event happened, and never
+// The Souffleur never decides, never guesses why an event happened, and never
 // invents a field. If no LLM provider is configured it says so (HTTP 503 at
 // the API layer) instead of fabricating an answer.
 //
@@ -16,7 +16,7 @@
 // Both are reached over plain HTTP with zero vendor SDK dependencies, on
 // purpose: the gateway is built for sovereign deployments and keeps its
 // dependency tree minimal.
-package copilot
+package souffleur
 
 import (
 	"bytes"
@@ -30,9 +30,9 @@ import (
 	"time"
 )
 
-// DecisionRecord is the subset of a real audit event the Copilot is allowed
+// DecisionRecord is the subset of a real audit event the Souffleur is allowed
 // to talk about. Everything the explanation says must be traceable to one of
-// these fields — nothing else exists as far as the Copilot is concerned.
+// these fields — nothing else exists as far as the Souffleur is concerned.
 type DecisionRecord struct {
 	EventID          string `json:"event_id"`
 	Timestamp        string `json:"timestamp"`
@@ -58,7 +58,7 @@ type Provider interface {
 }
 
 // SystemPrompt is the translation-only contract sent to every provider.
-const SystemPrompt = `You are the BAWABA Copilot. BAWABA is an AI-agent control plane whose decisions are made by a DETERMINISTIC policy engine — never by you.
+const SystemPrompt = `You are the BAWABA Souffleur — named after the theater prompter (souffleur): you whisper what the script says, you never act. BAWABA is an AI-agent control plane whose decisions are made by a DETERMINISTIC policy engine — never by you.
 
 Your only job is to translate the decision record below into plain language for a human reviewer.
 
@@ -102,7 +102,7 @@ func BuildUserPrompt(rec DecisionRecord, question string) string {
 // provider call, the text back. No post-processing, no fallback content.
 func Explain(ctx context.Context, p Provider, rec DecisionRecord, question string) (string, error) {
 	if p == nil {
-		return "", fmt.Errorf("no LLM provider configured — the Copilot never invents an explanation")
+		return "", fmt.Errorf("no LLM provider configured — the Souffleur never invents an explanation")
 	}
 	return p.Complete(ctx, SystemPrompt, BuildUserPrompt(rec, question))
 }
@@ -113,26 +113,26 @@ func Explain(ctx context.Context, p Provider, rec DecisionRecord, question strin
 
 // FromEnv builds the provider selected by the environment:
 //
-//	BAWABA_COPILOT_PROVIDER  anthropic | openai | mistral | openai-compatible | "" (off)
-//	BAWABA_COPILOT_API_KEY   credential for the chosen provider
-//	BAWABA_COPILOT_MODEL     model id (defaults per provider)
-//	BAWABA_COPILOT_BASE_URL  override endpoint (self-hosted vLLM/Ollama, proxies)
+//	BAWABA_SOUFFLEUR_PROVIDER  anthropic | openai | mistral | openai-compatible | "" (off)
+//	BAWABA_SOUFFLEUR_API_KEY   credential for the chosen provider
+//	BAWABA_SOUFFLEUR_MODEL     model id (defaults per provider)
+//	BAWABA_SOUFFLEUR_BASE_URL  override endpoint (self-hosted vLLM/Ollama, proxies)
 //
 // Returns (nil, nil) when no provider is configured — the API layer turns
 // that into an honest 503, never a canned answer.
 func FromEnv() (Provider, error) {
-	name := strings.ToLower(strings.TrimSpace(os.Getenv("BAWABA_COPILOT_PROVIDER")))
+	name := strings.ToLower(strings.TrimSpace(os.Getenv("BAWABA_SOUFFLEUR_PROVIDER")))
 	if name == "" || name == "none" {
 		return nil, nil
 	}
-	key := os.Getenv("BAWABA_COPILOT_API_KEY")
-	model := strings.TrimSpace(os.Getenv("BAWABA_COPILOT_MODEL"))
-	base := strings.TrimRight(strings.TrimSpace(os.Getenv("BAWABA_COPILOT_BASE_URL")), "/")
+	key := os.Getenv("BAWABA_SOUFFLEUR_API_KEY")
+	model := strings.TrimSpace(os.Getenv("BAWABA_SOUFFLEUR_MODEL"))
+	base := strings.TrimRight(strings.TrimSpace(os.Getenv("BAWABA_SOUFFLEUR_BASE_URL")), "/")
 
 	switch name {
 	case "anthropic", "claude":
 		if key == "" {
-			return nil, fmt.Errorf("BAWABA_COPILOT_PROVIDER=anthropic requires BAWABA_COPILOT_API_KEY")
+			return nil, fmt.Errorf("BAWABA_SOUFFLEUR_PROVIDER=anthropic requires BAWABA_SOUFFLEUR_API_KEY")
 		}
 		if model == "" {
 			model = "claude-opus-5"
@@ -149,22 +149,22 @@ func FromEnv() (Provider, error) {
 			case "openai":
 				base = "https://api.openai.com/v1"
 			default:
-				return nil, fmt.Errorf("BAWABA_COPILOT_PROVIDER=openai-compatible requires BAWABA_COPILOT_BASE_URL (e.g. a self-hosted vLLM endpoint)")
+				return nil, fmt.Errorf("BAWABA_SOUFFLEUR_PROVIDER=openai-compatible requires BAWABA_SOUFFLEUR_BASE_URL (e.g. a self-hosted vLLM endpoint)")
 			}
 		}
 		if key == "" && name != "openai-compatible" {
-			return nil, fmt.Errorf("BAWABA_COPILOT_PROVIDER=%s requires BAWABA_COPILOT_API_KEY", name)
+			return nil, fmt.Errorf("BAWABA_SOUFFLEUR_PROVIDER=%s requires BAWABA_SOUFFLEUR_API_KEY", name)
 		}
 		if model == "" {
 			if name == "mistral" {
 				model = "mistral-large-latest"
 			} else {
-				return nil, fmt.Errorf("BAWABA_COPILOT_PROVIDER=%s requires BAWABA_COPILOT_MODEL", name)
+				return nil, fmt.Errorf("BAWABA_SOUFFLEUR_PROVIDER=%s requires BAWABA_SOUFFLEUR_MODEL", name)
 			}
 		}
 		return &openAICompatProvider{name: name, apiKey: key, model: model, baseURL: base, client: httpClient()}, nil
 	default:
-		return nil, fmt.Errorf("unknown BAWABA_COPILOT_PROVIDER %q (anthropic | openai | mistral | openai-compatible)", name)
+		return nil, fmt.Errorf("unknown BAWABA_SOUFFLEUR_PROVIDER %q (anthropic | openai | mistral | openai-compatible)", name)
 	}
 }
 

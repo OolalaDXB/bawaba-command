@@ -53,11 +53,11 @@ services:
       BAWABA_AGENT_KEY_finance-analyst-eu: ${BAWABA_AGENT_KEY_finance_analyst_eu:-finance-key-44444}
       BAWABA_AGENT_KEY_burst-agent: ${BAWABA_AGENT_KEY_burst_agent:-burst-key-55555}
       BAWABA_AGENT_KEY_apac-analyst: ${BAWABA_AGENT_KEY_apac_analyst:-apac-key-66666}
-      # P3 — Copilot (translation-only; unset = explain endpoint answers 503, never invents)
-      BAWABA_COPILOT_PROVIDER: ${BAWABA_COPILOT_PROVIDER:-}
-      BAWABA_COPILOT_API_KEY: ${BAWABA_COPILOT_API_KEY:-}
-      BAWABA_COPILOT_MODEL: ${BAWABA_COPILOT_MODEL:-}
-      BAWABA_COPILOT_BASE_URL: ${BAWABA_COPILOT_BASE_URL:-}
+      # P3 — Souffleur (translation-only; unset = explain endpoint answers 503, never invents)
+      BAWABA_SOUFFLEUR_PROVIDER: ${BAWABA_SOUFFLEUR_PROVIDER:-}
+      BAWABA_SOUFFLEUR_API_KEY: ${BAWABA_SOUFFLEUR_API_KEY:-}
+      BAWABA_SOUFFLEUR_MODEL: ${BAWABA_SOUFFLEUR_MODEL:-}
+      BAWABA_SOUFFLEUR_BASE_URL: ${BAWABA_SOUFFLEUR_BASE_URL:-}
       # P3 — public shareable demo: mutations restricted to -demo- workspace clones
       BAWABA_PUBLIC_DEMO: ${BAWABA_PUBLIC_DEMO:-}
     volumes:

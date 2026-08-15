@@ -12,7 +12,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { useEffect } from 'react';
 import { resolveAgent, activeWorkspace } from '@/lib/demoWorkspace';
-import { CopilotExplain } from '@/components/CopilotExplain';
+import { SouffleurExplain } from '@/components/SouffleurExplain';
 
 /**
  * Scenarios (P1, demo mandate §5/§9): really-triggerable flows on the live
@@ -56,7 +56,7 @@ function EventLine({ e }: { e: ApiEvent }) {
         <span className="text-ink-3 truncate">{e.matched_rule}</span>
         {e.entities_detected > 0 && <span className="text-primary">{e.entities_detected} PII entities</span>}
       </div>
-      <CopilotExplain eventId={e.event_id} />
+      <SouffleurExplain eventId={e.event_id} />
     </div>
   );
 }

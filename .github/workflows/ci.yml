@@ -53,12 +53,12 @@ jobs:
           done
 
       - name: Go Vet
-        run: go vet ./internal/api/... ./internal/siem/... ./internal/copilot/...
+        run: go vet ./internal/api/... ./internal/siem/... ./internal/souffleur/...
 
       - name: Go Test
         env:
           BAWABA_TEST_DB_URL: postgres://bawaba:bawaba_secret@localhost:5432/bawaba?sslmode=disable
-        run: go test ./internal/api/... ./internal/siem/... ./internal/config/... ./internal/auth/... ./internal/policy/... ./internal/ratelimit/... ./internal/audit/... ./internal/router/... ./internal/copilot/... -v -race
+        run: go test ./internal/api/... ./internal/siem/... ./internal/config/... ./internal/auth/... ./internal/policy/... ./internal/ratelimit/... ./internal/audit/... ./internal/router/... ./internal/souffleur/... -v -race
 
   build-docker:
     name: Docker Build

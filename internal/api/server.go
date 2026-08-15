@@ -18,9 +18,9 @@ import (
 	"github.com/OolalaDXB/bawaba-command/internal/audit"
 	"github.com/OolalaDXB/bawaba-command/internal/auth"
 	"github.com/OolalaDXB/bawaba-command/internal/config"
-	"github.com/OolalaDXB/bawaba-command/internal/copilot"
 	"github.com/OolalaDXB/bawaba-command/internal/policy"
 	"github.com/OolalaDXB/bawaba-command/internal/router"
+	"github.com/OolalaDXB/bawaba-command/internal/souffleur"
 	"github.com/OolalaDXB/bawaba-command/internal/store"
 )
 
@@ -53,7 +53,7 @@ type Server struct {
 	startTime  time.Time
 	sse        *SSEHub
 	quota      *QuotaManager
-	copilot    copilot.Provider
+	souffleur  souffleur.Provider
 	publicDemo bool
 }
 
@@ -115,8 +115,8 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("DELETE /api/v1/agents/{id}", s.handleAgentDelete)
 	mux.HandleFunc("GET /api/v1/jurisdictions", s.handleJurisdictions)
 	mux.HandleFunc("POST /api/v1/jurisdictions", s.handleJurisdictionAdd)
-	mux.HandleFunc("GET /api/v1/copilot/status", s.handleCopilotStatus)
-	mux.HandleFunc("POST /api/v1/copilot/explain", s.handleCopilotExplain)
+	mux.HandleFunc("GET /api/v1/souffleur/status", s.handleSouffleurStatus)
+	mux.HandleFunc("POST /api/v1/souffleur/explain", s.handleSouffleurExplain)
 	mux.HandleFunc("POST /api/v1/demo/session", s.handleDemoSessionCreate)
 	mux.HandleFunc("GET /api/v1/demo/session/{id}", s.handleDemoSessionGet)
 	mux.HandleFunc("GET /api/v1/siem/status", s.handleSIEMStatus)
