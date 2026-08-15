@@ -10,7 +10,6 @@ services:
     ports:
       - "8080:8080"
       - "8081:8081"
-      - "9090:9090"
     environment:
       BAWABA_LOG_LEVEL: debug
       BAWABA_AGENT_KEY_test-agent: test-key-12345
