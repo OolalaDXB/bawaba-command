@@ -208,13 +208,13 @@ function EventCard({ title, event }: { title: string; event: ApiEvent }) {
           {event.policy_result}
         </span>
       </div>
-      <dl className="grid grid-cols-[130px_1fr] gap-y-1.5 text-xs">
-        <dt className="text-ink-3">event_id</dt><dd className="font-mono break-all">{event.event_id}</dd>
-        <dt className="text-ink-3">matched_rule</dt><dd className="font-mono">{event.matched_rule}</dd>
-        <dt className="text-ink-3">policy_version</dt><dd className="font-mono">{event.policy_version}</dd>
-        <dt className="text-ink-3">event_hash</dt><dd className="font-mono break-all">{event.event_hash.slice(0, 32)}…</dd>
-        <dt className="text-ink-3">prev_hash</dt><dd className="font-mono break-all">{(event.prev_hash || 'genesis').slice(0, 32)}…</dd>
-        <dt className="text-ink-3">signature</dt><dd className="font-mono break-all">{event.signature.slice(0, 32)}…</dd>
+      <dl className="grid grid-cols-[minmax(90px,110px)_minmax(0,1fr)] gap-y-1.5 gap-x-3 text-xs">
+        <dt className="text-ink-3">event_id</dt><dd className="font-mono break-all min-w-0">{event.event_id}</dd>
+        <dt className="text-ink-3">matched_rule</dt><dd className="font-mono break-all min-w-0">{event.matched_rule}</dd>
+        <dt className="text-ink-3">policy_version</dt><dd className="font-mono break-all min-w-0">{event.policy_version}</dd>
+        <dt className="text-ink-3">event_hash</dt><dd className="font-mono break-all min-w-0">{event.event_hash.slice(0, 32)}…</dd>
+        <dt className="text-ink-3">prev_hash</dt><dd className="font-mono break-all min-w-0">{(event.prev_hash || 'genesis').slice(0, 32)}…</dd>
+        <dt className="text-ink-3">signature</dt><dd className="font-mono break-all min-w-0">{event.signature.slice(0, 32)}…</dd>
       </dl>
       <SouffleurExplain eventId={event.event_id} />
     </div>
