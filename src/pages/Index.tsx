@@ -11,14 +11,186 @@ import {
 } from '@/services/api';
 import InfoTooltip from '@/components/InfoTooltip';
 import { PETROL, DECISION_COLORS } from '@/lib/chart-colors';
+import { useLang, type Lang } from '@/lib/i18n';
+
+const T: Record<Lang, Record<string, string>> = {
+  en: {
+    agoS: '{n}s ago',
+    agoM: '{n}m ago',
+    agoH: '{n}h ago',
+    agoD: '{n}d ago',
+    liveFeedTitle: 'Live activity feed',
+    liveFeedTip: 'Each row represents an MCP call processed in real time by the Bawaba gateway.',
+    eventsCaptured: '{n} events captured',
+    live: 'LIVE',
+    paused: 'PAUSED',
+    colTime: 'Time',
+    colAgent: 'Agent',
+    colTool: 'Tool',
+    colDecision: 'Decision',
+    colPii: 'PII',
+    colLat: 'Lat.',
+    colJur: 'Jur.',
+    dataPlanes: 'Data planes',
+    dataPlanesTip: 'Sovereign infrastructure in each jurisdiction. Data never leaves the configured zone.',
+    activeJurisdictions: 'Active jurisdictions',
+    statsByJur: 'Statistics by jurisdiction',
+    statsByJurTip: 'Call volume, PII tokens, and denials broken down by active jurisdiction.',
+    legendCalls: 'Calls',
+    legendPii: 'PII',
+    legendDenials: 'Denials',
+    compliant: 'Compliant',
+    review: 'Review',
+    auditLabel: 'Audit: {d}',
+    nextLabel: 'Next: {d}',
+    jur_ma: 'Morocco',
+    jur_sa: 'KSA',
+    jur_ae: 'UAE',
+    jur_fr: 'France',
+    overview: 'Overview',
+    simulateRequest: 'Simulate request',
+    metricCalls: 'MCP calls today',
+    metricCallsTip: 'Total number of MCP calls processed by the gateway today. Includes allow, deny, and rate-limited.',
+    vsYesterdayUp: '+12.4% vs yesterday',
+    metricPii: 'PII entities tokenized',
+    metricPiiTip: 'Personal data detected and replaced with UUID tokens before transmission to the LLM.',
+    acrossJur: 'Across 4 jurisdictions',
+    metricDenials: 'Policy denials',
+    metricDenialsTip: 'Requests denied by the policy engine. A denial protects against unauthorized usage.',
+    vsYesterdayDown: '-6.7% vs yesterday',
+    metricAgents: 'Active agents',
+    metricAgentsTip: 'Number of AI agents registered and authorized to send requests through the gateway.',
+    complianceStatus: 'Compliance status',
+    complianceTip: 'Compliance score per jurisdiction based on local regulations (GDPR, Loi 09-08, PDPL, etc.).',
+    simSubtitle: 'Run a request through the gateway pipeline',
+    fieldAgent: 'Agent',
+    fieldTool: 'Tool',
+    fieldJurisdiction: 'Jurisdiction',
+    fieldPayload: 'Payload (optional)',
+    running: 'Running…',
+    runRequest: 'Run request',
+    pipeline: 'Pipeline',
+    pending: 'pending',
+    stage_Identity: 'Identity',
+    stage_Policy: 'Policy',
+    stage_Data: 'Data',
+    stage_Jurisdiction: 'Jurisdiction',
+    stage_Rate: 'Rate',
+    stage_Evidence: 'Evidence',
+    outcomeAllow: '✓ Allowed',
+    outcomeDeny: '✗ Denied',
+    outcomeRate: '⚠ Rate-limited',
+    totalMs: '{ms}ms total',
+    simulatedBadge: 'simulated',
+    deliveredReal: 'Posted a real MCP request to the gateway — the real event will appear in the live feed.',
+    deliveredSim1: 'Gateway not reachable — a simulated event was injected locally with {n} tokenized PII entity.',
+    deliveredSimN: 'Gateway not reachable — a simulated event was injected locally with {n} tokenized PII entities.',
+    delivering: 'Delivering…',
+    noteIdentity: '{agent} authenticated ({auth})',
+    noteDeniedTool: '{tool} in denied_tools',
+    noteNotAllowed: '{tool} not in allowed_tools (default-deny)',
+    noteAllowMatched: 'allow rule matched for {tool}',
+    noteSkipped: 'skipped (denied)',
+    notePii1: '{n} PII entity tokenized',
+    notePiiN: '{n} PII entities tokenized',
+    noteRouted: 'routed to {backend}, Ed25519 proof',
+    noteRateExceeded: 'rate limit exceeded (sliding window)',
+    noteRateOk: 'within sliding window',
+    noteEvidence: 'event appended, SHA-256 chained + signed',
+  },
+  fr: {
+    agoS: 'il y a {n} s',
+    agoM: 'il y a {n} min',
+    agoH: 'il y a {n} h',
+    agoD: 'il y a {n} j',
+    liveFeedTitle: 'Flux d’activité en direct',
+    liveFeedTip: 'Chaque ligne représente un appel MCP traité en temps réel par la passerelle Bawaba.',
+    eventsCaptured: '{n} événements capturés',
+    live: 'EN DIRECT',
+    paused: 'EN PAUSE',
+    colTime: 'Heure',
+    colAgent: 'Agent',
+    colTool: 'Outil',
+    colDecision: 'Décision',
+    colPii: 'PII',
+    colLat: 'Lat.',
+    colJur: 'Jur.',
+    dataPlanes: 'Plans de données',
+    dataPlanesTip: 'Infrastructure souveraine dans chaque juridiction. Les données ne quittent jamais la zone configurée.',
+    activeJurisdictions: 'Juridictions actives',
+    statsByJur: 'Statistiques par juridiction',
+    statsByJurTip: 'Volume d’appels, tokens PII et refus ventilés par juridiction active.',
+    legendCalls: 'Appels',
+    legendPii: 'PII',
+    legendDenials: 'Refus',
+    compliant: 'Conforme',
+    review: 'À revoir',
+    auditLabel: 'Audit : {d}',
+    nextLabel: 'Suivant : {d}',
+    jur_ma: 'Maroc',
+    jur_sa: 'Arabie saoudite',
+    jur_ae: 'EAU',
+    jur_fr: 'France',
+    overview: 'Vue d’ensemble',
+    simulateRequest: 'Simuler une requête',
+    metricCalls: 'Appels MCP aujourd’hui',
+    metricCallsTip: 'Nombre total d’appels MCP traités par la passerelle aujourd’hui. Inclut allow, deny et rate-limited.',
+    vsYesterdayUp: '+12,4 % vs hier',
+    metricPii: 'Entités PII tokenisées',
+    metricPiiTip: 'Données personnelles détectées et remplacées par des tokens UUID avant transmission au LLM.',
+    acrossJur: 'Sur 4 juridictions',
+    metricDenials: 'Refus de politique',
+    metricDenialsTip: 'Requêtes refusées par le moteur de politiques. Un refus protège contre les usages non autorisés.',
+    vsYesterdayDown: '-6,7 % vs hier',
+    metricAgents: 'Agents actifs',
+    metricAgentsTip: 'Nombre d’agents IA enregistrés et autorisés à envoyer des requêtes à travers la passerelle.',
+    complianceStatus: 'État de conformité',
+    complianceTip: 'Score de conformité par juridiction selon les réglementations locales (RGPD, Loi 09-08, PDPL, etc.).',
+    simSubtitle: 'Exécuter une requête à travers le pipeline de la passerelle',
+    fieldAgent: 'Agent',
+    fieldTool: 'Outil',
+    fieldJurisdiction: 'Juridiction',
+    fieldPayload: 'Charge utile (optionnelle)',
+    running: 'Exécution…',
+    runRequest: 'Exécuter la requête',
+    pipeline: 'Pipeline',
+    pending: 'en attente',
+    stage_Identity: 'Identité',
+    stage_Policy: 'Politique',
+    stage_Data: 'Données',
+    stage_Jurisdiction: 'Juridiction',
+    stage_Rate: 'Débit',
+    stage_Evidence: 'Preuve',
+    outcomeAllow: '✓ Autorisé',
+    outcomeDeny: '✗ Refusé',
+    outcomeRate: '⚠ Débit limité',
+    totalMs: '{ms} ms au total',
+    simulatedBadge: 'simulé',
+    deliveredReal: 'Une requête MCP réelle a été envoyée à la passerelle — l’événement réel apparaîtra dans le flux en direct.',
+    deliveredSim1: 'Passerelle injoignable — un événement simulé a été injecté localement avec {n} entité PII tokenisée.',
+    deliveredSimN: 'Passerelle injoignable — un événement simulé a été injecté localement avec {n} entités PII tokenisées.',
+    delivering: 'Livraison…',
+    noteIdentity: '{agent} authentifié ({auth})',
+    noteDeniedTool: '{tool} dans denied_tools',
+    noteNotAllowed: '{tool} absent de allowed_tools (default-deny)',
+    noteAllowMatched: 'règle allow correspondante pour {tool}',
+    noteSkipped: 'ignoré (refusé)',
+    notePii1: '{n} entité PII tokenisée',
+    notePiiN: '{n} entités PII tokenisées',
+    noteRouted: 'routé vers {backend}, preuve Ed25519',
+    noteRateExceeded: 'limite de débit dépassée (fenêtre glissante)',
+    noteRateOk: 'dans la fenêtre glissante',
+    noteEvidence: 'événement ajouté, chaîné SHA-256 + signé',
+  },
+};
 
 /* ── Time-ago helper ────────────────────────────── */
-function timeAgo(date: Date): string {
+function timeAgo(date: Date, t: Record<string, string>): string {
   const seconds = Math.floor((Date.now() - date.getTime()) / 1000);
-  if (seconds < 60) return `${seconds}s ago`;
-  if (seconds < 3600) return `${Math.floor(seconds / 60)}m ago`;
-  if (seconds < 86400) return `${Math.floor(seconds / 3600)}h ago`;
-  return `${Math.floor(seconds / 86400)}d ago`;
+  if (seconds < 60) return t.agoS.replace('{n}', String(seconds));
+  if (seconds < 3600) return t.agoM.replace('{n}', String(Math.floor(seconds / 60)));
+  if (seconds < 86400) return t.agoH.replace('{n}', String(Math.floor(seconds / 3600)));
+  return t.agoD.replace('{n}', String(Math.floor(seconds / 86400)));
 }
 
 /* ── Skeleton shimmer ───────────────────────────── */
@@ -178,6 +350,7 @@ function PiiCount({ value, isNew }: { value: number; isNew: boolean }) {
 
 /* ── Live Feed ──────────────────────────────────── */
 function LiveFeed() {
+  const t = T[useLang()];
   const { events, isLive, toggleLive } = useLiveFeed(30);
   const { injected } = useLocalAudit();
   const allEvents = useMemo(() => [...injected, ...events], [injected, events]);
@@ -239,8 +412,8 @@ function LiveFeed() {
       <div className="flex items-center justify-between px-5 py-3 border-b border-border">
         <div className="flex items-center gap-3">
           <div>
-            <div className="text-sm font-body font-medium text-foreground">Live activity feed <InfoTooltip text="Each row represents an MCP call processed in real time by the Bawaba gateway." /></div>
-            <div className="text-xs text-muted-foreground">{allEvents.length} events captured</div>
+            <div className="text-sm font-body font-medium text-foreground">{t.liveFeedTitle} <InfoTooltip text={t.liveFeedTip} /></div>
+            <div className="text-xs text-muted-foreground">{t.eventsCaptured.replace('{n}', String(allEvents.length))}</div>
           </div>
         </div>
         <button
@@ -250,13 +423,13 @@ function LiveFeed() {
           }`}
         >
           <span className={`w-1.5 h-1.5 rounded-full ${isLive ? 'bg-safe animate-pulse-dot' : 'bg-ink-4'}`} />
-          {isLive ? 'LIVE' : 'PAUSED'}
+          {isLive ? t.live : t.paused}
         </button>
       </div>
 
       {/* Table header */}
       <div className="grid grid-cols-[90px_100px_1fr_104px_44px_56px_44px] gap-2 px-5 py-2 border-b border-border">
-        {['Time', 'Agent', 'Tool', 'Decision', 'PII', 'Lat.', 'Jur.'].map(h => (
+        {[t.colTime, t.colAgent, t.colTool, t.colDecision, t.colPii, t.colLat, t.colJur].map(h => (
           <span key={h} className="table-header">{h}</span>
         ))}
       </div>
@@ -274,7 +447,7 @@ function LiveFeed() {
                   getRowAnimClass(evt, i)
                 } ${evt.decision === 'deny' && !isNew ? 'row-deny' : evt.decision === 'rate-limited' ? 'row-rate-limited' : ''}`}
               >
-                <span className="text-muted-foreground">{timeAgo(evt.timestamp)}</span>
+                <span className="text-muted-foreground">{timeAgo(evt.timestamp, t)}</span>
                 <span className="text-foreground truncate font-medium">{evt.agent}</span>
                 <span className="text-ink-2 truncate flex items-center gap-1">
                   {evt.tool}
@@ -310,12 +483,13 @@ function LiveFeed() {
 
 /* ── Jurisdiction Panel ─────────────────────────── */
 function JurisdictionPanel({ jurisdictions, loading }: { jurisdictions: JurisdictionData[]; loading: boolean }) {
+  const t = T[useLang()];
   return (
     <div className="bg-background border border-border rounded-sm p-5">
       <div className="flex items-center gap-3 mb-5">
         <div>
-          <div className="text-sm font-body font-medium text-foreground">Data planes <InfoTooltip text="Sovereign infrastructure in each jurisdiction. Data never leaves the configured zone." /></div>
-          <div className="text-xs text-muted-foreground">Active jurisdictions</div>
+          <div className="text-sm font-body font-medium text-foreground">{t.dataPlanes} <InfoTooltip text={t.dataPlanesTip} /></div>
+          <div className="text-xs text-muted-foreground">{t.activeJurisdictions}</div>
         </div>
       </div>
 
@@ -353,7 +527,7 @@ function JurisdictionPanel({ jurisdictions, loading }: { jurisdictions: Jurisdic
 
       {/* Per-jurisdiction stats */}
       <div className="border-t border-border pt-4">
-        <div className="table-header mb-3">Statistics by jurisdiction <InfoTooltip text="Call volume, PII tokens, and denials broken down by active jurisdiction." /></div>
+        <div className="table-header mb-3">{t.statsByJur} <InfoTooltip text={t.statsByJurTip} /></div>
         {loading ? (
           Array.from({ length: 4 }).map((_, i) => (
             <div key={i} className="flex items-center justify-between py-2 border-b border-border last:border-0">
@@ -370,7 +544,7 @@ function JurisdictionPanel({ jurisdictions, loading }: { jurisdictions: Jurisdic
             <div key={j.code} className="flex items-center justify-between py-2 border-b border-border last:border-0">
               <div className="flex items-center gap-2">
                 <span className="text-base text-ink-3 w-6">{getJurisdictionFlag(j.code)}</span>
-                <span className="text-sm text-foreground">{j.name}</span>
+                <span className="text-sm text-foreground">{t[`jur_${j.code}`] ?? j.name}</span>
               </div>
               <div className="flex gap-4 text-sm font-data tabular-nums">
                 <span className="text-muted-foreground">{j.callsToday.toLocaleString()}</span>
@@ -382,9 +556,9 @@ function JurisdictionPanel({ jurisdictions, loading }: { jurisdictions: Jurisdic
         )}
         <div className="flex gap-6 mt-2">
           {[
-            { label: 'Calls', cls: 'text-muted-foreground' },
-            { label: 'PII', cls: 'text-safe' },
-            { label: 'Denials', cls: 'text-danger' },
+            { label: t.legendCalls, cls: 'text-muted-foreground' },
+            { label: t.legendPii, cls: 'text-safe' },
+            { label: t.legendDenials, cls: 'text-danger' },
           ].map(l => (
             <span key={l.label} className={`text-[11px] ${l.cls}`}>{l.label}</span>
           ))}
@@ -396,6 +570,7 @@ function JurisdictionPanel({ jurisdictions, loading }: { jurisdictions: Jurisdic
 
 /* ── Compliance Bar ─────────────────────────────── */
 function ComplianceBar({ jurisdictions, loading }: { jurisdictions: JurisdictionData[]; loading: boolean }) {
+  const t = T[useLang()];
   if (loading) {
     return (
       <div className="grid grid-cols-4 gap-4">
@@ -423,9 +598,9 @@ function ComplianceBar({ jurisdictions, loading }: { jurisdictions: Jurisdiction
       {jurisdictions.map(j => (
         <div key={j.code} className="bg-background border border-border rounded-sm p-4">
           <div className="flex items-center justify-between mb-3">
-            <span className="text-xs font-body font-medium text-foreground">{j.name}</span>
+            <span className="text-xs font-body font-medium text-foreground">{t[`jur_${j.code}`] ?? j.name}</span>
             <span className={`pill ${j.status === 'compliant' ? 'pill-allow' : 'pill-rate'}`}>
-              {j.status === 'compliant' ? 'Compliant' : 'Review'}
+              {j.status === 'compliant' ? t.compliant : t.review}
             </span>
           </div>
           <div className="text-xs text-muted-foreground mb-2">{j.regulation}</div>
@@ -440,8 +615,8 @@ function ComplianceBar({ jurisdictions, loading }: { jurisdictions: Jurisdiction
             />
           </div>
           <div className="flex justify-between text-[10px] text-muted-foreground">
-            <span>Audit: {j.lastAudit}</span>
-            <span>Next: {j.nextReview}</span>
+            <span>{t.auditLabel.replace('{d}', j.lastAudit)}</span>
+            <span>{t.nextLabel.replace('{d}', j.nextReview)}</span>
           </div>
         </div>
       ))}
@@ -494,7 +669,7 @@ function randMs(min: number, max: number) {
   return Math.round((min + Math.random() * (max - min)) * 10) / 10;
 }
 
-function computePipeline(agentId: string, tool: string, jurisdiction: string, payload: string): {
+function computePipeline(agentId: string, tool: string, jurisdiction: string, payload: string, t: Record<string, string>): {
   stages: StageResult[]; outcome: 'allow' | 'deny' | 'rate-limited'; entities: number;
 } {
   const agent = MOCK_AGENTS.find(a => a.id === agentId);
@@ -506,36 +681,36 @@ function computePipeline(agentId: string, tool: string, jurisdiction: string, pa
   const entities = tokens.length;
 
   const stages: StageResult[] = [
-    { name: 'Identity', status: 'pass', ms: randMs(0.5, 2), note: `${agentId} authenticated (${agent?.auth ?? 'API Key'})` },
+    { name: 'Identity', status: 'pass', ms: randMs(0.5, 2), note: t.noteIdentity.replace('{agent}', agentId).replace('{auth}', agent?.auth ?? 'API Key') },
     {
       name: 'Policy',
       status: policyDeny ? 'deny' : 'pass',
       ms: randMs(0.3, 1.2),
-      note: denied ? `${tool} in denied_tools` : notAllowed ? `${tool} not in allowed_tools (default-deny)` : `allow rule matched for ${tool}`,
+      note: denied ? t.noteDeniedTool.replace('{tool}', tool) : notAllowed ? t.noteNotAllowed.replace('{tool}', tool) : t.noteAllowMatched.replace('{tool}', tool),
     },
     {
       name: 'Data',
       status: policyDeny ? 'skipped' : 'pass',
       ms: policyDeny ? 0 : randMs(0.4, 1 + entities * 0.3),
-      note: policyDeny ? 'skipped (denied)' : `${entities} PII entit${entities === 1 ? 'y' : 'ies'} tokenized`,
+      note: policyDeny ? t.noteSkipped : (entities === 1 ? t.notePii1 : t.notePiiN).replace('{n}', String(entities)),
     },
     {
       name: 'Jurisdiction',
       status: policyDeny ? 'skipped' : 'pass',
       ms: policyDeny ? 0 : randMs(0.5, 1.5),
-      note: policyDeny ? 'skipped (denied)' : `routed to ${SIM_BACKENDS[jurisdiction]}, Ed25519 proof`,
+      note: policyDeny ? t.noteSkipped : t.noteRouted.replace('{backend}', SIM_BACKENDS[jurisdiction]),
     },
     {
       name: 'Rate',
       status: policyDeny ? 'skipped' : rateLimited ? 'rate-limited' : 'pass',
       ms: policyDeny ? 0 : randMs(0.2, 0.8),
-      note: policyDeny ? 'skipped (denied)' : rateLimited ? 'rate limit exceeded (sliding window)' : 'within sliding window',
+      note: policyDeny ? t.noteSkipped : rateLimited ? t.noteRateExceeded : t.noteRateOk,
     },
     {
       name: 'Evidence',
       status: 'pass',
       ms: randMs(0.4, 1.3),
-      note: 'event appended, SHA-256 chained + signed',
+      note: t.noteEvidence,
     },
   ];
 
@@ -559,6 +734,7 @@ const SIM_DEMO_KEYS: Record<string, string> = {
 };
 
 function SimulateRequestPanel({ onClose }: { onClose: () => void }) {
+  const t = T[useLang()];
   const [agentId, setAgentId] = useState(MOCK_AGENTS[0]?.id ?? '');
   const [tool, setTool] = useState(TOOLS[0]);
   const [jurisdiction, setJurisdiction] = useState('ma');
@@ -618,7 +794,7 @@ function SimulateRequestPanel({ onClose }: { onClose: () => void }) {
   const run = () => {
     timers.current.forEach(t => clearTimeout(t));
     timers.current = [];
-    const computed = computePipeline(agentId, tool, jurisdiction, payload);
+    const computed = computePipeline(agentId, tool, jurisdiction, payload, t);
     setResult(computed);
     setDelivery(null);
     setRunning(true);
@@ -641,8 +817,8 @@ function SimulateRequestPanel({ onClose }: { onClose: () => void }) {
     <div className="fixed inset-y-0 right-0 w-[460px] bg-card border-l border-border z-50 overflow-y-auto shadow-card">
       <div className="flex items-center justify-between p-5 border-b border-border">
         <div>
-          <div className="text-lg font-heading text-foreground">Simulate request</div>
-          <div className="text-xs text-muted-foreground font-mono">Run a request through the gateway pipeline</div>
+          <div className="text-lg font-heading text-foreground">{t.simulateRequest}</div>
+          <div className="text-xs text-muted-foreground font-mono">{t.simSubtitle}</div>
         </div>
         <button onClick={onClose} className="text-muted-foreground hover:text-foreground transition-colors">
           <X className="h-4 w-4" strokeWidth={1.5} />
@@ -653,20 +829,20 @@ function SimulateRequestPanel({ onClose }: { onClose: () => void }) {
         {/* Inputs */}
         <div className="grid grid-cols-2 gap-3">
           <div>
-            <div className="table-header mb-1.5">Agent</div>
+            <div className="table-header mb-1.5">{t.fieldAgent}</div>
             <select value={agentId} onChange={e => setAgentId(e.target.value)} className="w-full text-xs font-mono px-2 py-2 border border-border rounded-sm bg-background text-foreground focus:outline-none focus:border-primary">
               {MOCK_AGENTS.map(a => <option key={a.id} value={a.id}>{a.id}</option>)}
             </select>
           </div>
           <div>
-            <div className="table-header mb-1.5">Tool</div>
+            <div className="table-header mb-1.5">{t.fieldTool}</div>
             <select value={tool} onChange={e => setTool(e.target.value)} className="w-full text-xs font-mono px-2 py-2 border border-border rounded-sm bg-background text-foreground focus:outline-none focus:border-primary">
               {TOOLS.map(t => <option key={t} value={t}>{t}</option>)}
             </select>
           </div>
         </div>
         <div>
-          <div className="table-header mb-1.5">Jurisdiction</div>
+          <div className="table-header mb-1.5">{t.fieldJurisdiction}</div>
           <div className="flex gap-1.5">
             {['ma', 'sa', 'ae', 'fr'].map(j => (
               <button key={j} onClick={() => setJurisdiction(j)} className={`text-[10px] font-mono px-2 py-1 rounded-sm border transition-colors ${jurisdiction === j ? 'bg-primary/10 text-foreground border-primary/40' : 'bg-background text-muted-foreground border-border hover:text-foreground'}`}>
@@ -676,32 +852,32 @@ function SimulateRequestPanel({ onClose }: { onClose: () => void }) {
           </div>
         </div>
         <div>
-          <div className="table-header mb-1.5">Payload (optional)</div>
+          <div className="table-header mb-1.5">{t.fieldPayload}</div>
           <textarea value={payload} onChange={e => setPayload(e.target.value)} rows={3} className="w-full text-xs font-mono px-3 py-2 border border-border rounded-sm bg-background text-foreground focus:outline-none focus:border-primary resize-y" />
         </div>
 
         <button onClick={run} disabled={running} className="w-full text-xs font-body font-medium px-4 py-2 bg-primary text-primary-foreground rounded-sm hover:opacity-90 transition-opacity disabled:opacity-50">
-          {running ? 'Running…' : 'Run request'}
+          {running ? t.running : t.runRequest}
         </button>
 
         {/* Pipeline visualization */}
         {result && (
           <div className="space-y-1.5">
-            <div className="table-header mb-1">Pipeline</div>
+            <div className="table-header mb-1">{t.pipeline}</div>
             {result.stages.map((st, i) => {
               const shown = i < revealed;
               const active = i === revealed - 1 && running;
               return (
                 <div key={st.name} className={`flex items-center gap-3 px-3 py-2 border rounded-sm transition-all ${shown ? 'border-border bg-background' : 'border-border/40 opacity-40'} ${active ? 'ring-1 ring-primary/30' : ''}`}>
                   <span className="text-[10px] font-mono text-muted-foreground w-4">{i + 1}</span>
-                  <span className="text-xs font-body text-foreground w-24">{st.name}</span>
+                  <span className="text-xs font-body text-foreground w-24">{t[`stage_${st.name}`] ?? st.name}</span>
                   {shown ? (
                     <>
                       <span className={`text-[10px] font-mono uppercase ${STAGE_COLOR[st.status]}`}>{st.status}</span>
                       <span className="text-[10px] font-mono text-muted-foreground ml-auto">{st.ms > 0 ? `${st.ms}ms` : '—'}</span>
                     </>
                   ) : (
-                    <span className="text-[11px] text-ink-3 ml-auto">pending</span>
+                    <span className="text-[11px] text-ink-3 ml-auto">{t.pending}</span>
                   )}
                 </div>
               );
@@ -714,17 +890,17 @@ function SimulateRequestPanel({ onClose }: { onClose: () => void }) {
             {!running && revealed === result.stages.length && (
               <div className={`mt-3 p-3 rounded-sm border ${result.outcome === 'allow' ? 'bg-safe-bg border-safe/20' : result.outcome === 'deny' ? 'bg-danger-bg border-danger/20' : 'bg-warn-bg border-warn/20'}`}>
                 <div className={`text-xs font-mono font-medium flex items-center gap-2 ${result.outcome === 'allow' ? 'text-safe' : result.outcome === 'deny' ? 'text-danger' : 'text-warn'}`}>
-                  <span>{result.outcome === 'allow' ? '✓ Allowed' : result.outcome === 'deny' ? '✗ Denied' : '⚠ Rate-limited'} · {totalMs.toFixed(1)}ms total</span>
+                  <span>{result.outcome === 'allow' ? t.outcomeAllow : result.outcome === 'deny' ? t.outcomeDeny : t.outcomeRate} · {t.totalMs.replace('{ms}', totalMs.toFixed(1))}</span>
                   {delivery === 'simulated' && (
-                    <span className="text-[9px] font-mono uppercase tracking-wide px-1.5 py-0.5 rounded-sm bg-muted text-muted-foreground border border-border">simulated</span>
+                    <span className="text-[9px] font-mono uppercase tracking-wide px-1.5 py-0.5 rounded-sm bg-muted text-muted-foreground border border-border">{t.simulatedBadge}</span>
                   )}
                 </div>
                 <div className="text-[10px] text-muted-foreground mt-1">
                   {delivery === 'real'
-                    ? 'Posted a real MCP request to the gateway — the real event will appear in the live feed.'
+                    ? t.deliveredReal
                     : delivery === 'simulated'
-                      ? `Gateway not reachable — a simulated event was injected locally with ${result.entities} tokenized PII entit${result.entities === 1 ? 'y' : 'ies'}.`
-                      : 'Delivering…'}
+                      ? (result.entities === 1 ? t.deliveredSim1 : t.deliveredSimN).replace('{n}', String(result.entities))
+                      : t.delivering}
                 </div>
               </div>
             )}
@@ -737,6 +913,7 @@ function SimulateRequestPanel({ onClose }: { onClose: () => void }) {
 
 /* ── Dashboard Page ─────────────────────────────── */
 export default function Dashboard() {
+  const t = T[useLang()];
   const sparkCalls = useMemo(() => generateSparklineData(7, 3200, 400), []);
   const sparkPii = useMemo(() => generateSparklineData(7, 13000, 1500), []);
   const sparkDenials = useMemo(() => generateSparklineData(7, 84, 20), []);
@@ -799,12 +976,12 @@ export default function Dashboard() {
       {/* Section 01: Metrics */}
       <div>
         <div className="flex items-center justify-between mb-4">
-          <div className="text-sm font-body font-medium text-foreground">Overview</div>
+          <div className="text-sm font-body font-medium text-foreground">{t.overview}</div>
           <button
             onClick={() => setShowSimulate(true)}
             className="text-xs font-body font-medium px-4 py-2 bg-primary text-primary-foreground rounded-sm hover:opacity-90 transition-opacity"
           >
-            Simulate request
+            {t.simulateRequest}
           </button>
         </div>
         <div className="grid grid-cols-4 gap-4">
@@ -818,28 +995,28 @@ export default function Dashboard() {
           ) : (
             <>
               <MetricCard
-                label={<>MCP calls today <InfoTooltip text="Total number of MCP calls processed by the gateway today. Includes allow, deny, and rate-limited." /></>}
+                label={<>{t.metricCalls} <InfoTooltip text={t.metricCallsTip} /></>}
                 value={callsToday}
                 sparkData={sparkCalls}
                 sparkColor={PETROL}
-                subtitle={<span className="text-safe">+12.4% vs yesterday</span>}
+                subtitle={<span className="text-safe">{t.vsYesterdayUp}</span>}
               />
               <MetricCard
-                label={<>PII entities tokenized <InfoTooltip text="Personal data detected and replaced with UUID tokens before transmission to the LLM." /></>}
+                label={<>{t.metricPii} <InfoTooltip text={t.metricPiiTip} /></>}
                 value={piiTokenized}
                 sparkData={sparkPii}
                 sparkColor={DECISION_COLORS.allow}
-                subtitle="Across 4 jurisdictions"
+                subtitle={t.acrossJur}
               />
               <MetricCard
-                label={<>Policy denials <InfoTooltip text="Requests denied by the policy engine. A denial protects against unauthorized usage." /></>}
+                label={<>{t.metricDenials} <InfoTooltip text={t.metricDenialsTip} /></>}
                 value={denials}
                 sparkData={sparkDenials}
                 sparkColor={DECISION_COLORS.deny}
-                subtitle={<span className="text-danger">-6.7% vs yesterday</span>}
+                subtitle={<span className="text-danger">{t.vsYesterdayDown}</span>}
               />
               <MetricCard
-                label={<>Active agents <InfoTooltip text="Number of AI agents registered and authorized to send requests through the gateway." /></>}
+                label={<>{t.metricAgents} <InfoTooltip text={t.metricAgentsTip} /></>}
                 value={agentCount.toString()}
                 sparkData={sparkAgents}
                 sparkColor={PETROL}
@@ -869,7 +1046,7 @@ export default function Dashboard() {
       {/* Section 04: Compliance */}
       <div>
         <div className="flex items-center gap-3 mb-4">
-          <div className="text-sm font-body font-medium text-foreground">Compliance status <InfoTooltip text="Compliance score per jurisdiction based on local regulations (GDPR, Loi 09-08, PDPL, etc.)." /></div>
+          <div className="text-sm font-body font-medium text-foreground">{t.complianceStatus} <InfoTooltip text={t.complianceTip} /></div>
         </div>
         <ComplianceBar jurisdictions={jurisdictions} loading={loading} />
       </div>

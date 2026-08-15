@@ -14,15 +14,227 @@ import {
 import InfoTooltip from '@/components/InfoTooltip';
 import { useLocalAudit, pushInjectedEvent, setReviewStatus } from '@/lib/local-audit';
 import { PETROL, PETROL_SERIES, DECISION_COLORS } from '@/lib/chart-colors';
+import { useLang, type Lang } from '@/lib/i18n';
 import { X } from 'lucide-react';
 
+const T: Record<Lang, Record<string, string>> = {
+  en: {
+    agoS: '{n}s ago',
+    agoM: '{n}m ago',
+    agoH: '{n}h ago',
+    agoD: '{n}d ago',
+    explainerQ: 'How does the audit chain work?',
+    explainerBody: 'Every event carries the SHA-256 fingerprint of the previous one and is cryptographically signed (Ed25519). Alter a single event and the chain breaks; BAWABA detects it immediately.',
+    modified: 'modified',
+    alteredTip: 'payload altered — recomputed hash {h}',
+    byDecision: 'By decision',
+    byDecisionTip: 'Event distribution by policy decision type.',
+    byJurisdiction: 'By jurisdiction',
+    byAgent: 'By agent',
+    latencyShape: 'Simulated latency shape (7d)',
+    latencyShapeTip: 'Illustrative trend used only in the demonstration environment. Live event latency is shown in the audit table.',
+    offlineBanner: 'API unreachable — showing local demonstration data. Server-side integrity verification is unavailable.',
+    errorBanner: 'Failed to load events from the API. No data is shown rather than fabricated events. Retry once the backend is reachable.',
+    auditExplorer: 'Audit Explorer',
+    countLine: '{n} persisted events · Tamper-evident chain',
+    localCount: ' · {n} local/simulated (separate)',
+    exporting: 'Exporting...',
+    exportSiem: 'Export to SIEM',
+    exportSiemTip: 'Generates a verifiable evidence.json bundle — transmittable to Risk/Audit/Compliance.',
+    generateReport: 'Generate Report',
+    generateReportTip: 'Downloads a real evidence.json bundle of the shown events with their hashes and signatures.',
+    hashChain: 'Hash Chain',
+    hashChainTip: 'Each event includes the SHA-256 hash of the previous event. Any modification breaks the chain — detectable by VerifyChain().',
+    tamperEvident: 'Tamper-evident audit trail',
+    verifyTitleNoApi: 'Server verification requires a reachable API',
+    verifyTitleTamper: 'Restore the tamper simulation before running the real check',
+    verifying: 'Verifying...',
+    verifyIntegrity: 'Verify integrity',
+    verifyNoteA: 'Verify integrity calls the live server endpoint ',
+    verifyNoteB: ' and covers only persisted events.',
+    verifyNoteOffline: ' The API is not reachable, so it is disabled.',
+    verifyUnavailable: 'Server verification unavailable — the API is not reachable.',
+    verifyFailed: 'Verification request failed',
+    chainVerified: 'Server chain verified — {n} persisted events, 0 tampering',
+    chainFailed: 'Server chain check failed at event #{n}',
+    noEventsVerify: 'No persisted events to verify.',
+    scopeLine: 'scope: {n} persisted events',
+    localOutside: '{n} local/simulated row{s} are shown separately and are outside the verified server chain.',
+    tamperTitle: 'Tamper simulation · local',
+    tamperDesc: 'Local-only demonstration. Does not call the server or change persisted data.',
+    selectBlock: 'Select a block…',
+    simulateTamper: 'Simulate tampering',
+    restore: 'Restore',
+    tamperHint: 'Click any event block above to alter its payload; the check runs locally.',
+    tamperMsg: 'Chain broken at #{n}: event hash mismatch',
+    localCheck: 'local check',
+    filterAll: 'All',
+    filterNeedsReview: 'needs review',
+    rowHint: 'Click a row to see the full cryptographic proof and JSON payload',
+    hTime: 'Time',
+    hAgent: 'Agent',
+    hTool: 'Tool',
+    hResult: 'Result',
+    hPii: 'PII',
+    hLat: 'Lat.',
+    hHash: 'Hash',
+    badgeReviewedRow: 'reviewed',
+    badgeEscalatedRow: 'escalated',
+    loading: 'Loading...',
+    loadMore: 'Load more',
+    localSection: 'Local & simulated events',
+    localSectionDesc: 'Generated in this browser session (agent registration, offline review, simulated requests). Not part of the persisted chain and excluded from server verification.',
+    pillSimulated: 'Simulated',
+    pillLocal: 'Local demo',
+    eventTitle: 'Event #{id}',
+    badgeEscalated: 'Escalated',
+    badgeReviewed: 'Reviewed',
+    revDecA: 'Human review decision: ',
+    revDecB: ' by ',
+    revRefA: 'References original event ',
+    revRefB: '. This is a new, chained, signed event — the original was not modified.',
+    reviewHeader: 'Review',
+    reviewHeaderTip: 'Records an append-only review decision as a new signed event chained after this one. The original event is never modified or deleted.',
+    acknowledge: 'Acknowledge',
+    escalate: 'Escalate',
+    alreadyReviewed: 'This event has already been reviewed. Exactly one review decision is allowed per event; the decision is a separate immutable event.',
+    revNoteApiA: 'The decision is persisted by the backend as a new signed ',
+    revNoteApiB: " event chained into the server audit trail, referencing this event's id. One decision per event; the original event is immutable.",
+    revNoteLocalA: 'API unreachable — the decision is recorded as a ',
+    revNoteLocalB: ' event shown separately, outside the verified server chain. One decision per event; the original event is immutable.',
+    introExplainer: 'Each event is chained to the previous one by its SHA-256 hash and individually signed (Ed25519). Any modification of a single field invalidates the chain — making tampering detectable.',
+    eventHash: 'Event hash',
+    eventHashNote: "SHA-256 of this event's canonical payload. Serves as an anchor for chaining.",
+    prevHashHdr: 'Previous hash',
+    prevHashNote: 'Fingerprint of event N-1. Guarantees the order and integrity of the sequence.',
+    sigHeader: 'Ed25519 Signature',
+    sigVerified: 'Verified by server-side chain check ✓',
+    sigPersisted: 'Signature persisted · run Verify integrity',
+    sigNote: 'The gateway signs each event. The current console validates signatures through the server-side chain check; independent offline verification remains a current-sprint deliverable.',
+    hdrAgent: 'Agent',
+    hdrTool: 'Tool',
+    hdrDecision: 'Decision',
+    allowed: '✓ Allowed',
+    denied: '✗ Denied',
+    rateLimited: '⚠ Rate-limited',
+    piiDetected: 'PII detected',
+    latency: 'Latency',
+    fullPayload: 'Full payload',
+    fullPayloadNote: 'This is the console projection of the persisted audit event. The server can generate an evidence bundle; independent offline verification remains a current-sprint deliverable.',
+  },
+  fr: {
+    agoS: 'il y a {n} s',
+    agoM: 'il y a {n} min',
+    agoH: 'il y a {n} h',
+    agoD: 'il y a {n} j',
+    explainerQ: 'Comment fonctionne la chaîne d’audit ?',
+    explainerBody: 'Chaque événement porte l’empreinte SHA-256 du précédent et est signé cryptographiquement (Ed25519). Altérez un seul événement et la chaîne se rompt ; BAWABA le détecte immédiatement.',
+    modified: 'modifié',
+    alteredTip: 'charge utile altérée — hachage recalculé {h}',
+    byDecision: 'Par décision',
+    byDecisionTip: 'Répartition des événements par type de décision de politique.',
+    byJurisdiction: 'Par juridiction',
+    byAgent: 'Par agent',
+    latencyShape: 'Forme de latence simulée (7 j)',
+    latencyShapeTip: 'Tendance illustrative utilisée uniquement dans l’environnement de démonstration. La latence des événements réels est affichée dans la table d’audit.',
+    offlineBanner: 'API injoignable — affichage de données de démonstration locales. La vérification d’intégrité côté serveur est indisponible.',
+    errorBanner: 'Échec du chargement des événements depuis l’API. Aucune donnée n’est affichée plutôt que des événements fabriqués. Réessayez une fois le backend joignable.',
+    auditExplorer: 'Explorateur d’audit',
+    countLine: '{n} événements persistés · Chaîne à preuve d’altération',
+    localCount: ' · {n} locaux/simulés (séparés)',
+    exporting: 'Export en cours…',
+    exportSiem: 'Exporter vers SIEM',
+    exportSiemTip: 'Génère un bundle evidence.json vérifiable — transmissible à Risque/Audit/Conformité.',
+    generateReport: 'Générer le rapport',
+    generateReportTip: 'Télécharge un bundle evidence.json réel des événements affichés, avec leurs hachages et signatures.',
+    hashChain: 'Chaîne de hachage',
+    hashChainTip: 'Chaque événement inclut le hachage SHA-256 de l’événement précédent. Toute modification rompt la chaîne — détectable par VerifyChain().',
+    tamperEvident: 'Piste d’audit à preuve d’altération',
+    verifyTitleNoApi: 'La vérification côté serveur nécessite une API joignable',
+    verifyTitleTamper: 'Restaurez la simulation d’altération avant d’exécuter la vérification réelle',
+    verifying: 'Vérification…',
+    verifyIntegrity: 'Vérifier l’intégrité',
+    verifyNoteA: 'Vérifier l’intégrité appelle le point de terminaison serveur réel ',
+    verifyNoteB: ' et ne couvre que les événements persistés.',
+    verifyNoteOffline: ' L’API n’est pas joignable ; il est donc désactivé.',
+    verifyUnavailable: 'Vérification serveur indisponible — l’API n’est pas joignable.',
+    verifyFailed: 'La requête de vérification a échoué',
+    chainVerified: 'Chaîne serveur vérifiée — {n} événements persistés, 0 altération',
+    chainFailed: 'Échec de la vérification de la chaîne serveur à l’événement #{n}',
+    noEventsVerify: 'Aucun événement persisté à vérifier.',
+    scopeLine: 'périmètre : {n} événements persistés',
+    localOutside: '{n} ligne{s} locale{s}/simulée{s} affichée{s} séparément, hors de la chaîne serveur vérifiée.',
+    tamperTitle: 'Simulation d’altération · locale',
+    tamperDesc: 'Démonstration purement locale. N’appelle pas le serveur et ne modifie pas les données persistées.',
+    selectBlock: 'Sélectionnez un bloc…',
+    simulateTamper: 'Simuler une altération',
+    restore: 'Restaurer',
+    tamperHint: 'Cliquez sur un bloc d’événement ci-dessus pour altérer sa charge utile ; la vérification s’exécute localement.',
+    tamperMsg: 'Chaîne rompue au #{n} : hachage d’événement non concordant',
+    localCheck: 'vérification locale',
+    filterAll: 'Tous',
+    filterNeedsReview: 'à examiner',
+    rowHint: 'Cliquez sur une ligne pour voir la preuve cryptographique complète et la charge JSON',
+    hTime: 'Heure',
+    hAgent: 'Agent',
+    hTool: 'Outil',
+    hResult: 'Résultat',
+    hPii: 'PII',
+    hLat: 'Lat.',
+    hHash: 'Hachage',
+    badgeReviewedRow: 'examiné',
+    badgeEscalatedRow: 'escaladé',
+    loading: 'Chargement…',
+    loadMore: 'Charger plus',
+    localSection: 'Événements locaux et simulés',
+    localSectionDesc: 'Générés dans cette session de navigateur (enregistrement d’agent, revue hors ligne, requêtes simulées). Hors de la chaîne persistée et exclus de la vérification serveur.',
+    pillSimulated: 'Simulé',
+    pillLocal: 'Démo locale',
+    eventTitle: 'Événement #{id}',
+    badgeEscalated: 'Escaladé',
+    badgeReviewed: 'Examiné',
+    revDecA: 'Décision de revue humaine : ',
+    revDecB: ' par ',
+    revRefA: 'Référence l’événement d’origine ',
+    revRefB: '. Il s’agit d’un nouvel événement chaîné et signé — l’original n’a pas été modifié.',
+    reviewHeader: 'Revue',
+    reviewHeaderTip: 'Enregistre une décision de revue append-only sous forme de nouvel événement signé, chaîné après celui-ci. L’événement d’origine n’est jamais modifié ni supprimé.',
+    acknowledge: 'Acquitter',
+    escalate: 'Escalader',
+    alreadyReviewed: 'Cet événement a déjà été examiné. Une seule décision de revue est autorisée par événement ; la décision est un événement immuable distinct.',
+    revNoteApiA: 'La décision est persistée par le backend sous forme de nouvel événement signé ',
+    revNoteApiB: ' chaîné dans la piste d’audit serveur et référençant l’identifiant de cet événement. Une décision par événement ; l’événement d’origine est immuable.',
+    revNoteLocalA: 'API injoignable — la décision est enregistrée comme événement ',
+    revNoteLocalB: ' affiché séparément, hors de la chaîne serveur vérifiée. Une décision par événement ; l’événement d’origine est immuable.',
+    introExplainer: 'Chaque événement est chaîné au précédent par son hachage SHA-256 et signé individuellement (Ed25519). Toute modification d’un seul champ invalide la chaîne — rendant l’altération détectable.',
+    eventHash: 'Hachage de l’événement',
+    eventHashNote: 'SHA-256 de la charge canonique de cet événement. Sert d’ancre pour le chaînage.',
+    prevHashHdr: 'Hachage précédent',
+    prevHashNote: 'Empreinte de l’événement N-1. Garantit l’ordre et l’intégrité de la séquence.',
+    sigHeader: 'Signature Ed25519',
+    sigVerified: 'Vérifiée par la vérification de chaîne côté serveur ✓',
+    sigPersisted: 'Signature persistée · lancez Vérifier l’intégrité',
+    sigNote: 'La passerelle signe chaque événement. La console actuelle valide les signatures via la vérification de chaîne côté serveur ; la vérification hors ligne indépendante reste un livrable du sprint en cours.',
+    hdrAgent: 'Agent',
+    hdrTool: 'Outil',
+    hdrDecision: 'Décision',
+    allowed: '✓ Autorisé',
+    denied: '✗ Refusé',
+    rateLimited: '⚠ Limité en débit',
+    piiDetected: 'PII détectées',
+    latency: 'Latence',
+    fullPayload: 'Charge utile complète',
+    fullPayloadNote: 'Ceci est la projection console de l’événement d’audit persisté. Le serveur peut générer un bundle de preuves ; la vérification hors ligne indépendante reste un livrable du sprint en cours.',
+  },
+};
+
 /* ── Time-ago helper ────────────────────────────── */
-function timeAgo(date: Date): string {
+function timeAgo(date: Date, t: Record<string, string>): string {
   const seconds = Math.floor((Date.now() - date.getTime()) / 1000);
-  if (seconds < 60) return `${seconds}s ago`;
-  if (seconds < 3600) return `${Math.floor(seconds / 60)}m ago`;
-  if (seconds < 86400) return `${Math.floor(seconds / 3600)}h ago`;
-  return `${Math.floor(seconds / 86400)}d ago`;
+  if (seconds < 60) return t.agoS.replace('{n}', String(seconds));
+  if (seconds < 3600) return t.agoM.replace('{n}', String(Math.floor(seconds / 60)));
+  if (seconds < 86400) return t.agoH.replace('{n}', String(Math.floor(seconds / 3600)));
+  return t.agoD.replace('{n}', String(Math.floor(seconds / 86400)));
 }
 
 /** Map an API event to the MCPEvent shape used by the UI. */
@@ -74,6 +286,7 @@ function evidenceSignature(hash: string): string {
 
 /* ── Collapsible Explainer Panel ─────────────────── */
 function ExplainerPanel() {
+  const t = T[useLang()];
   const [open, setOpen] = useState(true);
 
   return (
@@ -87,7 +300,7 @@ function ExplainerPanel() {
           <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
         </svg>
         <span className="text-xs font-body font-medium text-foreground flex-1">
-          How does the audit chain work?
+          {t.explainerQ}
         </span>
         <svg
           width="14" height="14" viewBox="0 0 24 24" fill="none"
@@ -101,7 +314,7 @@ function ExplainerPanel() {
       {open && (
         <div className="px-5 pb-4 pt-0">
           <p className="text-xs font-body text-muted-foreground leading-relaxed">
-            Every event carries the SHA-256 fingerprint of the previous one and is cryptographically signed (Ed25519). Alter a single event and the chain breaks; BAWABA detects it immediately.
+            {t.explainerBody}
           </p>
         </div>
       )}
@@ -127,6 +340,7 @@ function HashChainViz({
   armed?: boolean;
   onBlockClick?: (i: number) => void;
 }) {
+  const t = T[useLang()];
   const chain = events.slice(0, 8);
 
   return (
@@ -154,7 +368,7 @@ function HashChainViz({
             >
               <div className="text-[9px] text-muted-foreground mb-1 font-body flex items-center justify-between">
                 <span>#{i + 1}</span>
-                {tampered && <span className="text-[8px] font-mono text-danger uppercase tracking-wide">modified</span>}
+                {tampered && <span className="text-[8px] font-mono text-danger uppercase tracking-wide">{t.modified}</span>}
               </div>
 
               {/* Hash with tooltip */}
@@ -165,7 +379,7 @@ function HashChainViz({
                   </div>
                 </TooltipTrigger>
                 <TooltipContent side="top" className="font-mono text-[10px] max-w-[260px] break-all">
-                  {tampered ? `payload altered — recomputed hash ${shownHash}` : evt.hash}
+                  {tampered ? t.alteredTip.replace('{h}', shownHash) : evt.hash}
                 </TooltipContent>
               </Tooltip>
 
@@ -210,6 +424,7 @@ function HashChainViz({
 
 /* ── Audit Stats Sidebar ────────────────────────── */
 function AuditStats({ events }: { events: MCPEvent[] }) {
+  const t = T[useLang()];
   const byDecision = useMemo(() => {
     const counts: Record<string, number> = { allow: 0, deny: 0, 'rate-limited': 0 };
     events.forEach(e => { counts[e.decision] = (counts[e.decision] || 0) + 1; });
@@ -241,7 +456,7 @@ function AuditStats({ events }: { events: MCPEvent[] }) {
     <div className="space-y-5">
       {/* By Decision */}
       <div className="card-surface shadow-card p-4">
-        <div className="table-header mb-3">By decision <InfoTooltip text="Event distribution by policy decision type." /></div>
+        <div className="table-header mb-3">{t.byDecision} <InfoTooltip text={t.byDecisionTip} /></div>
         <div className="h-28">
           <ResponsiveContainer width="100%" height="100%">
             <PieChart>
@@ -264,7 +479,7 @@ function AuditStats({ events }: { events: MCPEvent[] }) {
 
       {/* By Jurisdiction */}
       <div className="card-surface shadow-card p-4">
-        <div className="table-header mb-3">By jurisdiction</div>
+        <div className="table-header mb-3">{t.byJurisdiction}</div>
         <div className="h-28">
           <ResponsiveContainer width="100%" height="100%">
             <BarChart data={byJurisdiction} margin={{ top: 0, right: 0, left: -20, bottom: 0 }}>
@@ -278,7 +493,7 @@ function AuditStats({ events }: { events: MCPEvent[] }) {
 
       {/* By Agent */}
       <div className="card-surface shadow-card p-4">
-        <div className="table-header mb-3">By agent</div>
+        <div className="table-header mb-3">{t.byAgent}</div>
         <div className="h-28">
           <ResponsiveContainer width="100%" height="100%">
             <BarChart data={byAgent} layout="vertical" margin={{ top: 0, right: 0, left: 0, bottom: 0 }}>
@@ -294,7 +509,7 @@ function AuditStats({ events }: { events: MCPEvent[] }) {
 
       {/* Latency Trend */}
       <div className="card-surface shadow-card p-4">
-        <div className="table-header mb-3">Simulated latency shape (7d) <InfoTooltip text="Illustrative trend used only in the demonstration environment. Live event latency is shown in the audit table." /></div>
+        <div className="table-header mb-3">{t.latencyShape} <InfoTooltip text={t.latencyShapeTip} /></div>
         <div className="h-20">
           <ResponsiveContainer width="100%" height="100%">
             <LineChart data={latencyTrend} margin={{ top: 0, right: 0, left: -20, bottom: 0 }}>
@@ -330,6 +545,7 @@ function TableSkeleton() {
 
 /* ── Audit Trail Page ───────────────────────────── */
 export default function AuditTrail() {
+  const t = T[useLang()];
   const [events, setEvents] = useState<MCPEvent[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedEvent, setSelectedEvent] = useState<MCPEvent | null>(null);
@@ -518,7 +734,7 @@ export default function AuditTrail() {
     // reachable API there is nothing authoritative to verify.
     if (!apiAvailable) {
       setVerification(null);
-      setVerifyMessage('Server verification unavailable — the API is not reachable.');
+      setVerifyMessage(t.verifyUnavailable);
       return;
     }
 
@@ -531,7 +747,7 @@ export default function AuditTrail() {
     try {
       result = await verifyChain();
     } catch {
-      result = { valid: false, events: 0, verified_at: new Date().toISOString(), error: 'Verification request failed' };
+      result = { valid: false, events: 0, verified_at: new Date().toISOString(), error: t.verifyFailed };
     }
 
     setVerification(result);
@@ -562,9 +778,9 @@ export default function AuditTrail() {
         // After the last animated block, show the result message
         if (i === stopAt) {
           if (corruptAt === -1) {
-            setVerifyMessage(`Server chain verified — ${result.events} persisted events, 0 tampering`);
+            setVerifyMessage(t.chainVerified.replace('{n}', String(result.events)));
           } else {
-            setVerifyMessage(`Server chain check failed at event #${corruptAt + 1}`);
+            setVerifyMessage(t.chainFailed.replace('{n}', String(corruptAt + 1)));
           }
           setVerifying(false);
         }
@@ -575,9 +791,9 @@ export default function AuditTrail() {
     // Safety: ensure verifying is reset even if no events
     if (count === 0) {
       setVerifying(false);
-      setVerifyMessage('No persisted events to verify.');
+      setVerifyMessage(t.noEventsVerify);
     }
-  }, [apiAvailable, events]);
+  }, [apiAvailable, events, t]);
 
   // ── Tamper simulation · local (separate from Verify integrity) ──────────────
   // Arm selection, tamper a chosen chain block, run a purely local check, restore.
@@ -591,8 +807,8 @@ export default function AuditTrail() {
       idx < i ? 'verified' : idx === i ? 'corrupt' : 'idle',
     );
     setTamperStatuses(statuses);
-    setTamperMessage(`Chain broken at #${i + 1}: event hash mismatch`);
-  }, [tamperArmed, events]);
+    setTamperMessage(t.tamperMsg.replace('{n}', String(i + 1)));
+  }, [tamperArmed, events, t]);
 
   const handleRestore = useCallback(() => {
     setTamperedIndex(null);
@@ -673,12 +889,12 @@ export default function AuditTrail() {
       {/* API status — explicit, never a silent fallback */}
       {apiStatus === 'offline' && (
         <div className="text-[11px] font-body rounded-sm p-2 border bg-warn-bg border-warn/20 text-warn">
-          API unreachable — showing local demonstration data. Server-side integrity verification is unavailable.
+          {t.offlineBanner}
         </div>
       )}
       {apiStatus === 'error' && (
         <div className="text-[11px] font-body rounded-sm p-2 border bg-danger-bg border-danger/20 text-danger">
-          Failed to load events from the API. No data is shown rather than fabricated events. Retry once the backend is reachable.
+          {t.errorBanner}
         </div>
       )}
 
@@ -686,10 +902,10 @@ export default function AuditTrail() {
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
           <div>
-            <div className="text-sm font-body font-medium text-foreground">Audit Explorer</div>
+            <div className="text-sm font-body font-medium text-foreground">{t.auditExplorer}</div>
             <div className="text-xs text-muted-foreground">
-              {events.length} persisted events · Tamper-evident chain
-              {localEvents.length > 0 && <span className="text-ink-3"> · {localEvents.length} local/simulated (separate)</span>}
+              {t.countLine.replace('{n}', String(events.length))}
+              {localEvents.length > 0 && <span className="text-ink-3">{t.localCount.replace('{n}', String(localEvents.length))}</span>}
             </div>
           </div>
         </div>
@@ -699,15 +915,15 @@ export default function AuditTrail() {
             disabled={exporting}
             className="text-xs font-body px-3 py-1.5 border border-border rounded-sm text-muted-foreground hover:text-foreground transition-colors disabled:opacity-50 inline-flex items-center"
           >
-            {exporting ? 'Exporting...' : 'Export to SIEM'}
-            <InfoTooltip text="Generates a verifiable evidence.json bundle — transmittable to Risk/Audit/Compliance." />
+            {exporting ? t.exporting : t.exportSiem}
+            <InfoTooltip text={t.exportSiemTip} />
           </button>
           <button
             onClick={handleGenerateReport}
             className="text-xs font-body px-3 py-1.5 border border-border rounded-sm text-muted-foreground hover:text-foreground transition-colors inline-flex items-center"
           >
-            Generate Report
-            <InfoTooltip text="Downloads a real evidence.json bundle of the shown events with their hashes and signatures." />
+            {t.generateReport}
+            <InfoTooltip text={t.generateReportTip} />
           </button>
         </div>
       </div>
@@ -716,17 +932,17 @@ export default function AuditTrail() {
       <div className="card-surface shadow-card p-5">
         <div className="flex items-center justify-between mb-4">
           <div>
-            <div className="text-sm font-body font-medium text-foreground">Hash Chain <InfoTooltip text="Each event includes the SHA-256 hash of the previous event. Any modification breaks the chain — detectable by VerifyChain()." /></div>
-            <div className="text-xs text-muted-foreground">Tamper-evident audit trail</div>
+            <div className="text-sm font-body font-medium text-foreground">{t.hashChain} <InfoTooltip text={t.hashChainTip} /></div>
+            <div className="text-xs text-muted-foreground">{t.tamperEvident}</div>
           </div>
           <button
             onClick={handleVerify}
             disabled={verifying || tamperedIndex !== null || !apiAvailable}
             title={
               !apiAvailable
-                ? 'Server verification requires a reachable API'
+                ? t.verifyTitleNoApi
                 : tamperedIndex !== null
-                  ? 'Restore the tamper simulation before running the real check'
+                  ? t.verifyTitleTamper
                   : undefined
             }
             className="text-xs font-body px-4 py-2 bg-safe-bg border border-safe/10 text-safe rounded-sm hover:opacity-90 transition-opacity disabled:opacity-50 flex items-center gap-2"
@@ -735,12 +951,12 @@ export default function AuditTrail() {
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="shrink-0">
               <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
             </svg>
-            {verifying ? 'Verifying...' : 'Verify integrity'}
+            {verifying ? t.verifying : t.verifyIntegrity}
           </button>
         </div>
         <div className="text-[10px] text-muted-foreground font-body mb-3">
-          Verify integrity calls the live server endpoint <span className="font-mono">/api/v1/events/verify</span> and covers only persisted events.
-          {!apiAvailable && ' The API is not reachable, so it is disabled.'}
+          {t.verifyNoteA}<span className="font-mono">/api/v1/events/verify</span>{t.verifyNoteB}
+          {!apiAvailable && t.verifyNoteOffline}
         </div>
 
         <HashChainViz
@@ -764,13 +980,13 @@ export default function AuditTrail() {
               {verifyMessage}
             </span>
             <span className="text-[10px] text-muted-foreground font-mono ml-auto">
-              {verification ? `scope: ${verification.events} persisted events` : ''}
+              {verification ? t.scopeLine.replace('{n}', String(verification.events)) : ''}
             </span>
           </div>
         )}
         {verifyMessage && tamperedIndex === null && verification?.valid && localEvents.length > 0 && (
           <div className="mt-2 text-[10px] text-muted-foreground font-body">
-            {localEvents.length} local/simulated row{localEvents.length === 1 ? '' : 's'} are shown separately and are outside the verified server chain.
+            {t.localOutside.replace('{n}', String(localEvents.length)).replace(/\{s\}/g, localEvents.length === 1 ? '' : 's')}
           </div>
         )}
 
@@ -778,8 +994,8 @@ export default function AuditTrail() {
         <div className="mt-4 border border-border rounded-sm p-3 bg-secondary/10">
           <div className="flex items-center justify-between gap-3">
             <div>
-              <div className="text-[11px] font-mono text-muted-foreground">Tamper simulation · local</div>
-              <div className="text-[10px] text-muted-foreground font-body">Local-only demonstration. Does not call the server or change persisted data.</div>
+              <div className="text-[11px] font-mono text-muted-foreground">{t.tamperTitle}</div>
+              <div className="text-[10px] text-muted-foreground font-body">{t.tamperDesc}</div>
             </div>
             {tamperedIndex === null ? (
               <button
@@ -788,27 +1004,27 @@ export default function AuditTrail() {
                   tamperArmed ? 'border-danger/40 bg-danger-bg text-danger' : 'border-border text-muted-foreground hover:text-foreground'
                 }`}
               >
-                {tamperArmed ? 'Select a block…' : 'Simulate tampering'}
+                {tamperArmed ? t.selectBlock : t.simulateTamper}
               </button>
             ) : (
               <button
                 onClick={handleRestore}
                 className="text-xs font-body px-3 py-2 rounded-sm border border-border text-muted-foreground hover:text-foreground transition-colors shrink-0"
               >
-                Restore
+                {t.restore}
               </button>
             )}
           </div>
           {tamperArmed && (
             <div className="text-[10px] text-danger bg-danger-bg border border-danger/10 rounded p-2 mt-2">
-              Click any event block above to alter its payload; the check runs locally.
+              {t.tamperHint}
             </div>
           )}
           {tamperMessage && (
             <div className="mt-2 flex items-center gap-3 p-2 rounded-sm bg-danger-bg border border-danger/10">
               <span className="w-2 h-2 rounded-full bg-danger" />
               <span className="text-xs font-mono text-danger">{tamperMessage}</span>
-              <span className="text-[10px] text-muted-foreground font-mono ml-auto">local check</span>
+              <span className="text-[10px] text-muted-foreground font-mono ml-auto">{t.localCheck}</span>
             </div>
           )}
         </div>
@@ -827,7 +1043,7 @@ export default function AuditTrail() {
                   filterDecision === f ? 'border-primary bg-primary/5 text-foreground' : 'border-border text-muted-foreground hover:text-foreground'
                 } ${f === 'needs-review' ? 'inline-flex items-center gap-1.5' : ''}`}
               >
-                {f === 'all' ? 'All' : f === 'needs-review' ? 'needs review' : f}
+                {f === 'all' ? t.filterAll : f === 'needs-review' ? t.filterNeedsReview : f}
                 {f === 'needs-review' && needsReviewCount > 0 && (
                   <span className="text-[11px] font-data tabular-nums px-1.5 py-0.5 rounded-full bg-warn-bg text-warn border border-warn/20">{needsReviewCount}</span>
                 )}
@@ -836,12 +1052,12 @@ export default function AuditTrail() {
           </div>
 
           {/* Hint */}
-          <div className="text-[10px] text-muted-foreground font-body mb-2">Click a row to see the full cryptographic proof and JSON payload</div>
+          <div className="text-[10px] text-muted-foreground font-body mb-2">{t.rowHint}</div>
 
           {/* Table */}
           <div className="card-surface shadow-card overflow-hidden">
             <div className="grid grid-cols-[76px_96px_1fr_112px_44px_56px_92px] gap-2 px-5 py-2 border-b border-border">
-              {(['Time', 'Agent', 'Tool', 'Result', 'PII', 'Lat.', 'Hash'] as const).map(h => (
+              {([t.hTime, t.hAgent, t.hTool, t.hResult, t.hPii, t.hLat, t.hHash]).map(h => (
                 <span key={h} className="table-header">{h}</span>
               ))}
             </div>
@@ -860,7 +1076,7 @@ export default function AuditTrail() {
                           isReview ? 'bg-secondary/20' : evt.decision === 'deny' ? 'row-deny' : evt.decision === 'rate-limited' ? 'row-rate-limited' : ''
                         }`}
                       >
-                        <span className="text-muted-foreground">{timeAgo(evt.timestamp)}</span>
+                        <span className="text-muted-foreground">{timeAgo(evt.timestamp, t)}</span>
                         <span className="text-foreground truncate">{evt.agent}</span>
                         <span className="text-ink-2 truncate">{evt.tool}</span>
                         <span className="flex items-center gap-1.5 min-w-0">
@@ -870,7 +1086,7 @@ export default function AuditTrail() {
                             <span className={`pill ${evt.decision === 'allow' ? 'pill-allow' : evt.decision === 'deny' ? 'pill-deny' : 'pill-rate'}`}>{evt.decision}</span>
                           )}
                           {badge && (
-                            <span className={`micro-label ${badge === 'escalated' ? 'text-warn' : 'text-safe'}`} style={{ fontSize: '9px' }}>{badge}</span>
+                            <span className={`micro-label ${badge === 'escalated' ? 'text-warn' : 'text-safe'}`} style={{ fontSize: '9px' }}>{badge === 'escalated' ? t.badgeEscalatedRow : t.badgeReviewedRow}</span>
                           )}
                         </span>
                         <span className="text-muted-foreground">{evt.piiTokens}</span>
@@ -889,7 +1105,7 @@ export default function AuditTrail() {
                       disabled={loadingMore}
                       className="text-xs font-body px-4 py-1.5 border border-border rounded-sm text-muted-foreground hover:text-foreground transition-colors disabled:opacity-50"
                     >
-                      {loadingMore ? 'Loading...' : 'Load more'}
+                      {loadingMore ? t.loading : t.loadMore}
                     </button>
                   </div>
                 )}
@@ -907,9 +1123,9 @@ export default function AuditTrail() {
       {localEvents.length > 0 && (
         <div className="card-surface shadow-card overflow-hidden">
           <div className="px-5 py-3 border-b border-border bg-secondary/10">
-            <div className="text-sm font-body font-medium text-foreground">Local &amp; simulated events</div>
+            <div className="text-sm font-body font-medium text-foreground">{t.localSection}</div>
             <div className="text-[10px] text-muted-foreground font-body">
-              Generated in this browser session (agent registration, offline review, simulated requests). Not part of the persisted chain and excluded from server verification.
+              {t.localSectionDesc}
             </div>
           </div>
           <div className="max-h-[220px] overflow-y-auto zebra">
@@ -917,11 +1133,11 @@ export default function AuditTrail() {
               const simulated = (evt.details as { simulated?: boolean })?.simulated === true;
               return (
                 <div key={evt.id} className="data-row grid grid-cols-[80px_120px_1fr_110px] gap-2 px-5 py-2 text-sm font-data tabular-nums border-b border-border last:border-0 border-l-2 border-l-ink-4/40">
-                  <span className="text-muted-foreground">{timeAgo(evt.timestamp)}</span>
+                  <span className="text-muted-foreground">{timeAgo(evt.timestamp, t)}</span>
                   <span className="text-foreground truncate">{evt.agent}</span>
                   <span className="text-ink-2 truncate">{evt.eventType === 'review_decision' ? `${evt.reviewLabel} → ${evt.refEventId?.slice(0, 8)}` : evt.tool}</span>
                   <span className={`pill justify-self-end self-center ${simulated ? 'pill-neutral' : 'pill-rate'}`}>
-                    {simulated ? 'Simulated' : 'Local demo'}
+                    {simulated ? t.pillSimulated : t.pillLocal}
                   </span>
                 </div>
               );
@@ -937,8 +1153,8 @@ export default function AuditTrail() {
           <div className="fixed inset-y-0 right-0 w-[400px] bg-card border-l border-border z-50 overflow-y-auto shadow-card">
             <div className="flex items-center justify-between p-5 border-b border-border">
               <div>
-                <div className="text-lg font-heading text-foreground">Event #{selectedEvent.id.slice(0, 8)}</div>
-                <div className="text-xs text-muted-foreground font-mono">{timeAgo(selectedEvent.timestamp)}</div>
+                <div className="text-lg font-heading text-foreground">{t.eventTitle.replace('{id}', selectedEvent.id.slice(0, 8))}</div>
+                <div className="text-xs text-muted-foreground font-mono">{timeAgo(selectedEvent.timestamp, t)}</div>
               </div>
               <button onClick={() => setSelectedEvent(null)} className="text-muted-foreground hover:text-foreground transition-colors">
                 <X className="h-4 w-4" strokeWidth={1.5} />
@@ -953,15 +1169,15 @@ export default function AuditTrail() {
                     : 'bg-safe-bg text-safe border-safe/20'
                 }`}>
                   <span className="w-1.5 h-1.5 rounded-full bg-current" />
-                  {reviewStatusMap[selectedEvent.id] === 'escalated' ? 'Escalated' : 'Reviewed'}
+                  {reviewStatusMap[selectedEvent.id] === 'escalated' ? t.badgeEscalated : t.badgeReviewed}
                 </div>
               )}
 
               {/* Review decision detail (for review_decision events) */}
               {selectedEvent.eventType === 'review_decision' && (
                 <div className="text-[10px] text-muted-foreground bg-muted/40 rounded p-2 space-y-1">
-                  <div>Human review decision: <span className="font-mono text-foreground">{selectedEvent.reviewLabel}</span> by <span className="font-mono text-foreground">{selectedEvent.reviewer}</span>.</div>
-                  <div>References original event <span className="font-mono text-foreground">{selectedEvent.refEventId?.slice(0, 12)}</span>. This is a new, chained, signed event — the original was not modified.</div>
+                  <div>{t.revDecA}<span className="font-mono text-foreground">{selectedEvent.reviewLabel}</span>{t.revDecB}<span className="font-mono text-foreground">{selectedEvent.reviewer}</span>.</div>
+                  <div>{t.revRefA}<span className="font-mono text-foreground">{selectedEvent.refEventId?.slice(0, 12)}</span>{t.revRefB}</div>
                 </div>
               )}
 
@@ -970,107 +1186,107 @@ export default function AuditTrail() {
                 selectedEvent.eventType !== 'agent_registered' &&
                 (selectedEvent.decision === 'deny' || selectedEvent.decision === 'rate-limited' || selectedEvent.piiTokens > 0) && (
                   <div>
-                    <div className="table-header mb-2">Review<InfoTooltip text="Records an append-only review decision as a new signed event chained after this one. The original event is never modified or deleted." /></div>
+                    <div className="table-header mb-2">{t.reviewHeader}<InfoTooltip text={t.reviewHeaderTip} /></div>
                     <div className="flex gap-2">
                       <button
                         onClick={() => submitReview(selectedEvent, 'acknowledge')}
                         disabled={!!reviewStatusMap[selectedEvent.id]}
                         className="flex-1 text-xs font-body font-medium px-3 py-2 bg-safe-bg border border-safe/20 text-safe rounded-sm hover:opacity-90 transition-opacity disabled:opacity-40 disabled:cursor-not-allowed"
                       >
-                        Acknowledge
+                        {t.acknowledge}
                       </button>
                       <button
                         onClick={() => submitReview(selectedEvent, 'escalate')}
                         disabled={!!reviewStatusMap[selectedEvent.id]}
                         className="flex-1 text-xs font-body font-medium px-3 py-2 bg-warn-bg border border-warn/20 text-warn rounded-sm hover:opacity-90 transition-opacity disabled:opacity-40 disabled:cursor-not-allowed"
                       >
-                        Escalate
+                        {t.escalate}
                       </button>
                     </div>
                     <div className="text-[10px] text-muted-foreground bg-muted/40 rounded p-2 mt-1.5">
                       {reviewStatusMap[selectedEvent.id]
-                        ? 'This event has already been reviewed. Exactly one review decision is allowed per event; the decision is a separate immutable event.'
+                        ? t.alreadyReviewed
                         : apiAvailable
-                          ? <>The decision is persisted by the backend as a new signed <span className="font-mono">review_decision</span> event chained into the server audit trail, referencing this event's id. One decision per event; the original event is immutable.</>
-                          : <>API unreachable — the decision is recorded as a <span className="font-mono">Local demo</span> event shown separately, outside the verified server chain. One decision per event; the original event is immutable.</>}
+                          ? <>{t.revNoteApiA}<span className="font-mono">review_decision</span>{t.revNoteApiB}</>
+                          : <>{t.revNoteLocalA}<span className="font-mono">{t.pillLocal}</span>{t.revNoteLocalB}</>}
                     </div>
                   </div>
                 )}
 
               {/* Intro explainer */}
               <div className="text-[10px] text-muted-foreground bg-muted/40 rounded p-2">
-                Each event is chained to the previous one by its SHA-256 hash and individually signed (Ed25519). Any modification of a single field invalidates the chain — making tampering detectable.
+                {t.introExplainer}
               </div>
 
               {/* Event hash */}
               <div>
-                <div className="table-header mb-1">Event hash</div>
+                <div className="table-header mb-1">{t.eventHash}</div>
                 <div className="font-mono text-xs text-foreground break-all bg-secondary/20 rounded-sm p-2">{selectedEvent.hash}</div>
                 <div className="text-[10px] text-muted-foreground bg-muted/40 rounded p-2 mt-1.5">
-                  SHA-256 of this event's canonical payload. Serves as an anchor for chaining.
+                  {t.eventHashNote}
                 </div>
               </div>
 
               {/* Previous hash */}
               <div>
-                <div className="table-header mb-1">Previous hash</div>
+                <div className="table-header mb-1">{t.prevHashHdr}</div>
                 <div className="font-mono text-xs text-foreground break-all bg-secondary/20 rounded-sm p-2">{selectedEvent.prevHash}</div>
                 <div className="text-[10px] text-muted-foreground bg-muted/40 rounded p-2 mt-1.5">
-                  Fingerprint of event N-1. Guarantees the order and integrity of the sequence.
+                  {t.prevHashNote}
                 </div>
               </div>
 
               {/* Signature Ed25519 */}
               <div>
-                <div className="table-header mb-1">Ed25519 Signature</div>
+                <div className="table-header mb-1">{t.sigHeader}</div>
                 <div className={`text-xs font-mono ${verification?.valid ? 'text-safe' : 'text-muted-foreground'}`}>
-                  {verification?.valid ? 'Verified by server-side chain check ✓' : 'Signature persisted · run Verify integrity'}
+                  {verification?.valid ? t.sigVerified : t.sigPersisted}
                 </div>
                 <div className="text-[10px] text-muted-foreground bg-muted/40 rounded p-2 mt-1.5">
-                  The gateway signs each event. The current console validates signatures through the server-side chain check; independent offline verification remains a current-sprint deliverable.
+                  {t.sigNote}
                 </div>
               </div>
 
               {/* Agent */}
               <div>
-                <div className="table-header mb-1">Agent</div>
+                <div className="table-header mb-1">{t.hdrAgent}</div>
                 <div className="text-xs font-mono text-foreground">{selectedEvent.agent}</div>
               </div>
 
               {/* Tool */}
               <div>
-                <div className="table-header mb-1">Tool</div>
+                <div className="table-header mb-1">{t.hdrTool}</div>
                 <div className="text-xs font-mono text-foreground">{selectedEvent.tool}</div>
               </div>
 
               {/* Decision */}
               <div>
-                <div className="table-header mb-1">Decision</div>
+                <div className="table-header mb-1">{t.hdrDecision}</div>
                 <span className={`pill ${
                   selectedEvent.decision === 'allow' ? 'pill-allow' : selectedEvent.decision === 'deny' ? 'pill-deny' : 'pill-rate'
                 }`}>
-                  {selectedEvent.decision === 'allow' ? '✓ Allowed' : selectedEvent.decision === 'deny' ? '✗ Denied' : '⚠ Rate-limited'}
+                  {selectedEvent.decision === 'allow' ? t.allowed : selectedEvent.decision === 'deny' ? t.denied : t.rateLimited}
                 </span>
               </div>
 
               {/* PII detected */}
               <div>
-                <div className="table-header mb-1">PII detected</div>
+                <div className="table-header mb-1">{t.piiDetected}</div>
                 <div className="text-xs font-mono text-foreground">{selectedEvent.piiTokens}</div>
               </div>
 
               {/* Latency */}
               <div>
-                <div className="table-header mb-1">Latency</div>
+                <div className="table-header mb-1">{t.latency}</div>
                 <div className="text-xs font-mono text-foreground">{selectedEvent.latency}ms</div>
               </div>
 
               {/* Full payload */}
               <div>
-                <div className="table-header mb-1">Full payload</div>
+                <div className="table-header mb-1">{t.fullPayload}</div>
                 <pre className="text-xs font-mono text-ink-2 whitespace-pre-wrap bg-secondary/20 rounded-sm p-2 overflow-x-auto">{JSON.stringify(selectedEvent.details, null, 2)}</pre>
                 <div className="text-[10px] text-muted-foreground bg-muted/40 rounded p-2 mt-1.5">
-                  This is the console projection of the persisted audit event. The server can generate an evidence bundle; independent offline verification remains a current-sprint deliverable.
+                  {t.fullPayloadNote}
                 </div>
               </div>
             </div>

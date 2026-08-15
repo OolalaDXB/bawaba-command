@@ -9,14 +9,172 @@ import {
   isApiAvailable, fetchAgents, fetchAgentActivity,
   type AgentInfo, type AgentActivityEntry,
 } from '@/services/api';
+import { useLang, type Lang } from '@/lib/i18n';
+
+const T: Record<Lang, Record<string, string>> = {
+  en: {
+    agoS: '{n}s ago',
+    agoM: '{n}m ago',
+    agoH: '{n}h ago',
+    agoD: '{n}d ago',
+    identity: 'Identity',
+    identityTip: 'Agent identity and configuration information.',
+    identityNote: 'Each agent has a unique identity verified on every request. The auth method, PII mode, and rate limit are configured in bawaba.yaml.',
+    rowAuth: 'Auth method',
+    rowAuthTip: 'API key (bcrypt), Bearer (shared secret, pilot mode) or mTLS. OIDC/JWT planned P2.',
+    rowPii: 'PII mode',
+    rowRate: 'Rate limit',
+    rateVal: '{n} req/hr',
+    rowStatus: 'Status',
+    rowCreated: 'Created',
+    allowedTools: 'Allowed tools',
+    allowedToolsTip: 'MCP tools this agent is authorized to call through the gateway.',
+    allowedNote: 'Any call to a tool outside this list will be denied with a 403 code and logged in the audit trail.',
+    deniedTools: 'Denied tools',
+    deniedToolsTip: 'Tools explicitly denied for this agent. Any attempt is blocked and logged.',
+    activity30: 'Activity (30 days)',
+    activity30Tip: 'Daily call volume over the last 30 days.',
+    recentActivity: 'Recent activity',
+    statistics: 'Statistics',
+    statisticsTip: 'Usage counters: calls today, cumulative total, and policy violations.',
+    statToday: 'Today',
+    statTotal: 'Total',
+    statViolations: 'Violations',
+    titleCreated: 'Agent created',
+    titleAdd: 'Add agent',
+    subCreated: 'Registered in the local demo registry',
+    subAdd: 'Register a new agent (local demo)',
+    succ1: ' is now in the registry with status ',
+    succ2: ', and turns ',
+    succ3: ' once the first heartbeat lands. An ',
+    succ4: ' event was written to the audit chain.',
+    apiKey: 'API key',
+    apiKeyTip: 'Shown once. It is not stored in plaintext — only a bcrypt hash is kept server-side.',
+    copyWarn: 'Copy this key now — it is displayed only once and cannot be retrieved later.',
+    copyKey: 'Copy key',
+    done: 'Done',
+    agentName: 'Agent name',
+    namePlaceholder: 'e.g. claude-analytics',
+    keyNote1: 'A ',
+    keyNote2: ' key is generated on creation and shown only once.',
+    tools: 'Tools',
+    toolsTip: 'Click a tool to cycle Off -> Allow -> Deny. Allow builds the allowlist, Deny the denylist. Anything left Off is denied by default.',
+    piiNote: 'Tokenize is the only implemented mode. PII is replaced with UUID tokens held in a scoped vault.',
+    rateLimitLabel: 'Rate limit (req/h)',
+    allowedJur: 'Allowed jurisdictions',
+    errName: 'Agent name is required.',
+    createAgent: 'Create agent',
+    cancel: 'Cancel',
+    registry: 'Agent registry',
+    registryTip: 'List of AI agents registered with the gateway. Each agent has its own permissions and limits.',
+    agentsConnected: '{n} agents connected',
+    addAgentBtn: 'Add agent',
+    clickHint: 'Click an agent to see its full configuration, allowed tools, and activity history',
+    hAgent: 'Agent',
+    hAuth: 'Auth',
+    hAuthTip: 'Authentication method: API key (bcrypt), Bearer (shared secret, pilot mode) or mTLS. OIDC/JWT planned P2.',
+    hAllowed: 'Allowed tools',
+    hAllowedTip: 'Allowlist of MCP tools this agent can call. Any off-list call → 403.',
+    hDenied: 'Denied tools',
+    hPii: 'PII mode',
+    hPiiTip: 'PII handling strategy: tokenize (replace with UUID) or redact (remove).',
+    hRate: 'Rate limit',
+    hStatus: 'Status',
+    hStatusTip: 'Active = authorized to send requests. Inactive = blocked immediately at auth level.',
+    hLast: 'Last active',
+    perHr: '{n}/hr',
+    jur_ma: 'Morocco',
+    jur_sa: 'KSA',
+    jur_ae: 'UAE',
+    jur_fr: 'France',
+    jur_eu: 'EU',
+  },
+  fr: {
+    agoS: 'il y a {n} s',
+    agoM: 'il y a {n} min',
+    agoH: 'il y a {n} h',
+    agoD: 'il y a {n} j',
+    identity: 'Identité',
+    identityTip: 'Informations d’identité et de configuration de l’agent.',
+    identityNote: 'Chaque agent possède une identité unique vérifiée à chaque requête. La méthode d’authentification, le mode PII et la limite de débit sont configurés dans bawaba.yaml.',
+    rowAuth: 'Méthode d’auth',
+    rowAuthTip: 'Clé API (bcrypt), Bearer (secret partagé, mode pilote) ou mTLS. OIDC/JWT prévu en P2.',
+    rowPii: 'Mode PII',
+    rowRate: 'Limite de débit',
+    rateVal: '{n} req/h',
+    rowStatus: 'Statut',
+    rowCreated: 'Créé le',
+    allowedTools: 'Outils autorisés',
+    allowedToolsTip: 'Outils MCP que cet agent est autorisé à appeler via la passerelle.',
+    allowedNote: 'Tout appel à un outil hors de cette liste sera refusé avec un code 403 et journalisé dans la piste d’audit.',
+    deniedTools: 'Outils refusés',
+    deniedToolsTip: 'Outils explicitement refusés pour cet agent. Toute tentative est bloquée et journalisée.',
+    activity30: 'Activité (30 jours)',
+    activity30Tip: 'Volume d’appels quotidien sur les 30 derniers jours.',
+    recentActivity: 'Activité récente',
+    statistics: 'Statistiques',
+    statisticsTip: 'Compteurs d’usage : appels du jour, total cumulé et violations de politique.',
+    statToday: 'Aujourd’hui',
+    statTotal: 'Total',
+    statViolations: 'Violations',
+    titleCreated: 'Agent créé',
+    titleAdd: 'Ajouter un agent',
+    subCreated: 'Enregistré dans le registre local de démo',
+    subAdd: 'Enregistrer un nouvel agent (démo locale)',
+    succ1: ' figure désormais dans le registre avec le statut ',
+    succ2: ', et passe à ',
+    succ3: ' dès l’arrivée du premier heartbeat. Un événement ',
+    succ4: ' a été écrit dans la chaîne d’audit.',
+    apiKey: 'Clé API',
+    apiKeyTip: 'Affichée une seule fois. Elle n’est pas stockée en clair — seul un hachage bcrypt est conservé côté serveur.',
+    copyWarn: 'Copiez cette clé maintenant — elle n’est affichée qu’une seule fois et ne pourra pas être récupérée plus tard.',
+    copyKey: 'Copier la clé',
+    done: 'Terminé',
+    agentName: 'Nom de l’agent',
+    namePlaceholder: 'ex. claude-analytics',
+    keyNote1: 'Une clé ',
+    keyNote2: ' est générée à la création et affichée une seule fois.',
+    tools: 'Outils',
+    toolsTip: 'Cliquez sur un outil pour alterner Off -> Allow -> Deny. Allow construit la liste d’autorisation, Deny la liste de refus. Tout ce qui reste Off est refusé par défaut.',
+    piiNote: 'Tokenize est le seul mode implémenté. Les PII sont remplacées par des tokens UUID conservés dans un coffre à portée limitée.',
+    rateLimitLabel: 'Limite de débit (req/h)',
+    allowedJur: 'Juridictions autorisées',
+    errName: 'Le nom de l’agent est requis.',
+    createAgent: 'Créer l’agent',
+    cancel: 'Annuler',
+    registry: 'Registre des agents',
+    registryTip: 'Liste des agents IA enregistrés auprès de la passerelle. Chaque agent a ses propres permissions et limites.',
+    agentsConnected: '{n} agents connectés',
+    addAgentBtn: 'Ajouter un agent',
+    clickHint: 'Cliquez sur un agent pour voir sa configuration complète, ses outils autorisés et son historique d’activité',
+    hAgent: 'Agent',
+    hAuth: 'Auth',
+    hAuthTip: 'Méthode d’authentification : clé API (bcrypt), Bearer (secret partagé, mode pilote) ou mTLS. OIDC/JWT prévu en P2.',
+    hAllowed: 'Outils autorisés',
+    hAllowedTip: 'Liste d’autorisation des outils MCP que cet agent peut appeler. Tout appel hors liste → 403.',
+    hDenied: 'Outils refusés',
+    hPii: 'Mode PII',
+    hPiiTip: 'Stratégie de traitement des PII : tokenize (remplacement par UUID) ou redact (suppression).',
+    hRate: 'Limite de débit',
+    hStatus: 'Statut',
+    hStatusTip: 'Actif = autorisé à envoyer des requêtes. Inactif = bloqué immédiatement au niveau de l’authentification.',
+    hLast: 'Dernière activité',
+    perHr: '{n}/h',
+    jur_ma: 'Maroc',
+    jur_sa: 'Arabie saoudite',
+    jur_ae: 'EAU',
+    jur_fr: 'France',
+    jur_eu: 'UE',
+  },
+};
 
 /* ── Time-ago helper ────────────────────────────── */
-function timeAgo(date: Date): string {
+function timeAgo(date: Date, t: Record<string, string>): string {
   const seconds = Math.floor((Date.now() - date.getTime()) / 1000);
-  if (seconds < 60) return `${seconds}s ago`;
-  if (seconds < 3600) return `${Math.floor(seconds / 60)}m ago`;
-  if (seconds < 86400) return `${Math.floor(seconds / 3600)}h ago`;
-  return `${Math.floor(seconds / 86400)}d ago`;
+  if (seconds < 60) return t.agoS.replace('{n}', String(seconds));
+  if (seconds < 3600) return t.agoM.replace('{n}', String(Math.floor(seconds / 60)));
+  if (seconds < 86400) return t.agoH.replace('{n}', String(Math.floor(seconds / 3600)));
+  return t.agoD.replace('{n}', String(Math.floor(seconds / 86400)));
 }
 
 /** Map an API agent to the UI Agent shape. */
@@ -39,6 +197,7 @@ function mapAgent(agent: AgentInfo): Agent {
 }
 
 function AgentDetailPanel({ agent, onClose, apiAvailable }: { agent: Agent; onClose: () => void; apiAvailable: boolean }) {
+  const t = T[useLang()];
   const [activityData, setActivityData] = useState<{ day: number; calls: number }[]>(
     () => Array.from({ length: 30 }, (_, i) => ({ day: i, calls: Math.floor(Math.random() * 200) + 50 }))
   );
@@ -102,25 +261,24 @@ function AgentDetailPanel({ agent, onClose, apiAvailable }: { agent: Agent; onCl
       <div className="p-5 space-y-6">
         {/* Identity */}
         <div>
-          <div className="table-header mb-3">Identity<InfoTooltip text="Agent identity and configuration information." /></div>
+          <div className="table-header mb-3">{t.identity}<InfoTooltip text={t.identityTip} /></div>
           <div className="text-[10px] text-muted-foreground bg-muted/40 rounded p-2 mb-3">
-            Each agent has a unique identity verified on every request. The auth method,
-            PII mode, and rate limit are configured in bawaba.yaml.
+            {t.identityNote}
           </div>
           <div className="space-y-2">
             {[
-              ['Auth method', agent.auth],
-              ['PII mode', agent.piiMode],
-              ['Rate limit', `${agent.rateLimit} req/hr`],
-              ['Status', agent.status],
-              ['Created', agent.created.toLocaleDateString()],
-            ].map(([k, v]) => (
-              <div key={k} className="flex justify-between text-xs">
+              ['auth', t.rowAuth, agent.auth],
+              ['pii', t.rowPii, agent.piiMode],
+              ['rate', t.rowRate, t.rateVal.replace('{n}', String(agent.rateLimit))],
+              ['status', t.rowStatus, agent.status],
+              ['created', t.rowCreated, agent.created.toLocaleDateString()],
+            ].map(([id, k, v]) => (
+              <div key={id} className="flex justify-between text-xs">
                 <span className="text-muted-foreground">
                   {k}
-                  {k === 'Auth method' && <InfoTooltip text="API key (bcrypt), Bearer (shared secret, pilot mode) or mTLS. OIDC/JWT planned P2." />}
+                  {id === 'auth' && <InfoTooltip text={t.rowAuthTip} />}
                 </span>
-                <span className={`font-mono ${k === 'Status' ? `status-${v}` : 'text-foreground'}`}>{v}</span>
+                <span className={`font-mono ${id === 'status' ? `status-${v}` : 'text-foreground'}`}>{v}</span>
               </div>
             ))}
           </div>
@@ -128,16 +286,16 @@ function AgentDetailPanel({ agent, onClose, apiAvailable }: { agent: Agent; onCl
 
         {/* Capabilities */}
         <div>
-          <div className="table-header mb-3">Allowed tools<InfoTooltip text="MCP tools this agent is authorized to call through the gateway." /></div>
+          <div className="table-header mb-3">{t.allowedTools}<InfoTooltip text={t.allowedToolsTip} /></div>
           <div className="flex flex-wrap gap-1.5">
             {agent.allowedTools.map(t => (
               <span key={t} className="text-[10px] font-mono px-2 py-1 bg-safe-bg text-safe border border-safe/10 rounded-sm">{t}</span>
             ))}
           </div>
           <div className="text-[10px] text-muted-foreground bg-muted/40 rounded p-2 mt-2">
-            Any call to a tool outside this list will be denied with a 403 code and logged in the audit trail.
+            {t.allowedNote}
           </div>
-          <div className="table-header mb-3 mt-4">Denied tools<InfoTooltip text="Tools explicitly denied for this agent. Any attempt is blocked and logged." /></div>
+          <div className="table-header mb-3 mt-4">{t.deniedTools}<InfoTooltip text={t.deniedToolsTip} /></div>
           <div className="flex flex-wrap gap-1.5">
             {agent.deniedTools.map(t => (
               <span key={t} className="text-[10px] font-mono px-2 py-1 bg-danger-bg text-danger border border-danger/10 rounded-sm">{t}</span>
@@ -147,7 +305,7 @@ function AgentDetailPanel({ agent, onClose, apiAvailable }: { agent: Agent; onCl
 
         {/* Activity Graph */}
         <div>
-          <div className="table-header mb-3">Activity (30 days)<InfoTooltip text="Daily call volume over the last 30 days." /></div>
+          <div className="table-header mb-3">{t.activity30}<InfoTooltip text={t.activity30Tip} /></div>
           <div className="h-24">
             <ResponsiveContainer width="100%" height="100%">
               <AreaChart data={activityData} margin={{ top: 0, right: 0, left: 0, bottom: 0 }}>
@@ -160,11 +318,11 @@ function AgentDetailPanel({ agent, onClose, apiAvailable }: { agent: Agent; onCl
         {/* Recent Activity from API */}
         {apiAvailable && activity.length > 0 && (
           <div>
-            <div className="table-header mb-3">Recent activity</div>
+            <div className="table-header mb-3">{t.recentActivity}</div>
             <div className="space-y-0 border border-border rounded-sm overflow-hidden">
               {activity.slice(0, 10).map(entry => (
                 <div key={entry.event_id} className="data-row flex items-center justify-between px-3 py-2 text-sm font-data tabular-nums border-b border-border last:border-0">
-                  <span className="text-muted-foreground">{timeAgo(new Date(entry.timestamp))}</span>
+                  <span className="text-muted-foreground">{timeAgo(new Date(entry.timestamp), t)}</span>
                   <span className="text-ink-2 truncate mx-2">{entry.tool}</span>
                   <span className={`pill ${entry.policy_result === 'allow' ? 'pill-allow' : 'pill-deny'}`}>{entry.policy_result}</span>
                   <span className="text-muted-foreground">{entry.latency_ms}ms</span>
@@ -176,12 +334,12 @@ function AgentDetailPanel({ agent, onClose, apiAvailable }: { agent: Agent; onCl
 
         {/* Stats */}
         <div>
-          <div className="table-header mb-3">Statistics<InfoTooltip text="Usage counters: calls today, cumulative total, and policy violations." /></div>
+          <div className="table-header mb-3">{t.statistics}<InfoTooltip text={t.statisticsTip} /></div>
           <div className="grid grid-cols-3 gap-3">
             {[
-              ['Today', agent.callsToday.toLocaleString()],
-              ['Total', agent.callsTotal.toLocaleString()],
-              ['Violations', agent.violations.toString()],
+              [t.statToday, agent.callsToday.toLocaleString()],
+              [t.statTotal, agent.callsTotal.toLocaleString()],
+              [t.statViolations, agent.violations.toString()],
             ].map(([label, val]) => (
               <div key={label} className="p-3 bg-background border border-border rounded-sm text-center">
                 <div className="text-xl font-data tabular-nums font-normal text-foreground">{val}</div>
@@ -206,6 +364,7 @@ function generateApiKey(): string {
 }
 
 function AddAgentPanel({ onClose, onCreate }: { onClose: () => void; onCreate: (a: Agent) => void }) {
+  const t = T[useLang()];
   const [name, setName] = useState('');
   const [toolModes, setToolModes] = useState<Record<string, ToolMode>>(
     () => Object.fromEntries(TOOLS.map(t => [t, 'off'])) as Record<string, ToolMode>,
@@ -224,7 +383,7 @@ function AddAgentPanel({ onClose, onCreate }: { onClose: () => void; onCreate: (
 
   const submit = () => {
     if (!name.trim()) {
-      setError('Agent name is required.');
+      setError(t.errName);
       return;
     }
     const key = generateApiKey();
@@ -261,9 +420,9 @@ function AddAgentPanel({ onClose, onCreate }: { onClose: () => void; onCreate: (
     <div className="fixed inset-y-0 right-0 w-[480px] bg-card border-l border-border z-50 overflow-y-auto shadow-card">
       <div className="flex items-center justify-between p-5 border-b border-border">
         <div>
-          <div className="text-lg font-heading text-foreground">{createdKey ? 'Agent created' : 'Add agent'}</div>
+          <div className="text-lg font-heading text-foreground">{createdKey ? t.titleCreated : t.titleAdd}</div>
           <div className="text-xs text-muted-foreground font-mono">
-            {createdKey ? 'Registered in the local demo registry' : 'Register a new agent (local demo)'}
+            {createdKey ? t.subCreated : t.subAdd}
           </div>
         </div>
         <button onClick={onClose} className="text-muted-foreground hover:text-foreground transition-colors">
@@ -275,16 +434,16 @@ function AddAgentPanel({ onClose, onCreate }: { onClose: () => void; onCreate: (
         /* ── Success view: key shown once ── */
         <div className="p-5 space-y-5">
           <div className="text-xs text-foreground">
-            <span className="font-mono">{name.trim()}</span> is now in the registry with status{' '}
-            <span className="status-pending font-mono">pending</span>, and turns{' '}
-            <span className="status-healthy font-mono">healthy</span> once the first heartbeat lands. An{' '}
-            <span className="font-mono">agent_registered</span> event was written to the audit chain.
+            <span className="font-mono">{name.trim()}</span>{t.succ1}
+            <span className="status-pending font-mono">pending</span>{t.succ2}
+            <span className="status-healthy font-mono">healthy</span>{t.succ3}
+            <span className="font-mono">agent_registered</span>{t.succ4}
           </div>
           <div>
-            <div className="table-header mb-1.5">API key<InfoTooltip text="Shown once. It is not stored in plaintext — only a bcrypt hash is kept server-side." /></div>
+            <div className="table-header mb-1.5">{t.apiKey}<InfoTooltip text={t.apiKeyTip} /></div>
             <div className="font-mono text-xs text-foreground break-all bg-secondary/20 rounded-sm p-2 border border-border">{createdKey}</div>
             <div className="text-[10px] text-warn bg-warn-bg border border-warn/10 rounded p-2 mt-1.5">
-              Copy this key now — it is displayed only once and cannot be retrieved later.
+              {t.copyWarn}
             </div>
           </div>
           <div className="flex gap-2">
@@ -292,13 +451,13 @@ function AddAgentPanel({ onClose, onCreate }: { onClose: () => void; onCreate: (
               onClick={() => navigator.clipboard?.writeText(createdKey)}
               className="text-xs font-body px-3 py-2 border border-border rounded-sm text-muted-foreground hover:text-foreground transition-colors"
             >
-              Copy key
+              {t.copyKey}
             </button>
             <button
               onClick={onClose}
               className="text-xs font-body font-medium px-4 py-2 bg-primary text-primary-foreground rounded-sm hover:opacity-90 transition-opacity"
             >
-              Done
+              {t.done}
             </button>
           </div>
         </div>
@@ -307,27 +466,27 @@ function AddAgentPanel({ onClose, onCreate }: { onClose: () => void; onCreate: (
         <div className="p-5 space-y-6">
           {/* Name */}
           <div>
-            <div className="table-header mb-2">Agent name</div>
+            <div className="table-header mb-2">{t.agentName}</div>
             <input
               value={name}
               onChange={e => { setName(e.target.value); setError(null); }}
-              placeholder="e.g. claude-analytics"
+              placeholder={t.namePlaceholder}
               className="w-full text-xs font-mono px-3 py-2 border border-border rounded-sm bg-background text-foreground placeholder:text-ink-4 focus:outline-none focus:border-primary"
             />
           </div>
 
           {/* Auth method */}
           <div>
-            <div className="table-header mb-2">Auth method</div>
+            <div className="table-header mb-2">{t.rowAuth}</div>
             <div className="text-xs font-mono text-foreground bg-secondary/20 border border-border rounded-sm px-3 py-2">API key (bcrypt)</div>
             <div className="text-[10px] text-muted-foreground bg-muted/40 rounded p-2 mt-1.5">
-              A <span className="font-mono">baw_…</span> key is generated on creation and shown only once.
+              {t.keyNote1}<span className="font-mono">baw_…</span>{t.keyNote2}
             </div>
           </div>
 
           {/* Allowed / Denied tools */}
           <div>
-            <div className="table-header mb-2">Tools<InfoTooltip text="Click a tool to cycle Off -> Allow -> Deny. Allow builds the allowlist, Deny the denylist. Anything left Off is denied by default." /></div>
+            <div className="table-header mb-2">{t.tools}<InfoTooltip text={t.toolsTip} /></div>
             <div className="space-y-1.5">
               {TOOLS.map(t => (
                 <button
@@ -346,16 +505,16 @@ function AddAgentPanel({ onClose, onCreate }: { onClose: () => void; onCreate: (
 
           {/* PII mode */}
           <div>
-            <div className="table-header mb-2">PII mode</div>
+            <div className="table-header mb-2">{t.rowPii}</div>
             <div className="text-xs font-mono text-foreground bg-secondary/20 border border-border rounded-sm px-3 py-2">tokenize</div>
             <div className="text-[10px] text-muted-foreground bg-muted/40 rounded p-2 mt-1.5">
-              Tokenize is the only implemented mode. PII is replaced with UUID tokens held in a scoped vault.
+              {t.piiNote}
             </div>
           </div>
 
           {/* Rate limit */}
           <div>
-            <div className="table-header mb-2">Rate limit (req/h)</div>
+            <div className="table-header mb-2">{t.rateLimitLabel}</div>
             <input
               type="number"
               min={1}
@@ -367,7 +526,7 @@ function AddAgentPanel({ onClose, onCreate }: { onClose: () => void; onCreate: (
 
           {/* Jurisdictions */}
           <div>
-            <div className="table-header mb-2">Allowed jurisdictions</div>
+            <div className="table-header mb-2">{t.allowedJur}</div>
             <div className="flex flex-wrap gap-1.5">
               {JURISDICTIONS.map(j => (
                 <button
@@ -379,7 +538,7 @@ function AddAgentPanel({ onClose, onCreate }: { onClose: () => void; onCreate: (
                       : 'bg-background text-muted-foreground border-border hover:text-foreground'
                   }`}
                 >
-                  {j.code.toUpperCase()} · {j.name}
+                  {j.code.toUpperCase()} · {t[`jur_${j.code}`] ?? j.name}
                 </button>
               ))}
             </div>
@@ -392,13 +551,13 @@ function AddAgentPanel({ onClose, onCreate }: { onClose: () => void; onCreate: (
               onClick={submit}
               className="text-xs font-body font-medium px-4 py-2 bg-primary text-primary-foreground rounded-sm hover:opacity-90 transition-opacity"
             >
-              Create agent
+              {t.createAgent}
             </button>
             <button
               onClick={onClose}
               className="text-xs font-body px-4 py-2 border border-border rounded-sm text-muted-foreground hover:text-foreground transition-colors"
             >
-              Cancel
+              {t.cancel}
             </button>
           </div>
         </div>
@@ -428,6 +587,7 @@ function AgentTableSkeleton() {
 }
 
 export default function Agents() {
+  const t = T[useLang()];
   const [agents, setAgents] = useState<Agent[]>(MOCK_AGENTS);
   const [loading, setLoading] = useState(true);
   const [apiAvailable, setApiAvailable] = useState(false);
@@ -497,31 +657,31 @@ export default function Agents() {
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
           <div>
-            <div className="text-sm font-body font-medium text-foreground">Agent registry<InfoTooltip text="List of AI agents registered with the gateway. Each agent has its own permissions and limits." /></div>
-            <div className="text-xs text-muted-foreground">{agents.length} agents connected</div>
+            <div className="text-sm font-body font-medium text-foreground">{t.registry}<InfoTooltip text={t.registryTip} /></div>
+            <div className="text-xs text-muted-foreground">{t.agentsConnected.replace('{n}', String(agents.length))}</div>
           </div>
         </div>
         <button
           onClick={() => { setSelectedAgent(null); setShowAdd(true); }}
           className="text-xs font-body font-medium px-4 py-2 bg-primary text-primary-foreground rounded-sm hover:opacity-90 transition-opacity"
         >
-          Add agent
+          {t.addAgentBtn}
         </button>
       </div>
 
-      <div className="text-[10px] text-muted-foreground font-body mb-2">Click an agent to see its full configuration, allowed tools, and activity history</div>
+      <div className="text-[10px] text-muted-foreground font-body mb-2">{t.clickHint}</div>
 
       <div className="card-surface shadow-card overflow-hidden zebra">
         {/* Table header */}
         <div className="grid grid-cols-[150px_92px_1fr_1fr_76px_76px_108px_100px] gap-2 px-5 py-3 border-b border-border">
-          <span className="table-header">Agent</span>
-          <span className="table-header">Auth<InfoTooltip text="Authentication method: API key (bcrypt), Bearer (shared secret, pilot mode) or mTLS. OIDC/JWT planned P2." /></span>
-          <span className="table-header">Allowed tools<InfoTooltip text="Allowlist of MCP tools this agent can call. Any off-list call → 403." /></span>
-          <span className="table-header">Denied tools<InfoTooltip text="Tools explicitly denied for this agent. Any attempt is blocked and logged." /></span>
-          <span className="table-header">PII mode<InfoTooltip text="PII handling strategy: tokenize (replace with UUID) or redact (remove)." /></span>
-          <span className="table-header">Rate limit</span>
-          <span className="table-header">Status<InfoTooltip text="Active = authorized to send requests. Inactive = blocked immediately at auth level." /></span>
-          <span className="table-header">Last active</span>
+          <span className="table-header">{t.hAgent}</span>
+          <span className="table-header">{t.hAuth}<InfoTooltip text={t.hAuthTip} /></span>
+          <span className="table-header">{t.hAllowed}<InfoTooltip text={t.hAllowedTip} /></span>
+          <span className="table-header">{t.hDenied}<InfoTooltip text={t.deniedToolsTip} /></span>
+          <span className="table-header">{t.hPii}<InfoTooltip text={t.hPiiTip} /></span>
+          <span className="table-header">{t.hRate}</span>
+          <span className="table-header">{t.hStatus}<InfoTooltip text={t.hStatusTip} /></span>
+          <span className="table-header">{t.hLast}</span>
         </div>
 
         {/* Rows */}
@@ -547,12 +707,12 @@ export default function Agents() {
                 ))}
               </div>
               <span className="text-sm font-data tabular-nums text-muted-foreground">{agent.piiMode}</span>
-              <span className="text-sm font-data tabular-nums text-muted-foreground">{agent.rateLimit}/hr</span>
+              <span className="text-sm font-data tabular-nums text-muted-foreground">{t.perHr.replace('{n}', String(agent.rateLimit))}</span>
               <span>
                 <span className={`pill ${agent.status === 'healthy' ? 'pill-allow' : agent.status === 'rate-limited' ? 'pill-rate' : agent.status === 'blocked' ? 'pill-deny' : 'pill-neutral'}`}>{agent.status}</span>
               </span>
               <span className="text-sm text-muted-foreground">
-                {timeAgo(agent.lastActive)}
+                {timeAgo(agent.lastActive, t)}
               </span>
             </div>
           ))

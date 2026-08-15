@@ -6,6 +6,19 @@ import {
   Marker,
   Line,
 } from 'react-simple-maps';
+import { useLang, type Lang } from '@/lib/i18n';
+
+// City names stay untranslated except Riyadh → « Riyad » in French.
+const T: Record<Lang, Record<string, string>> = {
+  en: {
+    riyadh: 'Riyadh',
+    events: '{n} events',
+  },
+  fr: {
+    riyadh: 'Riyad',
+    events: '{n} événements',
+  },
+};
 
 // ---------------------------------------------------------------------------
 // World map TopoJSON (Natural Earth 110m, all countries)
@@ -53,6 +66,7 @@ const DATA_PLANES: DataPlane[] = [
 // ---------------------------------------------------------------------------
 
 export default function SovereignMap({ jurisdictions, onNodeClick }: SovereignMapProps) {
+  const t = T[useLang()];
   const [hoveredNode, setHoveredNode] = useState<string | null>(null);
 
   // Map jurisdiction data by code for quick lookup
@@ -209,7 +223,7 @@ export default function SovereignMap({ jurisdictions, onNodeClick }: SovereignMa
                 fontFamily="'DM Sans', sans-serif"
                 fontWeight={600}
               >
-                {node.label}
+                {node.id === 'riyadh' ? t.riyadh : node.label}
               </text>
 
               {/* Hover tooltip */}
@@ -233,7 +247,7 @@ export default function SovereignMap({ jurisdictions, onNodeClick }: SovereignMa
                     fontSize={11}
                     fontFamily="'JetBrains Mono', monospace"
                   >
-                    {node.eventCount.toLocaleString()} events
+                    {t.events.replace('{n}', node.eventCount.toLocaleString())}
                     {node.avgLatency != null ? ` / ${node.avgLatency}ms` : ''}
                   </text>
                 </g>
