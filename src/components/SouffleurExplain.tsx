@@ -28,7 +28,8 @@ const T: Record<Lang, Record<string, string>> = {
 };
 
 export function SouffleurExplain({ eventId }: { eventId: string }) {
-  const t = T[useLang()];
+  const lang = useLang();
+  const t = T[lang];
   const [busy, setBusy] = useState(false);
   const [result, setResult] = useState<SouffleurExplanation | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -36,7 +37,7 @@ export function SouffleurExplain({ eventId }: { eventId: string }) {
   const explain = async () => {
     setBusy(true); setError(null);
     try {
-      setResult(await souffleurExplain(eventId));
+      setResult(await souffleurExplain(eventId, undefined, lang));
     } catch (e) {
       if (e instanceof ApiError && e.status === 503) {
         setError(t.err503);

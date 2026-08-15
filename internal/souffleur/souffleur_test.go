@@ -27,7 +27,7 @@ func sampleRecord() DecisionRecord {
 
 func TestBuildUserPromptContainsRealFieldsVerbatim(t *testing.T) {
 	rec := sampleRecord()
-	prompt := BuildUserPrompt(rec, "pourquoi ce refus ?")
+	prompt := BuildUserPrompt(rec, "pourquoi ce refus ?", "fr")
 
 	for _, must := range []string{
 		rec.MatchedRule, // the exact failed condition, never paraphrased away
@@ -36,6 +36,7 @@ func TestBuildUserPromptContainsRealFieldsVerbatim(t *testing.T) {
 		rec.Tool,
 		"policy_result: deny",
 		"Reviewer's question: pourquoi ce refus ?",
+		"Écris l'explication en français.",
 	} {
 		if !strings.Contains(prompt, must) {
 			t.Errorf("prompt missing verbatim field %q\nprompt:\n%s", must, prompt)
@@ -44,7 +45,7 @@ func TestBuildUserPromptContainsRealFieldsVerbatim(t *testing.T) {
 }
 
 func TestBuildUserPromptMarksEmptyFields(t *testing.T) {
-	prompt := BuildUserPrompt(DecisionRecord{EventID: "evt-1"}, "")
+	prompt := BuildUserPrompt(DecisionRecord{EventID: "evt-1"}, "", "")
 	if !strings.Contains(prompt, "matched_rule: (empty)") {
 		t.Errorf("empty matched_rule must be marked (empty), got:\n%s", prompt)
 	}
@@ -62,7 +63,7 @@ func TestSystemPromptStatesTheInvariant(t *testing.T) {
 }
 
 func TestExplainWithoutProviderRefusesHonestly(t *testing.T) {
-	_, err := Explain(context.Background(), nil, sampleRecord(), "")
+	_, err := Explain(context.Background(), nil, sampleRecord(), "", "")
 	if err == nil || !strings.Contains(err.Error(), "never invents") {
 		t.Fatalf("nil provider must refuse explicitly, got err=%v", err)
 	}
@@ -140,7 +141,7 @@ func TestAnthropicProviderWireFormat(t *testing.T) {
 	defer srv.Close()
 
 	p := &anthropicProvider{apiKey: "sk-test", model: "claude-opus-5", baseURL: srv.URL, client: srv.Client()}
-	text, err := Explain(context.Background(), p, sampleRecord(), "")
+	text, err := Explain(context.Background(), p, sampleRecord(), "", "en")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -180,7 +181,7 @@ func TestOpenAICompatProviderWireFormat(t *testing.T) {
 	defer srv.Close()
 
 	p := &openAICompatProvider{name: "mistral", apiKey: "mk-test", model: "mistral-large-latest", baseURL: srv.URL + "/v1", client: srv.Client()}
-	text, err := p.Complete(context.Background(), SystemPrompt, BuildUserPrompt(sampleRecord(), ""))
+	text, err := p.Complete(context.Background(), SystemPrompt, BuildUserPrompt(sampleRecord(), "", "fr"))
 	if err != nil {
 		t.Fatal(err)
 	}

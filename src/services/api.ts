@@ -522,10 +522,10 @@ export async function fetchSouffleurStatus(): Promise<SouffleurStatus> {
   return request(`/api/v1/souffleur/status`);
 }
 
-export async function souffleurExplain(eventId: string, question?: string): Promise<SouffleurExplanation> {
+export async function souffleurExplain(eventId: string, question?: string, lang?: string): Promise<SouffleurExplanation> {
   return request(`/api/v1/souffleur/explain`, {
     method: 'POST',
-    body: JSON.stringify({ event_id: eventId, question: question || undefined }),
+    body: JSON.stringify({ event_id: eventId, question: question || undefined, lang: lang || undefined }),
   });
 }
 

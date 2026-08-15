@@ -70,7 +70,9 @@ Hard rules:
 
 // BuildUserPrompt renders the decision record verbatim, field by field.
 // Empty fields are marked as such so the model cannot fill the gap.
-func BuildUserPrompt(rec DecisionRecord, question string) string {
+// lang ("fr"|"en"|"") pins the answer language to the reviewer's UI —
+// without it the Souffleur defaults to English even under a French UI.
+func BuildUserPrompt(rec DecisionRecord, question, lang string) string {
 	var b strings.Builder
 	b.WriteString("Decision record (verbatim, from the append-only audit trail):\n")
 	field := func(name, value string) {
@@ -95,16 +97,19 @@ func BuildUserPrompt(rec DecisionRecord, question string) string {
 		fmt.Fprintf(&b, "\nReviewer's question: %s\n", question)
 	}
 	b.WriteString("\nTranslate this record into plain language.")
+	if strings.EqualFold(lang, "fr") {
+		b.WriteString(" Écris l'explication en français.")
+	}
 	return b.String()
 }
 
 // Explain runs the full translation: prompt built from the record, one
 // provider call, the text back. No post-processing, no fallback content.
-func Explain(ctx context.Context, p Provider, rec DecisionRecord, question string) (string, error) {
+func Explain(ctx context.Context, p Provider, rec DecisionRecord, question, lang string) (string, error) {
 	if p == nil {
 		return "", fmt.Errorf("no LLM provider configured — the Souffleur never invents an explanation")
 	}
-	return p.Complete(ctx, SystemPrompt, BuildUserPrompt(rec, question))
+	return p.Complete(ctx, SystemPrompt, BuildUserPrompt(rec, question, lang))
 }
 
 // ---------------------------------------------------------------------------

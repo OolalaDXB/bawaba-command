@@ -44,6 +44,7 @@ func (s *Server) handleSouffleurExplain(w http.ResponseWriter, r *http.Request) 
 	var body struct {
 		EventID  string `json:"event_id"`
 		Question string `json:"question"`
+		Lang     string `json:"lang"` // "fr"|"en" — the reviewer's UI language
 	}
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil || body.EventID == "" {
 		writeError(w, http.StatusBadRequest, "event_id is required")
@@ -72,7 +73,7 @@ func (s *Server) handleSouffleurExplain(w http.ResponseWriter, r *http.Request) 
 	}
 	rec.Timestamp = ts.UTC().Format(time.RFC3339)
 
-	explanation, err := souffleur.Explain(r.Context(), s.souffleur, rec, body.Question)
+	explanation, err := souffleur.Explain(r.Context(), s.souffleur, rec, body.Question, body.Lang)
 	if err != nil {
 		writeError(w, http.StatusBadGateway, "souffleur provider error: "+err.Error())
 		return
