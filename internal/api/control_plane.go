@@ -110,6 +110,9 @@ func (s *Server) handleAgentCreate(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "agent_id must be lowercase kebab-case (2-63 chars)")
 		return
 	}
+	if !s.guardPublicMutation(w, id) {
+		return
+	}
 	if _, exists := s.cfg.Agents[id]; exists {
 		writeError(w, http.StatusConflict, fmt.Sprintf("agent %q already exists", id))
 		return
@@ -177,6 +180,9 @@ func (s *Server) handleAgentPatch(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	id := r.PathValue("id")
+	if !s.guardPublicMutation(w, id) {
+		return
+	}
 	current, ok := s.cfg.Agents[id]
 	if !ok {
 		writeError(w, http.StatusNotFound, fmt.Sprintf("agent %q not found", id))
@@ -234,6 +240,9 @@ func (s *Server) handleAgentDelete(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	id := r.PathValue("id")
+	if !s.guardPublicMutation(w, id) {
+		return
+	}
 	agentCfg, ok := s.cfg.Agents[id]
 	if !ok {
 		writeError(w, http.StatusNotFound, fmt.Sprintf("agent %q not found", id))
@@ -299,6 +308,9 @@ func actorOf(r *http.Request) string {
 func (s *Server) handleJurisdictionAdd(w http.ResponseWriter, r *http.Request) {
 	if s.router == nil {
 		writeError(w, http.StatusServiceUnavailable, "router engine not attached")
+		return
+	}
+	if !s.guardPublicGlobal(w) {
 		return
 	}
 	var body struct {

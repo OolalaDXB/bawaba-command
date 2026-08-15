@@ -497,6 +497,30 @@ export async function fetchJurisdictions(): Promise<JurisdictionEntry[]> {
   return request<JurisdictionEntry[]>('/api/v1/jurisdictions');
 }
 
+// ── P3 Copilot ─────────────────────────────────────────────────────────────
+// Translation-only: the server loads the REAL audit event and asks the
+// configured LLM to explain its fields — nothing else. 503 when no provider
+// is configured (the Copilot never invents).
+export interface CopilotStatus { configured: boolean; provider?: string; model?: string; note?: string }
+export interface CopilotExplanation {
+  event_id: string;
+  explanation: string;
+  source: Record<string, unknown>;
+  provider: string;
+  model: string;
+}
+
+export async function fetchCopilotStatus(): Promise<CopilotStatus> {
+  return request(`/api/v1/copilot/status`);
+}
+
+export async function copilotExplain(eventId: string, question?: string): Promise<CopilotExplanation> {
+  return request(`/api/v1/copilot/explain`, {
+    method: 'POST',
+    body: JSON.stringify({ event_id: eventId, question: question || undefined }),
+  });
+}
+
 // ---------------------------------------------------------------------------
 // Utility: check whether the backend is reachable
 // ---------------------------------------------------------------------------

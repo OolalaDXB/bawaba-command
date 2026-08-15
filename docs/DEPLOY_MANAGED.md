@@ -57,10 +57,30 @@ limitation is known and recorded).
 - The public entry is the **Private Workspace** (ephemeral `demo-xxxx`
   session, ~60 min TTL, janitor teardown): visitors edit THEIR clones; the
   canonical seeded agents stay clean; audit events remain append-only.
-- The control-plane CRUD endpoints are unauthenticated today — acceptable on
-  a laptop, NOT for a public host. Before exposing `demo.bawaba.systems`,
-  either (a) restrict /api/v1/agents* and /api/v1/policies* to
-  workspace-scoped ids at the reverse proxy, or (b) put the whole console
-  behind an access link. This is recorded as the P2→P3 security debt; do not
-  ship the public link without one of the two.
+- **P2→P3 security debt: CLOSED (P3).** Set `BAWABA_PUBLIC_DEMO=true` on a
+  public host: the gateway then rejects control-plane mutations
+  (POST/PATCH/DELETE /agents, PATCH /policies) on anything that is not a
+  workspace clone (`…-demo-…` ids), and makes routing rules read-only. The
+  canonical seeded agents cannot be touched from the public link. On a
+  laptop (flag unset) nothing changes.
 - The "Demonstration environment" banner stays on every page.
+
+## 5. P3 — shareable workspace URL + Copilot
+
+- **Share link**: an active Private Workspace exposes "Copy shareable link"
+  on the entrance page. The link is `…/join#<payload>`; the payload (session
+  id + clone API keys) travels in the URL *fragment*, which never leaves the
+  browser — no server or access log sees the keys. `/join` validates the
+  session against the gateway (expired/torn-down → honest message, nothing
+  recreated silently) before adopting it.
+- **Copilot** (translation-only, mandate §7): set on the gateway host —
+  ```bash
+  BAWABA_COPILOT_PROVIDER=anthropic   # or: mistral | openai | openai-compatible
+  BAWABA_COPILOT_API_KEY=…            # provider credential
+  BAWABA_COPILOT_MODEL=…              # default: claude-opus-5 / mistral-large-latest
+  BAWABA_COPILOT_BASE_URL=…           # self-hosted vLLM/Ollama (openai-compatible)
+  ```
+  `POST /api/v1/copilot/explain {event_id}` loads the REAL audit event and
+  returns a plain-language translation of its decision fields plus the exact
+  source fields used. Unset → 503 ("the Copilot never invents"). The
+  sovereign option is `openai-compatible` + a self-hosted endpoint.

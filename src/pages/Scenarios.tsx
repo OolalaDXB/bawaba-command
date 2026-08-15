@@ -12,6 +12,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { useEffect } from 'react';
 import { resolveAgent, activeWorkspace } from '@/lib/demoWorkspace';
+import { CopilotExplain } from '@/components/CopilotExplain';
 
 /**
  * Scenarios (P1, demo mandate §5/§9): really-triggerable flows on the live
@@ -47,12 +48,15 @@ async function latestEvents(agent: string, notBefore: string, max = 3): Promise<
 function EventLine({ e }: { e: ApiEvent }) {
   const deny = e.policy_result === 'deny';
   return (
-    <div className="flex items-baseline gap-3 text-xs font-mono py-1 border-b border-border/60 last:border-0">
-      <span className={`uppercase px-1.5 rounded-[3px] ${deny ? 'bg-danger-bg text-danger' : 'bg-safe-bg text-safe'}`}>{e.policy_result || e.event_type}</span>
-      <span className="text-ink-2">{e.event_type}</span>
-      <span>{e.tool}</span>
-      <span className="text-ink-3 truncate">{e.matched_rule}</span>
-      {e.entities_detected > 0 && <span className="text-primary">{e.entities_detected} PII entities</span>}
+    <div className="py-1 border-b border-border/60 last:border-0">
+      <div className="flex items-baseline gap-3 text-xs font-mono">
+        <span className={`uppercase px-1.5 rounded-[3px] ${deny ? 'bg-danger-bg text-danger' : 'bg-safe-bg text-safe'}`}>{e.policy_result || e.event_type}</span>
+        <span className="text-ink-2">{e.event_type}</span>
+        <span>{e.tool}</span>
+        <span className="text-ink-3 truncate">{e.matched_rule}</span>
+        {e.entities_detected > 0 && <span className="text-primary">{e.entities_detected} PII entities</span>}
+      </div>
+      <CopilotExplain eventId={e.event_id} />
     </div>
   );
 }

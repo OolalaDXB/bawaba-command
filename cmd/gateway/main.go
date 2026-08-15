@@ -17,6 +17,7 @@ import (
 	"github.com/OolalaDXB/bawaba-command/internal/audit"
 	"github.com/OolalaDXB/bawaba-command/internal/auth"
 	"github.com/OolalaDXB/bawaba-command/internal/config"
+	"github.com/OolalaDXB/bawaba-command/internal/copilot"
 	"github.com/OolalaDXB/bawaba-command/internal/policy"
 	"github.com/OolalaDXB/bawaba-command/internal/proxy"
 	"github.com/OolalaDXB/bawaba-command/internal/ratelimit"
@@ -214,6 +215,17 @@ func main() {
 
 	apiSrv := api.NewServer(db, cfg, configPath, trail, policyEngine, controlPlane, authEngine, routerEngine, logger)
 	apiSrv.Start() // Start SSE hub
+
+	// P3 Copilot: translates real decision records, never decides. No
+	// provider configured → the endpoint answers 503, never a canned text.
+	if prov, err := copilot.FromEnv(); err != nil {
+		logger.Error("copilot provider misconfigured — Copilot disabled", "error", err)
+	} else if prov != nil {
+		apiSrv.AttachCopilot(prov)
+		logger.Info("copilot enabled", "provider", prov.Name(), "model", prov.Model())
+	} else {
+		logger.Info("copilot not configured (BAWABA_COPILOT_PROVIDER unset) — explain endpoint will answer 503")
+	}
 
 	apiServer := &http.Server{
 		Addr:         fmt.Sprintf(":%d", apiPort),

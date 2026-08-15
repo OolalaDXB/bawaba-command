@@ -15,6 +15,7 @@ import PiiTokenizer from "./pages/PiiTokenizer";
 import SovereignRouting from "./pages/SovereignRouting";
 import Settings from "./pages/Settings";
 import ArchitectureExplorer from "./pages/ArchitectureExplorer";
+import Join from "./pages/Join";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -27,6 +28,7 @@ const App = () => (
       <BrowserRouter>
         <Routes>
           <Route path="/" element={<Chooser />} />
+          <Route path="/join" element={<Join />} />
           <Route element={<AppLayout />}>
             <Route path="/dashboard" element={<Dashboard />} />
             <Route path="/demo" element={<GuidedDemo />} />

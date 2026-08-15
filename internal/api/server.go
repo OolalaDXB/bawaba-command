@@ -18,6 +18,7 @@ import (
 	"github.com/OolalaDXB/bawaba-command/internal/audit"
 	"github.com/OolalaDXB/bawaba-command/internal/auth"
 	"github.com/OolalaDXB/bawaba-command/internal/config"
+	"github.com/OolalaDXB/bawaba-command/internal/copilot"
 	"github.com/OolalaDXB/bawaba-command/internal/policy"
 	"github.com/OolalaDXB/bawaba-command/internal/router"
 	"github.com/OolalaDXB/bawaba-command/internal/store"
@@ -52,6 +53,8 @@ type Server struct {
 	startTime  time.Time
 	sse        *SSEHub
 	quota      *QuotaManager
+	copilot    copilot.Provider
+	publicDemo bool
 }
 
 // NewServer creates a new API server.
@@ -69,6 +72,7 @@ func NewServer(db *sql.DB, cfg *config.Config, configPath string, trail *audit.T
 		logger:     logger,
 		startTime:  time.Now(),
 		sse:        NewSSEHub(db, logger),
+		publicDemo: publicDemoEnabled(),
 	}
 
 	// Initialize quota manager from config
@@ -111,6 +115,8 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("DELETE /api/v1/agents/{id}", s.handleAgentDelete)
 	mux.HandleFunc("GET /api/v1/jurisdictions", s.handleJurisdictions)
 	mux.HandleFunc("POST /api/v1/jurisdictions", s.handleJurisdictionAdd)
+	mux.HandleFunc("GET /api/v1/copilot/status", s.handleCopilotStatus)
+	mux.HandleFunc("POST /api/v1/copilot/explain", s.handleCopilotExplain)
 	mux.HandleFunc("POST /api/v1/demo/session", s.handleDemoSessionCreate)
 	mux.HandleFunc("GET /api/v1/demo/session/{id}", s.handleDemoSessionGet)
 	mux.HandleFunc("GET /api/v1/siem/status", s.handleSIEMStatus)
@@ -831,6 +837,9 @@ func (s *Server) handlePolicies(w http.ResponseWriter, r *http.Request) {
 // Process-memory only: a restart reloads the YAML (durable policies = P1).
 func (s *Server) handlePolicyUpdate(w http.ResponseWriter, r *http.Request) {
 	id := r.PathValue("id")
+	if !s.guardPublicMutation(w, id) {
+		return
+	}
 	agentCfg, ok := s.cfg.Agents[id]
 	if !ok {
 		writeError(w, http.StatusNotFound, fmt.Sprintf("agent %q not found (P0 edits existing policies only)", id))

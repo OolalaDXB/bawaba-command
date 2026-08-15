@@ -42,6 +42,37 @@ export function resolveAgent(template: string, fallbackId: string, fallbackKey: 
     : { agentId: fallbackId, apiKey: fallbackKey, workspace: false };
 }
 
+// ── P3: shareable workspace link ───────────────────────────────────────────
+// The workspace payload (session id + clone agent keys, shown once by the
+// API) is carried in the URL FRAGMENT: fragments never leave the browser —
+// no server, proxy or access log ever sees the keys. The link is only as
+// durable as the session itself (~60 min, janitor-enforced server-side).
+
+/** Build a /join#… link carrying the active workspace, or null if none. */
+export function shareLink(): string | null {
+  const ws = activeWorkspace();
+  if (!ws) return null;
+  const payload = btoa(String.fromCharCode(...new TextEncoder().encode(JSON.stringify(ws))))
+    .replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+  return `${window.location.origin}/join#${payload}`;
+}
+
+/** Decode a /join fragment back into a workspace payload (throws on garbage). */
+export function decodeShareFragment(fragment: string): DemoWorkspace {
+  const b64 = fragment.replace(/^#/, '').replace(/-/g, '+').replace(/_/g, '/');
+  const bytes = Uint8Array.from(atob(b64), c => c.charCodeAt(0));
+  const ws = JSON.parse(new TextDecoder().decode(bytes)) as DemoWorkspace;
+  if (!ws.session_id || !Array.isArray(ws.agents) || !ws.expires_at) {
+    throw new Error('This link does not carry a valid workspace payload.');
+  }
+  return ws;
+}
+
+/** Adopt a workspace received via a share link (after server-side validation). */
+export function adoptWorkspace(ws: DemoWorkspace): void {
+  sessionStorage.setItem(KEY, JSON.stringify(ws));
+}
+
 /** Re-check server-side state (janitor may have expired it early). */
 export async function refreshWorkspace(): Promise<DemoWorkspace | null> {
   const ws = activeWorkspace();

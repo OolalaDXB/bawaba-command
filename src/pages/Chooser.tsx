@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { startWorkspace, activeWorkspace } from '@/lib/demoWorkspace';
+import { startWorkspace, activeWorkspace, shareLink } from '@/lib/demoWorkspace';
 
 /**
  * Entry chooser (demo mandate §3): two ways into the same console. The
@@ -11,7 +11,19 @@ export default function Chooser() {
   const navigate = useNavigate();
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+  const [copied, setCopied] = useState(false);
   const ws = activeWorkspace();
+
+  // P3: the share link carries the workspace in the URL fragment — it never
+  // reaches a server and dies with the session (~60 min).
+  const copyShare = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    const link = shareLink();
+    if (!link) return;
+    await navigator.clipboard.writeText(link);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2500);
+  };
 
   const start = async () => {
     setBusy(true); setErr(null);
@@ -60,6 +72,15 @@ export default function Chooser() {
           <div className="mt-4 text-xs font-mono text-primary">
             {busy ? 'Creating workspace…' : ws ? `Resume (expires ${new Date(ws.expires_at).toLocaleTimeString()})` : 'Start a private session →'}
           </div>
+          {ws && (
+            <span
+              role="button"
+              onClick={copyShare}
+              className="mt-2 inline-block text-xs font-mono text-ink-3 underline decoration-dotted hover:text-primary"
+            >
+              {copied ? 'Link copied — valid until the session expires' : 'Copy shareable link'}
+            </span>
+          )}
           {err && <div className="mt-2 text-xs text-danger">{err}</div>}
         </button>
 
