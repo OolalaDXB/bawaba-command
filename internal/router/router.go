@@ -44,6 +44,22 @@ func NewEngine(cfg config.RoutingConfig, privKey ed25519.PrivateKey) *Engine {
 
 // Route determines the backend for a request based on tenant jurisdiction.
 // requestID is used to derive a deterministic nonce for verifiable proofs.
+
+// AddRule registers a routing rule at runtime (P1 "add a jurisdiction").
+// Replaces an existing rule for the same jurisdiction. In-memory: durable
+// routing rules arrive with the managed persistence phase (P2).
+func (e *Engine) AddRule(rule config.RoutingRule) {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	for i, r := range e.rules {
+		if r.Jurisdiction == rule.Jurisdiction {
+			e.rules[i] = rule
+			return
+		}
+	}
+	e.rules = append(e.rules, rule)
+}
+
 func (e *Engine) Route(tenantID, jurisdiction, requestID string) (*RoutingDecision, error) {
 	e.mu.RLock()
 	defer e.mu.RUnlock()

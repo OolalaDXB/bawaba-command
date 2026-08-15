@@ -43,8 +43,8 @@ interface DataPlane {
 
 const DATA_PLANES: DataPlane[] = [
   { id: 'casa', code: 'ma', label: 'Casablanca', lat: 33.57, lng: -7.59, color: 'hsl(var(--safe))', pulseDelay: 0 },
-  { id: 'riyadh', code: 'sa', label: 'Riyadh', lat: 24.71, lng: 46.67, color: '#1D4ED8', pulseDelay: 0.75 },
-  { id: 'abudhabi', code: 'ae', label: 'Abu Dhabi', lat: 24.45, lng: 54.65, color: 'hsl(var(--accent))', pulseDelay: 1.5 },
+  { id: 'riyadh', code: 'sa', label: 'Riyadh', lat: 24.71, lng: 46.67, color: '#1D4ED8', pulseDelay: 0.75, labelAnchor: 'end' as const, labelX: -10, labelY: 4 },
+  { id: 'abudhabi', code: 'ae', label: 'Abu Dhabi', lat: 24.45, lng: 54.65, color: 'hsl(var(--accent))', pulseDelay: 1.5, labelAnchor: 'start' as const, labelX: 10, labelY: 4 },
   { id: 'frankfurt', code: 'fr', label: 'Frankfurt', lat: 50.11, lng: 8.68, color: 'hsl(var(--muted-foreground))', pulseDelay: 2.25 },
 ];
 
@@ -201,8 +201,9 @@ export default function SovereignMap({ jurisdictions, onNodeClick }: SovereignMa
 
               {/* Label */}
               <text
-                y={20}
-                textAnchor="middle"
+                x={(node as any).labelX ?? 0}
+                y={(node as any).labelY ?? 20}
+                textAnchor={(node as any).labelAnchor ?? 'middle'}
                 fill={node.color}
                 fontSize={12}
                 fontFamily="'DM Sans', sans-serif"

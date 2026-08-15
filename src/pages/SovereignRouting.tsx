@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
-import { ROUTING_NODES } from '@/lib/mock-data';
+import { ROUTING_NODES, getJurisdictionFlag } from '@/lib/mock-data';
 import {
+  addJurisdiction,
   fetchEvents,
   fetchJurisdictions,
   isApiAvailable,
@@ -170,6 +171,56 @@ function RouteExplainerPanel({ proof, onClose }: { proof: RoutingProofRow; onClo
   );
 }
 
+
+function AddJurisdictionForm({ onAdded, apiAvailable }: { onAdded: () => void; apiAvailable: boolean }) {
+  const [code, setCode] = useState('');
+  const [backend, setBackend] = useState('');
+  const [compliance, setCompliance] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState<string | null>(null);
+
+  if (!apiAvailable) return null;
+
+  const submit = async () => {
+    setBusy(true); setMsg(null);
+    try {
+      await addJurisdiction({
+        jurisdiction: code.trim().toLowerCase(),
+        backend: backend.trim(),
+        compliance: compliance.split(',').map(x => x.trim()).filter(Boolean),
+      });
+      setMsg(`${getJurisdictionFlag(code)} ${code.toLowerCase()} added — in-memory until restart (durable routing is P2).`);
+      setCode(''); setBackend(''); setCompliance('');
+      onAdded();
+    } catch (e) {
+      setMsg(e instanceof Error ? e.message : String(e));
+    }
+    setBusy(false);
+  };
+
+  return (
+    <div className="card-surface shadow-card p-4 mt-4">
+      <div className="text-sm font-body font-medium text-foreground mb-2">Add a jurisdiction</div>
+      <div className="flex flex-wrap gap-2 items-center">
+        <input value={code} onChange={e => setCode(e.target.value)} placeholder="code (qa, sg…)"
+          className="border border-border rounded-[4px] bg-background px-2 py-1 text-xs font-mono w-24" maxLength={2} />
+        <input value={backend} onChange={e => setBackend(e.target.value)} placeholder="sovereign backend (e.g. Ooredoo DC Doha)"
+          className="border border-border rounded-[4px] bg-background px-2 py-1 text-xs w-64" />
+        <input value={compliance} onChange={e => setCompliance(e.target.value)} placeholder="compliance tags, comma-separated"
+          className="border border-border rounded-[4px] bg-background px-2 py-1 text-xs w-56" />
+        <button onClick={submit} disabled={busy || code.trim().length !== 2 || !backend.trim()}
+          className="text-xs font-mono border border-border rounded-[6px] px-3 py-1 bg-primary text-primary-foreground disabled:opacity-50">
+          Add
+        </button>
+      </div>
+      <div className="text-[11px] text-muted-foreground mt-2">
+        Registered live in the router (audit-logged). Traffic for this code routes to the new backend immediately; map pins for new countries arrive with durable routing (P2).
+      </div>
+      {msg && <div className="text-xs text-ink-2 mt-1">{msg}</div>}
+    </div>
+  );
+}
+
 export default function SovereignRouting() {
   const [routingRules, setRoutingRules] = useState<RoutingRule[]>(MOCK_ROUTING_RULES);
   const [loading, setLoading] = useState(true);
@@ -290,6 +341,14 @@ export default function SovereignRouting() {
               </div>
             ))}
           </div>
+          <AddJurisdictionForm
+            apiAvailable={apiAvailable}
+            onAdded={() => {
+              fetchJurisdictions().then(jurisdictions => {
+                if (jurisdictions?.length) setRoutingRules(jurisdictions.map(mapJurisdictionToRule));
+              }).catch(() => {});
+            }}
+          />
         </div>
 
         <div className="col-span-7">

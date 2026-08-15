@@ -194,8 +194,10 @@ export const POLICY_RULES = [
 ];
 
 export function getJurisdictionFlag(code: string): string {
-  const flags: Record<string, string> = { ma: 'MA', sa: 'SA', ae: 'AE', fr: 'FR' };
-  return flags[code] || code.toUpperCase();
+  // Emoji flag from the ISO code via regional indicators (eu → 🇪🇺 works too).
+  const cc = code.trim().toLowerCase().slice(0, 2);
+  if (!/^[a-z]{2}$/.test(cc)) return code.toUpperCase();
+  return String.fromCodePoint(...[...cc].map(c => 0x1f1e6 + c.charCodeAt(0) - 97));
 }
 
 export function getJurisdictionName(code: string): string {

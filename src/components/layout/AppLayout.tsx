@@ -1,5 +1,6 @@
+import { useState } from 'react';
 import { Outlet, NavLink, useLocation } from 'react-router-dom';
-import { BarChart3, Shield, Scale, ScrollText, Fingerprint, Globe, Layers, Settings } from 'lucide-react';
+import { BarChart3, Shield, Scale, ScrollText, Fingerprint, Globe, Layers, Settings, Pin, PinOff } from 'lucide-react';
 import { useTheme, THEME_LABELS, type Theme } from '@/hooks/use-theme';
 
 const navItems = [
@@ -22,14 +23,26 @@ export default function AppLayout() {
     )?.label || 'Dashboard'
   );
 
+  const [pinned, setPinned] = useState(() => typeof window !== 'undefined' && localStorage.getItem('bawaba-sidebar-pinned') === '1');
+  const togglePin = () => {
+    setPinned(p => {
+      localStorage.setItem('bawaba-sidebar-pinned', p ? '0' : '1');
+      return !p;
+    });
+  };
+  // Pinned = expanded and pushing content; unpinned = icon rail that expands
+  // on hover as an overlay. The margin transition is the bridge between the
+  // two modes.
+  const labelCls = pinned ? 'opacity-100' : 'opacity-0 group-hover/sidebar:opacity-100';
+
   return (
     <div className="flex min-h-screen bg-background" style={{ minWidth: 1280 }}>
       {/* Sidebar */}
-      <nav className="group/sidebar fixed left-0 top-0 h-full w-14 hover:w-56 transition-all duration-300 ease-in-out bg-card border-r border-border z-50 flex flex-col overflow-hidden">
+      <nav className={`group/sidebar fixed left-0 top-0 h-full transition-all duration-300 ease-in-out bg-card border-r border-border z-50 flex flex-col overflow-hidden ${pinned ? 'w-56' : 'w-14 hover:w-56'}`}>
         {/* Logo */}
         <div className="h-14 flex items-center px-4 border-b border-border shrink-0">
           <span className="font-heading text-xl font-light whitespace-nowrap" style={{ letterSpacing: '3px' }}>
-            B<span className="inline opacity-0 group-hover/sidebar:opacity-100 transition-opacity duration-300">AWABA</span>
+            B<span className={`inline transition-opacity duration-300 ${labelCls}`}>AWABA</span>
           </span>
         </div>
 
@@ -49,7 +62,7 @@ export default function AppLayout() {
               }
             >
               <item.icon className="h-4 w-4 shrink-0" strokeWidth={1.5} />
-              <span className="opacity-0 group-hover/sidebar:opacity-100 transition-opacity duration-300 text-xs tracking-wide">
+              <span className={`transition-opacity duration-300 text-xs tracking-wide ${labelCls}`}>
                 {item.label}
               </span>
             </NavLink>
@@ -58,6 +71,16 @@ export default function AppLayout() {
 
         {/* Bottom */}
         <div className="border-t border-border py-3">
+          <button
+            onClick={togglePin}
+            title={pinned ? 'Unpin sidebar (hover to expand)' : 'Pin sidebar expanded'}
+            className="flex items-center gap-3 px-4 h-10 w-full text-muted-foreground hover:text-foreground hover:bg-secondary/50 transition-colors"
+          >
+            {pinned ? <PinOff className="h-4 w-4 shrink-0" strokeWidth={1.5} /> : <Pin className="h-4 w-4 shrink-0" strokeWidth={1.5} />}
+            <span className={`transition-opacity duration-300 text-xs tracking-wide whitespace-nowrap ${labelCls}`}>
+              {pinned ? 'Unpin menu' : 'Pin menu open'}
+            </span>
+          </button>
           <NavLink
             to="/settings"
             className={({ isActive }) =>
@@ -69,7 +92,7 @@ export default function AppLayout() {
             }
           >
             <Settings className="h-4 w-4 shrink-0" strokeWidth={1.5} />
-            <span className="opacity-0 group-hover/sidebar:opacity-100 transition-opacity duration-300 text-xs tracking-wide whitespace-nowrap">
+            <span className={`transition-opacity duration-300 text-xs tracking-wide whitespace-nowrap ${labelCls}`}>
               Settings
             </span>
           </NavLink>
@@ -77,7 +100,7 @@ export default function AppLayout() {
       </nav>
 
       {/* Main content area */}
-      <div className="flex-1 ml-14">
+      <div className={`flex-1 transition-[margin] duration-300 ${pinned ? 'ml-56' : 'ml-14'}`}>
         {/* Top bar */}
         <header className="h-14 border-b border-border flex items-center px-6 bg-card sticky top-0 z-40">
           <div className="flex items-center gap-2">

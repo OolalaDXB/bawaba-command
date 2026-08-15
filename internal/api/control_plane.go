@@ -292,3 +292,54 @@ func actorOf(r *http.Request) string {
 	}
 	return "operator"
 }
+
+// POST /api/v1/jurisdictions — add/replace a routing rule at runtime (P1).
+// In-memory (durable routing rules = P2, stated in meta); the addition is a
+// signed audit event like every control-plane mutation.
+func (s *Server) handleJurisdictionAdd(w http.ResponseWriter, r *http.Request) {
+	if s.router == nil {
+		writeError(w, http.StatusServiceUnavailable, "router engine not attached")
+		return
+	}
+	var body struct {
+		Jurisdiction string   `json:"jurisdiction"`
+		Backend      string   `json:"backend"`
+		Compliance   []string `json:"compliance"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid JSON body")
+		return
+	}
+	code := strings.ToLower(strings.TrimSpace(body.Jurisdiction))
+	if !regexp.MustCompile(`^[a-z]{2}$`).MatchString(code) {
+		writeError(w, http.StatusBadRequest, "jurisdiction must be a 2-letter code (e.g. qa, sg)")
+		return
+	}
+	if strings.TrimSpace(body.Backend) == "" {
+		writeError(w, http.StatusBadRequest, "backend is required (the sovereign data plane label)")
+		return
+	}
+
+	rule := config.RoutingRule{Jurisdiction: code, Backend: strings.TrimSpace(body.Backend), Compliance: body.Compliance}
+	s.router.AddRule(rule)
+	replaced := false
+	for i, existing := range s.cfg.Routing.Rules {
+		if existing.Jurisdiction == code {
+			s.cfg.Routing.Rules[i] = rule
+			replaced = true
+			break
+		}
+	}
+	if !replaced {
+		s.cfg.Routing.Rules = append(s.cfg.Routing.Rules, rule)
+	}
+
+	s.auditControlPlane("jurisdiction_add", "control-plane", code, "control_plane.jurisdiction_add", rule)
+	writeJSON(w, http.StatusCreated, envelope{
+		Data: rule,
+		Meta: map[string]interface{}{
+			"persistence": "in-memory — a gateway restart reloads the YAML routing rules (durable routing is P2)",
+			"timestamp":   time.Now().UTC().Format(time.RFC3339),
+		},
+	})
+}

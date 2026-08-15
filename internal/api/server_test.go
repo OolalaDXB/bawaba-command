@@ -18,6 +18,7 @@ import (
 	"github.com/OolalaDXB/bawaba-command/internal/auth"
 	"github.com/OolalaDXB/bawaba-command/internal/config"
 	"github.com/OolalaDXB/bawaba-command/internal/policy"
+	"github.com/OolalaDXB/bawaba-command/internal/router"
 	"github.com/OolalaDXB/bawaba-command/internal/store"
 )
 
@@ -93,7 +94,7 @@ func testServer(t *testing.T) (*Server, *httptest.Server) {
 	if err != nil {
 		t.Fatalf("audit trail: %v", err)
 	}
-	srv := NewServer(db, cfg, "", trail, policy.NewEngine(cfg.Agents), store.New(db), auth.NewEngine(), defaultLogger())
+	srv := NewServer(db, cfg, "", trail, policy.NewEngine(cfg.Agents), store.New(db), auth.NewEngine(), router.NewEngine(cfg.Routing, trail.PrivateKey()), defaultLogger())
 	ts := httptest.NewServer(srv.Handler())
 	t.Cleanup(func() { ts.Close() })
 	return srv, ts

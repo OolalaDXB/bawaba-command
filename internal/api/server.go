@@ -19,6 +19,7 @@ import (
 	"github.com/OolalaDXB/bawaba-command/internal/auth"
 	"github.com/OolalaDXB/bawaba-command/internal/config"
 	"github.com/OolalaDXB/bawaba-command/internal/policy"
+	"github.com/OolalaDXB/bawaba-command/internal/router"
 	"github.com/OolalaDXB/bawaba-command/internal/store"
 )
 
@@ -45,6 +46,7 @@ type Server struct {
 	policies   *policy.Engine
 	cp         *store.Store
 	authEng    *auth.Engine
+	router     *router.Engine
 	pubKey     ed25519.PublicKey
 	logger     *slog.Logger
 	startTime  time.Time
@@ -53,7 +55,7 @@ type Server struct {
 }
 
 // NewServer creates a new API server.
-func NewServer(db *sql.DB, cfg *config.Config, configPath string, trail *audit.Trail, policies *policy.Engine, cp *store.Store, authEng *auth.Engine, logger *slog.Logger) *Server {
+func NewServer(db *sql.DB, cfg *config.Config, configPath string, trail *audit.Trail, policies *policy.Engine, cp *store.Store, authEng *auth.Engine, routerEng *router.Engine, logger *slog.Logger) *Server {
 	s := &Server{
 		db:         db,
 		cfg:        cfg,
@@ -62,6 +64,7 @@ func NewServer(db *sql.DB, cfg *config.Config, configPath string, trail *audit.T
 		policies:   policies,
 		cp:         cp,
 		authEng:    authEng,
+		router:     routerEng,
 		pubKey:     trail.PublicKey(),
 		logger:     logger,
 		startTime:  time.Now(),
@@ -107,6 +110,7 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("PATCH /api/v1/agents/{id}", s.handleAgentPatch)
 	mux.HandleFunc("DELETE /api/v1/agents/{id}", s.handleAgentDelete)
 	mux.HandleFunc("GET /api/v1/jurisdictions", s.handleJurisdictions)
+	mux.HandleFunc("POST /api/v1/jurisdictions", s.handleJurisdictionAdd)
 	mux.HandleFunc("GET /api/v1/siem/status", s.handleSIEMStatus)
 
 	return Chain(mux,

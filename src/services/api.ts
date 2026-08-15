@@ -471,6 +471,15 @@ export async function fetchPolicyVersions(agentId: string): Promise<PolicyVersio
   return request(`/api/v1/policies/${encodeURIComponent(agentId)}/versions`);
 }
 
+
+export async function addJurisdiction(body: {
+  jurisdiction: string;
+  backend: string;
+  compliance: string[];
+}): Promise<{ jurisdiction: string; backend: string; compliance: string[] }> {
+  return request(`/api/v1/jurisdictions`, { method: 'POST', body: JSON.stringify(body) });
+}
+
 export async function fetchJurisdictions(): Promise<JurisdictionEntry[]> {
   return request<JurisdictionEntry[]>('/api/v1/jurisdictions');
 }
