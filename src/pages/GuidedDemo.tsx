@@ -437,7 +437,7 @@ export default function GuidedDemo() {
         <p>
           <b>Payment Assistant</b>{t.s1Body}
         </p>
-        <Button onClick={loadPolicy} disabled={busy}>{t.btnShowPolicy}</Button>
+        {s(0) === 'active' && <Button onClick={loadPolicy} disabled={busy}>{t.btnShowPolicy}</Button>}
       </Step>
 
       <Step n={2} title={t.s2Title} state={s(1)}>
@@ -455,7 +455,7 @@ export default function GuidedDemo() {
                 {policy.denied_tools.map(t => <div key={t} className="font-mono text-xs">{t}</div>)}
               </div>
             </div>
-            <Button onClick={() => steps.advance()} disabled={busy}>{t.btnGotIt}</Button>
+            {s(1) === 'active' && <Button onClick={() => steps.advance()} disabled={busy}>{t.btnGotIt}</Button>}
           </>
         )}
       </Step>
@@ -464,7 +464,7 @@ export default function GuidedDemo() {
         <p>
           {t.s3a}<code className="font-mono">execute_payment</code>{t.s3b}
         </p>
-        <Button onClick={runDenied} disabled={busy}>{busy ? t.btnCalling : t.btnRunDenied}</Button>
+        {s(2) === 'active' && <Button onClick={runDenied} disabled={busy}>{busy ? t.btnCalling : t.btnRunDenied}</Button>}
       </Step>
 
       <Step n={4} title={t.s4Title} state={s(3)}>
@@ -479,7 +479,7 @@ export default function GuidedDemo() {
               <code className="font-mono">{denyEvent.matched_rule}</code>{t.s5colon}
             </p>
             <EventCard title={t.cardDecision} event={denyEvent} />
-            <Button onClick={() => steps.advance()} disabled={busy}>{t.btnChangeRule}</Button>
+            {s(4) === 'active' && <Button onClick={() => steps.advance()} disabled={busy}>{t.btnChangeRule}</Button>}
           </>
         )}
       </Step>
@@ -489,13 +489,13 @@ export default function GuidedDemo() {
           {t.s6a}<code className="font-mono">execute_payment</code>{t.s6b}
           <code className="font-mono">policy_change</code>{t.s6c}
         </p>
-        <Button onClick={editPolicy} disabled={busy}>{busy ? t.btnApplying : t.btnAllow}</Button>
+        {s(5) === 'active' && <Button onClick={editPolicy} disabled={busy}>{busy ? t.btnApplying : t.btnAllow}</Button>}
         <p className="text-xs text-ink-3">{t.s6Note}</p>
       </Step>
 
       <Step n={7} title={t.s7Title} state={s(6)}>
         <p>{t.s7Body}</p>
-        <Button onClick={runAllowed} disabled={busy}>{busy ? t.btnCalling : t.btnRunAgain}</Button>
+        {s(6) === 'active' && <Button onClick={runAllowed} disabled={busy}>{busy ? t.btnCalling : t.btnRunAgain}</Button>}
       </Step>
 
       <Step n={8} title={t.s8Title} state={s(7)}>
@@ -515,7 +515,7 @@ export default function GuidedDemo() {
             <p className="text-xs text-ink-3">
               {t.s9Note}
             </p>
-            <Button onClick={() => steps.advance()} disabled={busy}>{t.btnProve}</Button>
+            {s(8) === 'active' && <Button onClick={() => steps.advance()} disabled={busy}>{t.btnProve}</Button>}
           </>
         )}
       </Step>
@@ -524,7 +524,7 @@ export default function GuidedDemo() {
         <p>
           {t.s10Body}
         </p>
-        <Button onClick={doVerify} disabled={busy}>{busy ? t.btnVerifying : t.btnVerify}</Button>
+        {s(9) === 'active' && <Button onClick={doVerify} disabled={busy}>{busy ? t.btnVerifying : t.btnVerify}</Button>}
         {verification && (
           <div className={`border rounded-[6px] p-3 text-sm font-mono ${verification.valid ? 'border-safe bg-safe-bg text-safe' : 'border-danger bg-danger-bg text-danger'}`}>
             {verification.valid
