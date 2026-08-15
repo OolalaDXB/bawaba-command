@@ -472,6 +472,19 @@ export async function fetchPolicyVersions(agentId: string): Promise<PolicyVersio
 }
 
 
+
+// ── P2 Demo Workspace ──────────────────────────────────────────────────────
+export interface WorkspaceAgent { agent_id: string; template: string; api_key: string }
+export interface DemoWorkspace { session_id: string; agents: WorkspaceAgent[]; expires_at: string }
+
+export async function createDemoWorkspace(): Promise<DemoWorkspace> {
+  return request(`/api/v1/demo/session`, { method: 'POST' });
+}
+
+export async function getDemoWorkspace(id: string): Promise<{ session_id: string; expired: boolean; expires_at: string }> {
+  return request(`/api/v1/demo/session/${encodeURIComponent(id)}`);
+}
+
 export async function addJurisdiction(body: {
   jurisdiction: string;
   backend: string;

@@ -111,6 +111,8 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("DELETE /api/v1/agents/{id}", s.handleAgentDelete)
 	mux.HandleFunc("GET /api/v1/jurisdictions", s.handleJurisdictions)
 	mux.HandleFunc("POST /api/v1/jurisdictions", s.handleJurisdictionAdd)
+	mux.HandleFunc("POST /api/v1/demo/session", s.handleDemoSessionCreate)
+	mux.HandleFunc("GET /api/v1/demo/session/{id}", s.handleDemoSessionGet)
 	mux.HandleFunc("GET /api/v1/siem/status", s.handleSIEMStatus)
 
 	return Chain(mux,

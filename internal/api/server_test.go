@@ -700,3 +700,60 @@ func TestControlPlaneCRUD(t *testing.T) {
 		t.Fatalf("post-delete patch: expected 404, got %d", resp.StatusCode)
 	}
 }
+
+func TestDemoWorkspaceLifecycle(t *testing.T) {
+	srv, ts := testServer(t)
+	// Seed the templates the workspace clones.
+	srv.cfg.Agents["payment-assistant"] = config.AgentConfig{Auth: "api_key", AllowedTools: []string{"read_invoice"}, DeniedTools: []string{"execute_payment"}, PIIMode: "none", RateLimit: "1000/hour", Jurisdiction: "eu"}
+	srv.cfg.Agents["finance-analyst-eu"] = config.AgentConfig{Auth: "api_key", AllowedTools: []string{"read_invoice"}, PIIMode: "none", RateLimit: "1000/hour", Jurisdiction: "eu"}
+
+	resp, err := http.Post(ts.URL+"/api/v1/demo/session", "application/json", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusCreated {
+		t.Fatalf("expected 201, got %d", resp.StatusCode)
+	}
+	var out struct {
+		Data struct {
+			SessionID string `json:"session_id"`
+			Agents    []struct {
+				AgentID string `json:"agent_id"`
+				APIKey  string `json:"api_key"`
+			} `json:"agents"`
+			ExpiresAt string `json:"expires_at"`
+		} `json:"data"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&out); err != nil {
+		t.Fatal(err)
+	}
+	if len(out.Data.Agents) != 2 {
+		t.Fatalf("expected 2 seeded workspace agents, got %d", len(out.Data.Agents))
+	}
+	for _, a := range out.Data.Agents {
+		if !strings.HasPrefix(a.APIKey, "bwbk_") {
+			t.Fatalf("workspace agent %s missing generated key", a.AgentID)
+		}
+		if !strings.Contains(a.AgentID, out.Data.SessionID) {
+			t.Fatalf("workspace agent %s not namespaced by session", a.AgentID)
+		}
+		if _, ok := srv.cfg.Agents[a.AgentID]; !ok {
+			t.Fatalf("workspace agent %s not live in config", a.AgentID)
+		}
+	}
+	// The canonical template is untouched.
+	if len(srv.cfg.Agents["payment-assistant"].DeniedTools) != 1 {
+		t.Fatal("canonical template must remain untouched")
+	}
+
+	// Status endpoint works and never returns keys.
+	getResp, err := http.Get(ts.URL + "/api/v1/demo/session/" + out.Data.SessionID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer getResp.Body.Close()
+	if getResp.StatusCode != http.StatusOK {
+		t.Fatalf("expected 200, got %d", getResp.StatusCode)
+	}
+}

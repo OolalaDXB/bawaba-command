@@ -138,3 +138,63 @@ func (s *Store) ListPolicyVersions(agentID string, limit int) ([]PolicyVersion, 
 	}
 	return out, rows.Err()
 }
+
+// ── P2 Demo Workspace sessions ──────────────────────────────────────────────
+
+// DemoSession is one ephemeral visitor workspace.
+type DemoSession struct {
+	SessionID string    `json:"session_id"`
+	AgentIDs  []string  `json:"agent_ids"`
+	CreatedAt time.Time `json:"created_at"`
+	ExpiresAt time.Time `json:"expires_at"`
+	Expired   bool      `json:"expired"`
+}
+
+// CreateDemoSession persists a new workspace row.
+func (s *Store) CreateDemoSession(sessionID string, agentIDs []string, ttl time.Duration) (DemoSession, error) {
+	now := time.Now().UTC()
+	ds := DemoSession{SessionID: sessionID, AgentIDs: agentIDs, CreatedAt: now, ExpiresAt: now.Add(ttl)}
+	_, err := s.db.Exec(`INSERT INTO demo_sessions (session_id, agent_ids, created_at, expires_at) VALUES ($1,$2,$3,$4)`,
+		sessionID, marshal(agentIDs), ds.CreatedAt, ds.ExpiresAt)
+	return ds, err
+}
+
+// GetDemoSession returns a workspace row.
+func (s *Store) GetDemoSession(sessionID string) (DemoSession, error) {
+	var ds DemoSession
+	var agents []byte
+	err := s.db.QueryRow(`SELECT session_id, agent_ids, created_at, expires_at, expired FROM demo_sessions WHERE session_id=$1`, sessionID).
+		Scan(&ds.SessionID, &agents, &ds.CreatedAt, &ds.ExpiresAt, &ds.Expired)
+	if err != nil {
+		return ds, err
+	}
+	_ = json.Unmarshal(agents, &ds.AgentIDs)
+	return ds, nil
+}
+
+// DueDemoSessions returns not-yet-expired-flagged sessions past their expiry.
+func (s *Store) DueDemoSessions() ([]DemoSession, error) {
+	rows, err := s.db.Query(`SELECT session_id, agent_ids, created_at, expires_at, expired FROM demo_sessions
+		WHERE expired = false AND expires_at < now()`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []DemoSession
+	for rows.Next() {
+		var ds DemoSession
+		var agents []byte
+		if err := rows.Scan(&ds.SessionID, &agents, &ds.CreatedAt, &ds.ExpiresAt, &ds.Expired); err != nil {
+			return nil, err
+		}
+		_ = json.Unmarshal(agents, &ds.AgentIDs)
+		out = append(out, ds)
+	}
+	return out, rows.Err()
+}
+
+// MarkDemoSessionExpired flags a workspace as torn down.
+func (s *Store) MarkDemoSessionExpired(sessionID string) error {
+	_, err := s.db.Exec(`UPDATE demo_sessions SET expired = true WHERE session_id=$1`, sessionID)
+	return err
+}

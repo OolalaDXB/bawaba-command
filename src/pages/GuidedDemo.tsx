@@ -13,6 +13,7 @@ import {
   type PolicyEntry,
 } from '@/services/api';
 import { Button } from '@/components/ui/button';
+import { resolveAgent, activeWorkspace } from '@/lib/demoWorkspace';
 
 /**
  * Guided Demo (P0) — a narrated path over the REAL engine (demo mandate §3).
@@ -22,8 +23,6 @@ import { Button } from '@/components/ui/button';
  * demo says so and stops. Honesty is the feature.
  */
 
-const AGENT_ID = 'payment-assistant';
-const AGENT_KEY = 'payment-key-33333'; // seeded demo key (docker-compose)
 const DENIED_TOOL = 'execute_payment';
 
 type StepState = 'locked' | 'active' | 'done';
@@ -36,9 +35,9 @@ function useStepper(count: number) {
 }
 
 /** Poll /events until a NEW event for our agent+tool appears (or timeout). */
-async function awaitRealEvent(tool: string, notBefore: string, eventTypes: string[]): Promise<ApiEvent> {
+async function awaitRealEvent(agentId: string, tool: string, notBefore: string, eventTypes: string[]): Promise<ApiEvent> {
   for (let attempt = 0; attempt < 20; attempt++) {
-    const res = await fetchEvents(1, 10, { agent: AGENT_ID });
+    const res = await fetchEvents(1, 10, { agent: agentId });
     const hit = res.events.find(
       e => e.tool === tool && e.timestamp > notBefore && eventTypes.includes(e.event_type),
     );
@@ -83,6 +82,9 @@ function Step({ n, title, state, children }: { n: number; title: string; state: 
 }
 
 export default function GuidedDemo() {
+  const pa = resolveAgent('payment-assistant', 'payment-assistant', 'payment-key-33333');
+  const AGENT_ID = pa.agentId;
+  const AGENT_KEY = pa.apiKey;
   const steps = useStepper(11);
   const [stackUp, setStackUp] = useState<boolean | null>(null);
   const [policy, setPolicy] = useState<PolicyEntry | null>(null);
@@ -125,7 +127,7 @@ export default function GuidedDemo() {
     guard(async () => {
       const before = new Date().toISOString();
       await runMcpToolCall(AGENT_KEY, DENIED_TOOL, { invoice_id: 'INV-2041', amount: 12500, currency: 'EUR' });
-      const evt = await awaitRealEvent(DENIED_TOOL, before, ['policy_deny', 'tool_call']);
+      const evt = await awaitRealEvent(AGENT_ID, DENIED_TOOL, before, ['policy_deny', 'tool_call']);
       setDenyEvent(evt);
       steps.advance(); // → decides
       steps.advance(); // → real why
@@ -145,7 +147,7 @@ export default function GuidedDemo() {
     guard(async () => {
       const before = new Date().toISOString();
       await runMcpToolCall(AGENT_KEY, DENIED_TOOL, { invoice_id: 'INV-2041', amount: 12500, currency: 'EUR' });
-      const evt = await awaitRealEvent(DENIED_TOOL, before, ['tool_call', 'policy_deny']);
+      const evt = await awaitRealEvent(AGENT_ID, DENIED_TOOL, before, ['tool_call', 'policy_deny']);
       if (evt.policy_result !== 'allow') throw new Error(`Expected ALLOW after the edit, the engine said "${evt.policy_result}" — check the policy state.`);
       setAllowEvent(evt);
       steps.advance(); // → allow
@@ -167,10 +169,11 @@ export default function GuidedDemo() {
       steps.advance();
     });
 
-  const FIN_AGENT_KEY = 'finance-key-44444';
+  const fin = resolveAgent('finance-analyst-eu', 'finance-analyst-eu', 'finance-key-44444');
+  const FIN_AGENT_KEY = fin.apiKey;
   const awaitFinanceEvent = async (notBefore: string) => {
     for (let i = 0; i < 20; i++) {
-      const res = await fetchEvents(1, 5, { agent: 'finance-analyst-eu' });
+      const res = await fetchEvents(1, 5, { agent: fin.agentId });
       const hit = res.events.find(e => e.tool === 'execute_payment' && e.timestamp > notBefore);
       if (hit) return hit;
       await new Promise(r => setTimeout(r, 400));
@@ -216,7 +219,13 @@ export default function GuidedDemo() {
       <div className="mb-2 text-xs font-mono uppercase tracking-widest text-ink-3">
         Guided Demo · real engine, real signatures · <Link to="/" className="text-primary">exit</Link>
       </div>
-      <h1 className="text-xl font-medium text-foreground mb-8">Follow one agent decision, end to end</h1>
+      <h1 className="text-xl font-medium text-foreground mb-2">Follow one agent decision, end to end</h1>
+      {activeWorkspace() && (
+        <div className="mb-6 text-xs font-mono text-primary">
+          Private workspace {activeWorkspace()!.session_id} — your edits touch YOUR agents only; everything expires at {new Date(activeWorkspace()!.expires_at).toLocaleTimeString()}.
+        </div>
+      )}
+      {!activeWorkspace() && <div className="mb-6" />}
 
       {error && (
         <div className="mb-6 border border-danger bg-danger-bg text-danger rounded-[6px] p-3 text-sm">{error}</div>

@@ -235,6 +235,11 @@ func main() {
 		}
 	}()
 
+	// P2: tear down expired demo workspaces every minute.
+	janitorCtx, janitorCancel := context.WithCancel(context.Background())
+	defer janitorCancel()
+	go apiSrv.RunWorkspaceJanitor(janitorCtx)
+
 	go func() {
 		logger.Info("REST API listening", "port", apiPort)
 		if err := apiServer.ListenAndServe(); err != http.ErrServerClosed {

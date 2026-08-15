@@ -11,6 +11,7 @@ import {
 } from '@/services/api';
 import { Button } from '@/components/ui/button';
 import { useEffect } from 'react';
+import { resolveAgent, activeWorkspace } from '@/lib/demoWorkspace';
 
 /**
  * Scenarios (P1, demo mandate §5/§9): really-triggerable flows on the live
@@ -156,6 +157,10 @@ function CrudPanel() {
 }
 
 export default function Scenarios() {
+  // Workspace-aware: the payment/finance scenarios run on YOUR clones when a
+  // private workspace is active; the shared seeded agents otherwise.
+  const pa = resolveAgent('payment-assistant', 'payment-assistant', KEYS['payment-assistant']);
+  const fin = resolveAgent('finance-analyst-eu', 'finance-analyst-eu', KEYS['finance-analyst-eu']);
   const [stackUp, setStackUp] = useState<boolean | null>(null);
   useEffect(() => { isApiAvailable().then(setStackUp); }, []);
 
@@ -175,10 +180,17 @@ export default function Scenarios() {
   return (
     <div className="max-w-4xl mx-auto px-6 py-8">
       <h1 className="text-lg font-medium text-foreground mb-1">Scenarios</h1>
-      <p className="text-xs text-ink-3 mb-6">
+      <p className="text-xs text-ink-3 mb-2">
         Each button triggers a REAL flow through the gateway; each card ends with a real server-side
         chain verification. Nothing here is simulated.
       </p>
+      {activeWorkspace() ? (
+        <div className="text-xs font-mono text-primary mb-6">
+          Private workspace {activeWorkspace()!.session_id}: payment/finance scenarios run on YOUR clones (PII, jurisdiction and rate-limit scenarios use the shared seeded agents).
+        </div>
+      ) : (
+        <div className="mb-6" />
+      )}
 
       <div className="grid md:grid-cols-2 gap-4">
         <ScenarioCard
@@ -187,8 +199,8 @@ export default function Scenarios() {
           action="Trigger the call"
           run={async () => {
             const t = stamp();
-            await runMcpToolCall(KEYS['payment-assistant'], 'execute_payment', { invoice_id: 'INV-7', amount: 100, currency: 'EUR' });
-            return { label: 'deny', events: await latestEvents('payment-assistant', t) };
+            await runMcpToolCall(pa.apiKey, 'execute_payment', { invoice_id: 'INV-7', amount: 100, currency: 'EUR' });
+            return { label: 'deny', events: await latestEvents(pa.agentId, t) };
           }}
         />
         <ScenarioCard
@@ -239,9 +251,9 @@ export default function Scenarios() {
           action="Try 25 000 then 9 000 EUR"
           run={async () => {
             const t = stamp();
-            await runMcpToolCall(KEYS['finance-analyst-eu'], 'execute_payment', { amount: 25000, currency: 'EUR' });
-            await runMcpToolCall(KEYS['finance-analyst-eu'], 'execute_payment', { amount: 9000, currency: 'EUR' });
-            return { label: 'conditional', events: await latestEvents('finance-analyst-eu', t, 2) };
+            await runMcpToolCall(fin.apiKey, 'execute_payment', { amount: 25000, currency: 'EUR' });
+            await runMcpToolCall(fin.apiKey, 'execute_payment', { amount: 9000, currency: 'EUR' });
+            return { label: 'conditional', events: await latestEvents(fin.agentId, t, 2) };
           }}
         />
         <ScenarioCard
@@ -249,7 +261,7 @@ export default function Scenarios() {
           description="Acknowledge the most recent event for finance-analyst-eu — the review is recorded against the real event."
           action="Acknowledge latest"
           run={async () => {
-            const res = await fetchEvents(1, 1, { agent: 'finance-analyst-eu' });
+            const res = await fetchEvents(1, 1, { agent: fin.agentId });
             const evt = res.events[0];
             if (!evt) throw new Error('Run scenario 5 first — no event to review.');
             await postEventReview(evt.event_id, 'acknowledge', 'scenario-visitor');
