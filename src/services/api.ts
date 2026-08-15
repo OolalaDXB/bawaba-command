@@ -428,8 +428,16 @@ export async function runMcpToolCall(
       params: { name: tool, arguments: args },
     }),
   });
-  if (!response.ok) throw new ApiError(`gateway request failed: ${response.status}`, response.status, `${GATEWAY_URL}/mcp`);
-  return response.json();
+  // A policy DENY (403), rate limit (429) or auth refusal (401) is an
+  // EXPECTED JSON-RPC outcome carrying the engine's real answer — not a
+  // transport failure. Only a non-JSON body (gateway down, proxy error)
+  // is thrown.
+  const text = await response.text();
+  try {
+    return JSON.parse(text);
+  } catch {
+    throw new ApiError(`gateway request failed: ${response.status}`, response.status, `${GATEWAY_URL}/mcp`);
+  }
 }
 
 
