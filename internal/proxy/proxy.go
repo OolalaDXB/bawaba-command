@@ -563,7 +563,29 @@ func (g *Gateway) NewHTTPHandler() http.Handler {
 	mux.HandleFunc("/mcp", g.ServeHTTP)
 	mux.HandleFunc("/", g.ServeHTTP)
 
-	return withLogging(g.logger, mux)
+	return withLogging(g.logger, withCORS(mux))
+}
+
+// withCORS mirrors the REST API's CORS posture on the MCP listener: the demo
+// console (any localhost dev port) calls /mcp straight from the browser, and
+// the preflight must answer before the JSON-RPC handler is reached. Policy
+// enforcement is untouched — CORS only lets the browser DELIVER the call;
+// auth, policy and rate limits still decide what happens to it.
+func withCORS(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		origin := r.Header.Get("Origin")
+		if strings.HasPrefix(origin, "http://localhost:") || strings.HasPrefix(origin, "http://127.0.0.1:") {
+			w.Header().Set("Access-Control-Allow-Origin", origin)
+		}
+		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
+		w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization, X-Bawaba-Key, X-Jurisdiction")
+		w.Header().Set("Access-Control-Max-Age", "86400")
+		if r.Method == http.MethodOptions {
+			w.WriteHeader(http.StatusNoContent)
+			return
+		}
+		next.ServeHTTP(w, r)
+	})
 }
 
 func withLogging(logger *slog.Logger, next http.Handler) http.Handler {
