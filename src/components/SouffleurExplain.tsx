@@ -36,14 +36,19 @@ export function SouffleurExplain({ eventId }: { eventId: string }) {
           onClick={explain}
           disabled={busy}
           title="The Souffleur — from the French for a theater prompter: it whispers what the record says. It never acts, never decides, never improvises."
+          className="gap-1.5"
         >
+          <img src="/souffleur-mark.png" alt="" className="w-4 h-4 object-contain" />
           {busy ? 'The Souffleur is reading the record…' : 'Explain (Souffleur)'}
         </Button>
       )}
       {error && <div className="text-xs text-ink-3 mt-1 leading-relaxed">{error}</div>}
       {result && (
         <div className="bg-background border border-border rounded-[4px] p-3 mt-1">
-          <p className="text-xs text-foreground leading-relaxed">{result.explanation}</p>
+          <div className="flex items-start gap-2">
+            <img src="/souffleur-mark.png" alt="Souffleur" className="w-5 h-5 object-contain mt-0.5 shrink-0" />
+            <p className="text-xs text-foreground leading-relaxed">{result.explanation}</p>
+          </div>
           <div className="text-[10px] font-mono text-ink-3 mt-2">
             translated from event {result.event_id} · fields: policy_result, matched_rule, policy_version (verbatim) · provider {result.provider}/{result.model} — the deterministic engine decided, the Souffleur only translated
           </div>
