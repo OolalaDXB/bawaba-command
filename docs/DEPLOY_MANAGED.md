@@ -19,12 +19,12 @@ via its **connection pooler**) is a config change, not a code change.
 2. Apply migrations 001 → 004 once against it (order matters):
    ```bash
    for f in migrations/001_audit_schema.sql migrations/002_demo_evidence.sql \
-            migrations/003_control_plane.sql migrations/004_demo_sessions.sql \
-            migrations/999_demo_seed.sql; do
+            migrations/003_control_plane.sql migrations/004_demo_sessions.sql; do
      psql "$SUPABASE_DB_URL" -f "$f"
    done
    ```
-   (999 is optional — pre-populated dashboards; fictional tenants only.)
+   (Do NOT load 999_demo_seed.sql: its fabricated audit rows make the real
+   chain verification fail. Dashboards fill with real events from the demo.)
 3. The `src/integrations/supabase/` client-SDK path in the console is legacy
    Lovable scaffolding and must NOT be used for control-plane data — the
    managed database is reached exclusively by the gateway.

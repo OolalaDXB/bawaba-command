@@ -1,4 +1,8 @@
--- Bawaba Demo Seed Data
+-- Bawaba Demo Seed Data — OPTIONAL, NOT loaded by docker-compose.
+-- These audit_events rows carry fabricated hashes/signatures: loading them
+-- makes the REAL chain verification fail (hash mismatch at index 0), which
+-- is exactly what the evidence demo must not do. Use only for throwaway
+-- dashboard screenshots, never where /api/v1/events/verify runs.
 -- Multi-jurisdiction: Morocco (MA), Saudi Arabia (SA), UAE (AE), France (FR)
 -- Realistic banking/fintech agents and tools
 

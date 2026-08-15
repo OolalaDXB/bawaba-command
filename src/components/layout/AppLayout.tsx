@@ -22,7 +22,7 @@ const T: Record<Lang, Record<string, string>> = {
     pinMenu: 'Pin menu open',
     tenant: 'Atlas Commercial Bank · Demo',
     themeAria: 'Theme',
-    banner: 'Demonstration Environment · Simulated Tenants, Events and Volumes · No Customer Data',
+    banner: 'Demonstration Environment · Real Engine, Real Signatures · No Customer Data',
   },
   fr: {
     navDashboard: 'Tableau de bord',
@@ -41,7 +41,7 @@ const T: Record<Lang, Record<string, string>> = {
     pinMenu: 'Épingler le menu',
     tenant: 'Atlas Commercial Bank · Démo',
     themeAria: 'Thème',
-    banner: 'Environnement de démonstration · Tenants, événements et volumes simulés · Aucune donnée client',
+    banner: 'Environnement de démonstration · Moteur réel, signatures réelles · Aucune donnée client',
   },
 };
 

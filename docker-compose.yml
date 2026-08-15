@@ -13,7 +13,6 @@ services:
       - ./migrations/002_demo_evidence.sql:/docker-entrypoint-initdb.d/002_demo_evidence.sql
       - ./migrations/003_control_plane.sql:/docker-entrypoint-initdb.d/003_control_plane.sql
       - ./migrations/004_demo_sessions.sql:/docker-entrypoint-initdb.d/004_demo_sessions.sql
-      - ./migrations/999_demo_seed.sql:/docker-entrypoint-initdb.d/999_demo_seed.sql
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U bawaba -d bawaba"]
       interval: 5s
