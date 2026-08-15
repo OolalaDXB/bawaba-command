@@ -379,7 +379,8 @@ export default function GuidedDemo() {
   const showLedger = () =>
     guard(async () => {
       try {
-        const res = await fetch('http://localhost:9090/ledger');
+        const LEDGER_URL = import.meta.env.VITE_LEDGER_URL || 'http://localhost:9090/ledger';
+        const res = await fetch(LEDGER_URL);
         const data = await res.json() as { payments: { payment_id: string; amount: number; currency: string }[] };
         if (!data.payments?.length) { setLedger(t.ledgerEmpty); return; }
         const last = data.payments[data.payments.length - 1];
