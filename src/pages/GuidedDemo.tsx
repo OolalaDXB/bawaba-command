@@ -69,6 +69,11 @@ const T: Record<Lang, Record<string, string>> = {
     btnRunAgain: 'Run execute_payment again',
     s8Title: 'BAWABA decides: ALLOW',
     s8Body: 'The same deterministic engine, applying the policy you just wrote.',
+    s8Ledger: 'And this time the call was REALLY forwarded: the backend ledger (a separate process, port 9090) now holds the payment. During the DENY, that process never heard the call — that asymmetry is enforcement.',
+    btnLedger: 'Show the backend ledger',
+    ledgerLine: '{n} payment(s) recorded — last: {id}, {amount} {cur}',
+    ledgerEmpty: 'No payments recorded yet in the backend ledger.',
+    ledgerDown: 'The backend ledger did not answer (is the backend container up?).',
     s9Title: 'Both decisions, side by side',
     cardBefore: 'Before your edit',
     cardAfter: 'After your edit',
@@ -146,6 +151,11 @@ const T: Record<Lang, Record<string, string>> = {
     btnRunAgain: 'Exécuter execute_payment à nouveau',
     s8Title: 'BAWABA décide : ALLOW',
     s8Body: 'Le même moteur déterministe, appliquant la politique que vous venez d’écrire.',
+    s8Ledger: 'Et cette fois l’appel a été RÉELLEMENT transmis : le ledger du backend (un processus séparé, port 9090) contient maintenant le paiement. Pendant le DENY, ce processus n’a jamais entendu l’appel — cette asymétrie, c’est l’enforcement.',
+    btnLedger: 'Voir le ledger du backend',
+    ledgerLine: '{n} paiement(s) enregistré(s) — dernier : {id}, {amount} {cur}',
+    ledgerEmpty: 'Aucun paiement encore enregistré dans le ledger du backend.',
+    ledgerDown: 'Le ledger du backend n’a pas répondu (le conteneur backend tourne-t-il ?).',
     s9Title: 'Les deux décisions, côte à côte',
     cardBefore: 'Avant votre modification',
     cardAfter: 'Après votre modification',
@@ -258,6 +268,7 @@ export default function GuidedDemo() {
   const [overEvent, setOverEvent] = useState<ApiEvent | null>(null);
   const [withinEvent, setWithinEvent] = useState<ApiEvent | null>(null);
   const [custom, setCustom] = useState<{ amount: number; event: ApiEvent } | null>(null);
+  const [ledger, setLedger] = useState<string | null>(null);
   const [customAmount, setCustomAmount] = useState('12500');
   const [ch2Verify, setCh2Verify] = useState<ChainVerification | null>(null);
   const [busy, setBusy] = useState(false);
@@ -364,6 +375,22 @@ export default function GuidedDemo() {
       const before = new Date().toISOString();
       await runMcpToolCall(FIN_AGENT_KEY, 'execute_payment', { amount, currency: 'EUR' });
       setCustom({ amount, event: await awaitFinanceEvent(before) });
+    });
+  const showLedger = () =>
+    guard(async () => {
+      try {
+        const res = await fetch('http://localhost:9090/ledger');
+        const data = await res.json() as { payments: { payment_id: string; amount: number; currency: string }[] };
+        if (!data.payments?.length) { setLedger(t.ledgerEmpty); return; }
+        const last = data.payments[data.payments.length - 1];
+        setLedger(t.ledgerLine
+          .replace('{n}', String(data.payments.length))
+          .replace('{id}', last.payment_id)
+          .replace('{amount}', String(last.amount))
+          .replace('{cur}', last.currency));
+      } catch {
+        setLedger(t.ledgerDown);
+      }
     });
   const ch2DoVerify = () => guard(async () => setCh2Verify(await verifyChain()));
 
@@ -472,6 +499,9 @@ export default function GuidedDemo() {
 
       <Step n={8} title={t.s8Title} state={s(7)}>
         <p>{t.s8Body}</p>
+        <p className="text-xs text-ink-3 leading-relaxed">{t.s8Ledger}</p>
+        <Button size="sm" variant="outline" onClick={showLedger} disabled={busy}>{t.btnLedger}</Button>
+        {ledger && <div className="text-xs font-mono text-safe">{ledger}</div>}
       </Step>
 
       <Step n={9} title={t.s9Title} state={s(8)}>

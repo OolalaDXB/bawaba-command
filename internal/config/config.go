@@ -17,6 +17,17 @@ type Config struct {
 	Signing  SigningConfig          `yaml:"signing"`
 	Quotas   QuotaConfig            `yaml:"quotas"`
 	SIEM     SIEMForwarderConfig    `yaml:"siem"`
+	// Upstreams are the REAL backend MCP servers the gateway forwards allowed
+	// tool calls to. A tool served by no upstream is refused explicitly —
+	// the gateway never fabricates a response (fail closed, mandate honesty).
+	Upstreams []UpstreamConfig `yaml:"upstreams"`
+}
+
+// UpstreamConfig maps a set of tools to a backend MCP server URL.
+type UpstreamConfig struct {
+	Name  string   `yaml:"name"`
+	URL   string   `yaml:"url"`
+	Tools []string `yaml:"tools"`
 }
 
 // QuotaConfig controls per-agent call quotas.

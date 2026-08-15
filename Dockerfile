@@ -28,6 +28,7 @@ RUN CGO_ENABLED=1 go build -o /build/bin/bawaba-gateway ./cmd/gateway/
 
 # Build CLI
 RUN CGO_ENABLED=0 go build -o /build/bin/bawaba-cli ./cmd/cli/
+RUN CGO_ENABLED=0 go build -o /build/bin/bawaba-demo-backend ./cmd/demo-backend/
 
 # Stage 3: Runtime
 FROM debian:bookworm-slim
@@ -39,6 +40,7 @@ WORKDIR /app
 
 COPY --from=go-builder /build/bin/bawaba-gateway /app/bawaba-gateway
 COPY --from=go-builder /build/bin/bawaba-cli /app/bawaba-cli
+COPY --from=go-builder /build/bin/bawaba-demo-backend /app/bawaba-demo-backend
 COPY --from=rust-builder /build/rust/tokenizer/target/release/libbawaba_tokenizer.so /usr/local/lib/
 
 # Ensure shared lib is found

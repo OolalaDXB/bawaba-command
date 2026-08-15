@@ -179,6 +179,7 @@ func main() {
 		logger.Warn("header jurisdiction override enabled (BAWABA_ALLOW_HEADER_JURISDICTION=true)")
 	}
 
+	upstreams := proxy.NewUpstreamResolver(cfg.Upstreams)
 	gateway := proxy.NewGateway(
 		authEngine,
 		policyEngine,
@@ -192,6 +193,8 @@ func main() {
 		allowHeaderJurisdiction,
 		cfg.Routing.Rules,
 	)
+	gateway.SetUpstreams(upstreams)
+	logger.Info("upstream forwarding enabled", "upstreams", len(cfg.Upstreams))
 
 	// Start MCP proxy server
 	port := cfg.Server.Port

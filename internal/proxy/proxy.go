@@ -63,7 +63,11 @@ type Gateway struct {
 	piiEnabled              bool
 	allowHeaderJurisdiction bool
 	validJurisdictions      map[string]bool
+	upstreams               *UpstreamResolver
 }
+
+// SetUpstreams attaches the real backend forwarding table (P4 enforcement).
+func (g *Gateway) SetUpstreams(r *UpstreamResolver) { g.upstreams = r }
 
 // NewGateway creates a new MCP gateway proxy.
 func NewGateway(
@@ -325,9 +329,33 @@ func (g *Gateway) handleToolsCall(w http.ResponseWriter, r *http.Request, req *J
 		return
 	}
 
-	// Step 6: Execute the tool (for P1, return a simulated response)
-	// In production, this forwards to the actual backend MCP server
-	toolResult := g.executeToolCall(params.Name, tokenizedArgs)
+	// Step 6: Execute the tool — REAL forwarding. Built-ins (echo/time) are
+	// gateway diagnostics; everything else goes to a configured upstream MCP
+	// backend or is refused explicitly. Nothing is simulated.
+	toolResult, upstreamName, execErr := g.executeToolCall(r.Context(), params.Name, tokenizedArgs)
+	if execErr != nil {
+		g.logger.Warn("tool execution failed", "agent", identity.AgentID, "tool", params.Name, "error", execErr)
+		g.logAuditEvent(audit.Event{
+			EventType:        "tool_error",
+			AgentID:          identity.AgentID,
+			TenantID:         identity.TenantID,
+			Jurisdiction:     routingDecision.Jurisdiction,
+			MCPServer:        upstreamName,
+			Tool:             params.Name,
+			ParamsHash:       hashParams(body),
+			PolicyResult:     "allow",
+			PolicyVersion:    decision.PolicyVersion,
+			MatchedRule:      decision.MatchedRule,
+			PIIMode:          piiMode,
+			EntitiesDetected: entitiesDetected,
+			TokensGenerated:  tokensGenerated,
+			ResponseStatus:   "502",
+			LatencyMS:        float64(time.Since(start).Milliseconds()),
+			RoutingProof:     routingDecision.Proof,
+		})
+		g.writeError(w, req.ID, -32006, fmt.Sprintf("Upstream error: %s", execErr))
+		return
+	}
 
 	// Step 7: De-tokenize response if needed
 	var responseStr string
@@ -345,7 +373,7 @@ func (g *Gateway) handleToolsCall(w http.ResponseWriter, r *http.Request, req *J
 		AgentID:          identity.AgentID,
 		TenantID:         identity.TenantID,
 		Jurisdiction:     routingDecision.Jurisdiction,
-		MCPServer:        routingDecision.Backend,
+		MCPServer:        firstNonEmpty(upstreamName, routingDecision.Backend),
 		Tool:             params.Name,
 		ParamsHash:       hashParams(body),
 		PolicyResult:     "allow",
@@ -463,16 +491,26 @@ func (g *Gateway) resolveJurisdiction(r *http.Request, identity *auth.AgentIdent
 	return j, nil
 }
 
-func (g *Gateway) executeToolCall(tool, args string) string {
-	// P1: Built-in test tools
+func (g *Gateway) executeToolCall(ctx context.Context, tool, args string) (result, upstream string, err error) {
+	// Gateway built-ins: diagnostics that never pretend to be a backend.
 	switch tool {
 	case "echo":
-		return args
+		return args, "gateway-builtin", nil
 	case "time":
-		return fmt.Sprintf(`{"time": "%s"}`, time.Now().UTC().Format(time.RFC3339))
-	default:
-		return fmt.Sprintf(`{"tool": "%s", "status": "executed", "args": %s}`, tool, args)
+		return fmt.Sprintf(`{"time": "%s"}`, time.Now().UTC().Format(time.RFC3339)), "gateway-builtin", nil
 	}
+	// Everything else must be served by a REAL upstream — or be refused.
+	if g.upstreams == nil || !g.upstreams.Serves(tool) {
+		return "", "", fmt.Errorf("no upstream backend serves tool %q — BAWABA fails closed instead of simulating a response", tool)
+	}
+	return g.upstreams.Forward(ctx, tool, args)
+}
+
+func firstNonEmpty(a, b string) string {
+	if a != "" {
+		return a
+	}
+	return b
 }
 
 func (g *Gateway) writeResult(w http.ResponseWriter, id interface{}, result interface{}) {

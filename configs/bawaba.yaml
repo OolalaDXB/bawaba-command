@@ -134,3 +134,10 @@ siem:
   endpoint: ""
   token: ""
   format: json
+
+# P4 — REAL upstream backends. Allowed calls are forwarded here; tools with
+# no upstream are refused explicitly (fail closed, never simulated).
+upstreams:
+  - name: demo-ledger
+    url: http://localhost:9090   # compose overrides via BAWABA_UPSTREAM_DEMO_LEDGER_URL
+    tools: [read_invoice, execute_payment, kyc-lookup]

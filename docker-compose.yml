@@ -26,6 +26,25 @@ services:
     networks:
       - backend
 
+  # P4 — REAL upstream backend: the invoice/payment ledger the gateway
+  # forwards allowed calls to. Deny = this process never hears the call.
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: bawaba-demo-backend
+    restart: unless-stopped
+    entrypoint: ["/app/bawaba-demo-backend"]
+    ports:
+      - "9090:9090"
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:9090/healthz || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+    networks:
+      - backend
+
   gateway:
     build:
       context: .
@@ -35,6 +54,8 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+      backend:
+        condition: service_started
     ports:
       - "8080:8080"
       - "8081:8081"
@@ -59,6 +80,8 @@ services:
       BAWABA_SOUFFLEUR_BASE_URL: ${BAWABA_SOUFFLEUR_BASE_URL:-}
       # P3 — public shareable demo: mutations restricted to -demo- workspace clones
       BAWABA_PUBLIC_DEMO: ${BAWABA_PUBLIC_DEMO:-}
+      # P4 — real upstream backend (enforcement: allow forwards, deny never arrives)
+      BAWABA_UPSTREAM_DEMO_LEDGER_URL: http://backend:9090
     volumes:
       - gateway_keys:/app/keys
     healthcheck:
