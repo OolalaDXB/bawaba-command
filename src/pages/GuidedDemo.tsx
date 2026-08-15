@@ -90,7 +90,11 @@ const T: Record<Lang, Record<string, string>> = {
     ch2Crumb: 'Chapter 2 · Conditional policy (real attribute engine)',
     ch2H: 'Beyond allow/deny: a payment limit',
     ch2a: ' may execute payments only inside a real conditional envelope: amount ≤ 10 000, currency EUR, jurisdiction EU. The engine evaluates the ACTUAL call arguments — the failed condition is named in ',
+    ch2You: 'Here YOU issue the exact MCP call an AI agent would issue in production — same bytes, same gateway. The engine judges the call, never the caller: it neither knows nor needs to know whether an AI or a human is behind it.',
     btnTry25: 'Try 25 000 EUR',
+    btnTryCustom: 'Try this amount',
+    amountLabel: 'Your amount (EUR)',
+    cardCustom: '{amount} EUR — the engine decides',
     btnTry9: 'Try 9 000 EUR',
     btnVerifyChain: 'Verify chain',
     card25: '25 000 EUR — outside the envelope',
@@ -163,7 +167,11 @@ const T: Record<Lang, Record<string, string>> = {
     ch2Crumb: 'Chapitre 2 · Politique conditionnelle (moteur d’attributs réel)',
     ch2H: 'Au-delà d’allow/deny : un plafond de paiement',
     ch2a: ' ne peut exécuter des paiements que dans une enveloppe conditionnelle réelle : montant ≤ 10 000, devise EUR, juridiction UE. Le moteur évalue les arguments RÉELS de l’appel — la condition en échec est nommée dans ',
+    ch2You: 'Ici, c’est VOUS qui émettez l’appel MCP exact qu’un agent IA émettrait en production — mêmes octets, même passerelle. Le moteur juge l’appel, jamais l’appelant : il ne sait pas, et n’a pas besoin de savoir, si une IA ou un humain est derrière.',
     btnTry25: 'Essayer 25 000 EUR',
+    btnTryCustom: 'Essayer ce montant',
+    amountLabel: 'Votre montant (EUR)',
+    cardCustom: '{amount} EUR — décision du moteur',
     btnTry9: 'Essayer 9 000 EUR',
     btnVerifyChain: 'Vérifier la chaîne',
     card25: '25 000 EUR — hors de l’enveloppe',
@@ -249,6 +257,8 @@ export default function GuidedDemo() {
   const [reviewed, setReviewed] = useState<string | null>(null);
   const [overEvent, setOverEvent] = useState<ApiEvent | null>(null);
   const [withinEvent, setWithinEvent] = useState<ApiEvent | null>(null);
+  const [custom, setCustom] = useState<{ amount: number; event: ApiEvent } | null>(null);
+  const [customAmount, setCustomAmount] = useState('12500');
   const [ch2Verify, setCh2Verify] = useState<ChainVerification | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -346,6 +356,14 @@ export default function GuidedDemo() {
       const before = new Date().toISOString();
       await runMcpToolCall(FIN_AGENT_KEY, 'execute_payment', { amount: 9000, currency: 'EUR' });
       setWithinEvent(await awaitFinanceEvent(before));
+    });
+  const runCustom = () =>
+    guard(async () => {
+      const amount = Number(customAmount);
+      if (!Number.isFinite(amount) || amount <= 0) return;
+      const before = new Date().toISOString();
+      await runMcpToolCall(FIN_AGENT_KEY, 'execute_payment', { amount, currency: 'EUR' });
+      setCustom({ amount, event: await awaitFinanceEvent(before) });
     });
   const ch2DoVerify = () => guard(async () => setCh2Verify(await verifyChain()));
 
@@ -509,14 +527,29 @@ export default function GuidedDemo() {
           <p className="text-sm text-ink-2 leading-relaxed mb-3">
             <b>Finance Analyst EU</b>{t.ch2a}<code className="font-mono">matched_rule</code>.
           </p>
+          <p className="text-xs text-ink-3 leading-relaxed mb-3">
+            {t.ch2You}
+          </p>
           <div className="flex gap-2 mb-4">
             <Button onClick={runOver} disabled={busy}>{t.btnTry25}</Button>
             <Button onClick={runWithin} disabled={busy || !overEvent}>{t.btnTry9}</Button>
+            <span className="inline-flex items-center gap-1.5 ml-2">
+              <input
+                type="number"
+                min="1"
+                value={customAmount}
+                onChange={e => setCustomAmount(e.target.value)}
+                aria-label={t.amountLabel}
+                className="border border-border rounded-[4px] bg-background px-2 py-1.5 text-xs font-mono w-28"
+              />
+              <Button variant="outline" onClick={runCustom} disabled={busy || !customAmount.trim()}>{t.btnTryCustom}</Button>
+            </span>
             {withinEvent && <Button variant="outline" onClick={ch2DoVerify} disabled={busy}>{t.btnVerifyChain}</Button>}
           </div>
           <div className="grid md:grid-cols-2 gap-3">
             {overEvent && <EventCard title={t.card25} event={overEvent} />}
             {withinEvent && <EventCard title={t.card9} event={withinEvent} />}
+            {custom && <EventCard title={t.cardCustom.replace('{amount}', custom.amount.toLocaleString('fr-FR'))} event={custom.event} />}
           </div>
           {ch2Verify && (
             <div className={`mt-3 border rounded-[6px] p-3 text-sm font-mono ${ch2Verify.valid ? 'border-safe bg-safe-bg text-safe' : 'border-danger bg-danger-bg text-danger'}`}>
